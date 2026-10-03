@@ -35,7 +35,7 @@ env:
   GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
   GRADER_LLM_PROVIDER: gemini
   STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
-  GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL }}
+  GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-2.5-flash' }}
 
 jobs:
   grade:
