@@ -48,7 +48,8 @@ jobs:
     permissions:
       contents: read
     env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
       STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
       GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL }}
     steps:
@@ -62,7 +63,7 @@ jobs:
         env:
           HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
         run: |
-          test -n "${OPENAI_API_KEY:-}" || exit 2
+          test -n "${GEMINI_API_KEY:-}" || exit 2
           test -n "${HIDDEN_SEED:-}" || exit 2
       - run: python build_runtime_image.py
       - name: Generate identical hidden pack
