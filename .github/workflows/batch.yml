@@ -1,0 +1,81 @@
+name: Grade Batch
+
+on:
+  workflow_dispatch:
+    inputs:
+      network_profile:
+        description: Runtime network profile
+        required: true
+        default: isolated
+        type: choice
+        options: [isolated, compat]
+      max_parallel:
+        description: Number of projects graded in parallel
+        required: true
+        default: '2'
+        type: choice
+        options: ['1', '2', '3']
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      projects: ${{ steps.read.outputs.projects }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        shell: python
+        run: |
+          import csv, json, os
+          rows=list(csv.DictReader(open('submission_groups.csv', encoding='utf-8-sig', newline='')))
+          projects=[r['project_id'] for r in rows if r.get('project_id') and r.get('repo_url')]
+          with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as f:
+              f.write('projects='+json.dumps(projects)+'\n')
+
+  grade:
+    needs: matrix
+    if: ${{ needs.matrix.outputs.projects != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.max_parallel) }}
+      matrix:
+        project_id: ${{ fromJSON(needs.matrix.outputs.projects) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Validate secrets
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "${OPENAI_API_KEY:-}" || exit 2
+          test -n "${HIDDEN_SEED:-}" || exit 2
+      - run: python build_runtime_image.py
+      - name: Generate identical hidden pack
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Grade
+        run: python evaluate.py --project "${{ matrix.project_id }}" --runtime --network-profile "${{ inputs.network_profile }}"
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grader-${{ matrix.project_id }}-${{ github.run_id }}
+          path: reports/${{ matrix.project_id }}/
+          if-no-files-found: warn
+          retention-days: 30

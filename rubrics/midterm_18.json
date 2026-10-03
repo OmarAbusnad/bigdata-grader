@@ -1,0 +1,18 @@
+{
+  "name": "Midterm Big Data Pipeline",
+  "status": "DRAFT_DISABLED",
+  "total": 18.0,
+  "note": "هذا الملف غير معتمد للتصحيح الآلي بعد. يجب إدخال Rubric النصفي الرسمي كما تم تسليمه للطلاب قبل تفعيل الاحتساب. لا يجوز استخدام هذا التوزيع التجريبي لإعطاء درجات.",
+  "items": [
+    {"key": "architecture_router", "label": "Architecture + File Router", "points": 1.5},
+    {"key": "python_batch", "label": "Python Batch", "points": 2.0},
+    {"key": "pyspark", "label": "PySpark", "points": 3.0},
+    {"key": "raw_elt", "label": "ELT + orders_raw", "points": 2.0},
+    {"key": "cleaning_audit", "label": "Cleaning + Audit Trail", "points": 2.5},
+    {"key": "quarantine", "label": "Quarantine", "points": 1.5},
+    {"key": "upsert_idempotency", "label": "Upsert + Idempotency", "points": 2.0},
+    {"key": "metrics_consistency", "label": "Metrics + Consistency", "points": 1.0},
+    {"key": "code_tests_docs", "label": "Code + Tests + README", "points": 1.0},
+    {"key": "advanced_track", "label": "Advanced Track", "points": 1.5}
+  ]
+}

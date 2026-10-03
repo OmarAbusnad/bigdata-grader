@@ -1,0 +1,30 @@
+version: 4
+principles:
+  - behavior_first
+  - no_grade_from_static_presence_only
+  - do_not_penalize_infrastructure_failures
+  - freeze_commit_before_evaluation
+  - manual_review_for_low_confidence_execution_plan
+  - student_code_never_runs_on_grader_host
+  - teacher_oracle_never_mounted_into_student_container
+plan_resolution:
+  llm_required_for_automatic_execution: true
+  confidence_threshold: 0.80
+  low_confidence_action: manual_review
+sandbox:
+  backend: docker
+  default_network_profile: isolated
+  no_new_privileges: true
+  cap_drop_all: true
+  cpu_limit: 2.0
+  memory_limit: 6g
+  pids_limit: 512
+  timeout_seconds: 1200
+  dedicated_mongodb_per_project: true
+  localhost_mongo_compatibility_proxy: true
+runtime:
+  verify_database_state_directly: true
+  hidden_tests_read_only: true
+  teacher_oracle_host_only: true
+  repeated_run_idempotency_test: true
+  preserve_logs: true

@@ -1,0 +1,92 @@
+name: Grade Pilot Project
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_id:
+        description: Project ID from submission_groups.csv (example P18)
+        required: true
+        type: string
+      network_profile:
+        description: isolated is safer; compat allows outbound access for runtime dependency resolution
+        required: true
+        default: isolated
+        type: choice
+        options: [isolated, compat]
+      plan_b:
+        description: Run incremental Plan B test
+        required: true
+        default: false
+        type: boolean
+      keep_sandbox:
+        description: Keep Docker sandbox for debugging (pilot only)
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bigdata-grader-pilot
+  cancel-in-progress: false
+
+env:
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
+  GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL }}
+
+jobs:
+  grade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install grader dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Validate required secrets
+        shell: bash
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          set -euo pipefail
+          test -n "${OPENAI_API_KEY:-}" || { echo "OPENAI_API_KEY secret is required"; exit 2; }
+          test -n "${HIDDEN_SEED:-}" || { echo "GRADER_HIDDEN_SEED secret is required"; exit 2; }
+
+      - name: Build restricted student runtime image
+        run: python build_runtime_image.py
+
+      - name: Generate hidden tests for this run
+        shell: bash
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+
+      - name: Environment doctor
+        run: python doctor.py
+
+      - name: Grade project
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARGS=(--project "${{ inputs.project_id }}" --runtime --network-profile "${{ inputs.network_profile }}")
+          if [[ "${{ inputs.plan_b }}" == "true" ]]; then ARGS+=(--plan-b); fi
+          if [[ "${{ inputs.keep_sandbox }}" == "true" ]]; then ARGS+=(--keep-sandbox); fi
+          python evaluate.py "${ARGS[@]}"
+
+      - name: Upload grading report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grader-${{ inputs.project_id }}-${{ github.run_id }}
+          path: |
+            reports/${{ inputs.project_id }}/
+          if-no-files-found: warn
+          retention-days: 30

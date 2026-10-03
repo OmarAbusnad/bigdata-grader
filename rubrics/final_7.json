@@ -1,0 +1,14 @@
+{
+  "name": "Final Extension",
+  "status": "ACTIVE",
+  "total": 7.0,
+  "items": [
+    {"key": "queries_indexes_explain", "label": "Queries + Indexes + Explain", "points": 1.5},
+    {"key": "aggregations", "label": "Aggregations", "points": 1.5},
+    {"key": "materialized_views", "label": "Materialized Views", "points": 1.5},
+    {"key": "scheduled_jobs", "label": "Scheduled Jobs", "points": 1.0},
+    {"key": "unified_api", "label": "Unified API / Testing Interface", "points": 0.75},
+    {"key": "github_readme", "label": "GitHub + README / Organization", "points": 0.50},
+    {"key": "discussion_understanding", "label": "Discussion / Understanding", "points": 0.25}
+  ]
+}

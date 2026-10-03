@@ -1,0 +1,8 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: bigdata-grader-mongo
+    ports:
+      - "27017:27017"
+    tmpfs:
+      - /data/db

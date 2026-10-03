@@ -1,0 +1,24 @@
+name: Build Student Practice Pack
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate deterministic public practice data
+        run: python datasets/generate_practice_data.py
+      - name: Upload practice pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: BigData-Student-Practice-Small-Only
+          path: datasets/practice/generated/BigData_Student_Practice_Small_Only.zip
+          retention-days: 90

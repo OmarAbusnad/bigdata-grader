@@ -1,0 +1,27 @@
+name: Freeze Submission Commits
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
+
+jobs:
+  freeze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python freeze_submissions.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frozen-submissions-${{ github.run_id }}
+          path: frozen_submissions.csv
+          retention-days: 90

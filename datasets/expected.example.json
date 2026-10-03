@@ -1,0 +1,7 @@
+{
+  "threshold_mb": 20,
+  "business_key": "order_id",
+  "test_01": {"file": "test_01_small_batch_pipeline.csv", "input": 20000, "validated": 17000, "quarantine": 3000},
+  "test_02": {"file": "test_02_large_spark.csv", "input": 100000, "validated": 100000, "quarantine": 0},
+  "test_03": {"file": "test_03_upsert_idempotency.csv", "final_validated": 17600, "duplicates_after_rerun": 0}
+}
