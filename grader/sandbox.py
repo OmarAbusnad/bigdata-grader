@@ -130,14 +130,19 @@ class DockerSandbox:
             s.bind(("127.0.0.1", 0))
             host_port = int(s.getsockname()[1])
 
+        # Start Mongo on Docker's normal bridge so the grader host can reach the
+        # loopback-published port. Then attach Mongo to the student's internal
+        # network with alias "mongo". The student runner stays on the internal
+        # network only, so it still has no outbound Internet access.
         mongo_args = [
-            "docker", "run", "-d", "--rm", "--name", self.mongo_name, "--network", self.network,
-            "--network-alias", "mongo", "-p", f"127.0.0.1:{host_port}:27017/tcp",
+            "docker", "run", "-d", "--rm", "--name", self.mongo_name,
+            "-p", f"127.0.0.1:{host_port}:27017/tcp",
             "--memory", "2g", "--cpus", "1.0", "--pids-limit", "256",
             "--security-opt", "no-new-privileges:true", "--cap-drop", "ALL", "--cap-add", "CHOWN", "--cap-add", "SETGID", "--cap-add", "SETUID",
             self.config.mongo_image, "--bind_ip_all"
         ]
         self._run(mongo_args, check=True)
+        self._run(["docker", "network", "connect", "--alias", "mongo", self.network, self.mongo_name], check=True)
         self._wait_mongo()
         self.mongo_host_port = host_port
         self.mongo_host_uri = f"mongodb://127.0.0.1:{self.mongo_host_port}"
