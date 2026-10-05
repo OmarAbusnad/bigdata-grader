@@ -19,19 +19,50 @@ def cmd_version(cmd):
 
 base = Path(__file__).resolve().parent
 docker_ok, docker_detail = docker_available()
+hidden_dir = base / "datasets" / "hidden"
+expected_file = base / "datasets" / "expected.json"
+
 checks = {
     "python": cmd_version([shutil.which("python") or "python", "--version"]),
     "git": cmd_version(["git", "--version"]) if shutil.which("git") else {"ok": False, "output": "git not found"},
     "docker": {"ok": docker_ok, "output": docker_detail},
-    "openai_api_key": {"ok": bool(os.getenv("OPENAI_API_KEY")), "output": "configured" if os.getenv("OPENAI_API_KEY") else "not configured"},
-    "hidden_generator": {"ok": (base / "datasets" / "generate_hidden_tests.py").exists(), "output": str(base / "datasets" / "generate_hidden_tests.py")},
-    "practice_dataset": {"ok": (base / "datasets" / "practice" / "01_student_test_small.csv").exists(), "output": str(base / "datasets" / "practice" / "01_student_test_small.csv")},
+    "gemini_api_key": {
+        "ok": bool(os.getenv("GEMINI_API_KEY")),
+        "output": "configured" if os.getenv("GEMINI_API_KEY") else "not configured",
+    },
+    "hidden_generator": {
+        "ok": (base / "datasets" / "generate_hidden_tests.py").exists(),
+        "output": str(base / "datasets" / "generate_hidden_tests.py"),
+    },
+    "hidden_tests": {
+        "ok": (hidden_dir / "test_01_small_batch_pipeline.csv").exists(),
+        "output": str(hidden_dir),
+    },
+    "expected_results": {
+        "ok": expected_file.exists(),
+        "output": str(expected_file),
+    },
+    "practice_dataset": {
+        "ok": (base / "datasets" / "practice" / "01_student_test_small.csv").exists(),
+        "output": "optional for grading; generated/distributed separately",
+    },
     "runtime_image": {"ok": False, "output": "not checked"},
 }
+
 if docker_ok:
     checks["runtime_image"] = cmd_version(["docker", "image", "inspect", "bigdata-grader/student-runtime:4.1"])
 
 print(json.dumps(checks, ensure_ascii=False, indent=2))
-required = ["python", "git", "docker", "hidden_generator", "practice_dataset"]
+
+required = [
+    "python",
+    "git",
+    "docker",
+    "gemini_api_key",
+    "hidden_generator",
+    "hidden_tests",
+    "expected_results",
+    "runtime_image",
+]
 if not all(checks[k]["ok"] for k in required):
     raise SystemExit(2)
