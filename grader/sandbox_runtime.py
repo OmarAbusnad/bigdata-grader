@@ -79,7 +79,12 @@ def run_behavioral_suite(
 
     safe_pid = "".join(c if c.isalnum() else "_" for c in project_id).lower()
     effective_db = f"grader_{safe_pid}" if plan.database_configurable else (plan.database_name or f"grader_{safe_pid}")
-    threshold = float(plan.threshold_mb or oracle.threshold_mb)
+    # Hidden discussion datasets are calibrated around the instructor's
+    # recommended threshold (currently 20 MB). If the student's threshold is
+    # configurable, drive the project with that discussion threshold so Test 01
+    # proves Batch and Test 02 proves Spark. Only fall back to the student's
+    # hard-coded threshold when it is not configurable.
+    threshold = float(oracle.threshold_mb if plan.threshold_configurable else (plan.threshold_mb or oracle.threshold_mb))
 
     sb = DockerSandbox(base, project_id, repo, inputs_dir, sandbox_config)
     report: dict[str, Any] = {
