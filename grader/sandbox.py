@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import textwrap
 import time
@@ -121,20 +122,24 @@ class DockerSandbox:
         if not ok:
             raise SandboxError(f"Docker unavailable: {detail}")
         self._run(["docker", "network", "create"] + (["--internal"] if self.config.network_profile == "isolated" else []) + [self.network], check=True)
+        # Reserve a concrete loopback port before starting Mongo. Docker 28 on
+        # GitHub-hosted runners may accept 127.0.0.1::27017 but fail to expose
+        # a discoverable mapping via `docker port`. Using an explicit port keeps
+        # the database host-only while making the grader-side URI deterministic.
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("127.0.0.1", 0))
+            host_port = int(s.getsockname()[1])
+
         mongo_args = [
             "docker", "run", "-d", "--rm", "--name", self.mongo_name, "--network", self.network,
-            "--network-alias", "mongo", "-p", "127.0.0.1::27017",
+            "--network-alias", "mongo", "-p", f"127.0.0.1:{host_port}:27017/tcp",
             "--memory", "2g", "--cpus", "1.0", "--pids-limit", "256",
             "--security-opt", "no-new-privileges:true", "--cap-drop", "ALL", "--cap-add", "CHOWN", "--cap-add", "SETGID", "--cap-add", "SETUID",
             self.config.mongo_image, "--bind_ip_all"
         ]
         self._run(mongo_args, check=True)
         self._wait_mongo()
-        port = self._run(["docker", "port", self.mongo_name, "27017/tcp"], timeout=20, check=True).stdout.strip()
-        m = re.search(r"127\.0\.0\.1:(\d+)", port) or re.search(r":(\d+)$", port)
-        if not m:
-            raise SandboxError(f"Unable to resolve MongoDB host port: {port}")
-        self.mongo_host_port = int(m.group(1))
+        self.mongo_host_port = host_port
         self.mongo_host_uri = f"mongodb://127.0.0.1:{self.mongo_host_port}"
         self._started = True
         return {"network": self.network, "mongo": self.mongo_name, "profile": self.config.network_profile, "host_port": self.mongo_host_port}
