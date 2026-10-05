@@ -3,6 +3,10 @@ name: Grade Batch
 on:
   workflow_dispatch:
     inputs:
+      freeze_run_id:
+        description: Run ID from "Freeze & Prepare Submissions"
+        required: true
+        type: string
       network_profile:
         description: Runtime network profile
         required: true
@@ -18,6 +22,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   matrix:
@@ -26,14 +31,34 @@ jobs:
       projects: ${{ steps.read.outputs.projects }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download frozen manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: frozen-manifest-${{ inputs.freeze_run_id }}
+          path: freeze_manifest
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.freeze_run_id }}
+
       - id: read
         shell: python
         run: |
-          import csv, json, os
-          rows=list(csv.DictReader(open('submission_groups.csv', encoding='utf-8-sig', newline='')))
-          projects=[r['project_id'] for r in rows if r.get('project_id') and r.get('repo_url')]
-          with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as f:
-              f.write('projects='+json.dumps(projects)+'\n')
+          import csv, json, os, sys
+          path = 'freeze_manifest/frozen_submissions.csv'
+          rows = list(csv.DictReader(open(path, encoding='utf-8-sig', newline='')))
+          ready = [r['project_id'] for r in rows if r.get('project_id') and r.get('freeze_status') == 'READY']
+          failed = [
+              {'project_id': r.get('project_id'), 'error': r.get('freeze_error')}
+              for r in rows if r.get('project_id') and r.get('freeze_status') != 'READY'
+          ]
+          print(f'Ready frozen projects: {len(ready)}')
+          if failed:
+              print('Freeze failures (excluded from grading):')
+              for item in failed:
+                  print(f"  {item['project_id']}: {item['error']}")
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
+              f.write('projects=' + json.dumps(ready) + '\n')
 
   grade:
     needs: matrix
@@ -47,31 +72,68 @@ jobs:
     timeout-minutes: 120
     permissions:
       contents: read
+      actions: read
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GRADER_LLM_PROVIDER: gemini
-      STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
-      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL }}
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-2.5-flash' }}
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: pip
-      - run: python -m pip install -r requirements.txt
+
+      - name: Install grader dependencies
+        run: python -m pip install -r requirements.txt
+
       - name: Validate secrets
         env:
           HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
         run: |
           test -n "${GEMINI_API_KEY:-}" || exit 2
           test -n "${HIDDEN_SEED:-}" || exit 2
-      - run: python build_runtime_image.py
+
+      - name: Download frozen manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: frozen-manifest-${{ inputs.freeze_run_id }}
+          path: freeze_manifest
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.freeze_run_id }}
+
+      - name: Download frozen project snapshot
+        uses: actions/download-artifact@v4
+        with:
+          name: frozen-${{ matrix.project_id }}-${{ inputs.freeze_run_id }}
+          path: frozen_project
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.freeze_run_id }}
+
+      - name: Restore immutable repository snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "workspaces/${{ matrix.project_id }}/repo"
+          tar -xzf "frozen_project/${{ matrix.project_id }}.repo.tar.gz" -C "workspaces/${{ matrix.project_id }}"
+          cp freeze_manifest/frozen_submissions.csv frozen_submissions.csv
+
+      - name: Build restricted student runtime image
+        run: python build_runtime_image.py
+
       - name: Generate identical hidden pack
         env:
           HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
         run: python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
-      - name: Grade
-        run: python evaluate.py --project "${{ matrix.project_id }}" --runtime --network-profile "${{ inputs.network_profile }}"
+
+      - name: Grade frozen project
+        run: |
+          python evaluate.py             --project "${{ matrix.project_id }}"             --submissions frozen_submissions.csv             --workspace "workspaces/${{ matrix.project_id }}/repo"             --runtime             --network-profile "${{ inputs.network_profile }}"
+
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4
