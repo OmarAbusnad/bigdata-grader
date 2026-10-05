@@ -31,7 +31,13 @@ def resolve_execution_plan(
     plan, agent = analyze_repository_with_llm(repo, heuristic)
     conf = float(agent.get("confidence", 0.0) or 0.0)
     if agent.get("status") != "OK":
-        conf = 0.70 if heuristic.ingest_command else 0.20
+        # AI is advisory. A transient provider outage must never downgrade a
+        # strong deterministic execution plan or block safe runtime testing.
+        conf = float(getattr(heuristic, "confidence", 0.0) or 0.0)
+        if not heuristic.ingest_command:
+            conf = min(conf, 0.20)
+        agent["fallback_used"] = "heuristic"
+        agent["fallback_confidence"] = conf
 
     plan, override_evidence = apply_instructor_override(plan, override)
     if override:
