@@ -83,7 +83,7 @@ def main() -> int:
         "grader_version": "4.1.0",
         "project_id": project_id,
         "repo_url": repo_url,
-        "commit_sha": current_commit(repo),
+        "commit_sha": current_commit(repo) or selected_ref or "",
         "repository_path": str(repo),
         "plan_resolution": resolution,
         "execution_plan": plan.to_dict(),
