@@ -1,4 +1,4 @@
-name: Freeze Submission Commits
+name: Freeze & Prepare Submissions
 
 on:
   workflow_dispatch:
@@ -10,18 +10,67 @@ env:
   STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
 
 jobs:
-  freeze:
+  matrix:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    outputs:
+      projects: ${{ steps.read.outputs.projects }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        shell: python
+        run: |
+          import csv, json, os
+          rows = list(csv.DictReader(open('submission_groups.csv', encoding='utf-8-sig', newline='')))
+          projects = [r['project_id'] for r in rows if r.get('project_id') and r.get('repo_url')]
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
+              f.write('projects=' + json.dumps(projects) + '\n')
+
+  freeze:
+    needs: matrix
+    if: ${{ needs.matrix.outputs.projects != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        project_id: ${{ fromJSON(needs.matrix.outputs.projects) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: python -m pip install -r requirements.txt
-      - run: python freeze_submissions.py
-      - uses: actions/upload-artifact@v4
+      - name: Freeze repository
+        run: python freeze_submissions.py --project "${{ matrix.project_id }}" --output-dir frozen
+      - name: Upload frozen repository snapshot
+        uses: actions/upload-artifact@v4
         with:
-          name: frozen-submissions-${{ github.run_id }}
-          path: frozen_submissions.csv
+          name: frozen-${{ matrix.project_id }}-${{ github.run_id }}
+          path: |
+            frozen/${{ matrix.project_id }}.metadata.json
+            frozen/${{ matrix.project_id }}.repo.tar.gz
+          if-no-files-found: warn
+          retention-days: 90
+
+  manifest:
+    needs: [matrix, freeze]
+    if: ${{ always() && needs.matrix.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: frozen-*-${{ github.run_id }}
+          path: frozen_downloads
+          merge-multiple: true
+      - name: Build frozen manifest
+        run: |
+          python freeze_submissions.py             --build-manifest             --artifacts-dir frozen_downloads             --output frozen_submissions.csv
+      - name: Upload frozen manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: frozen-manifest-${{ github.run_id }}
+          path: |
+            frozen_submissions.csv
+            freeze_summary.json
           retention-days: 90
