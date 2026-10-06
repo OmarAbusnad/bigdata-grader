@@ -64,3 +64,11 @@ def test_capabilities_do_not_turn_inconclusive_into_zero():
     }}
     caps = derive_midterm_capabilities(runtime, {'has_readme':True,'has_requirements':True,'has_tests':True})
     assert caps['python_batch'] is None
+
+
+def test_engine_detection_explicit_router_beats_spark_trace():
+    stdout = "القرار: استخدام محرك [Python Batch] لأن الملف صغير.\n"
+    stderr = "SparkSession org.apache.spark unresolved dependency"
+    engine, evidence = detect_engine(stdout, stderr, None, [])
+    assert engine == "python_batch"
+    assert any("console-explicit" in x for x in evidence)
