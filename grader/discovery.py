@@ -60,12 +60,24 @@ def _python_invocation(repo: Path, script_path: str) -> str:
         text,
         re.M,
     ))
+
+    # Bare sibling imports such as "from file_router import ..." require
+    # script execution so the script directory remains on sys.path.
     for root in imported_roots:
-        root_at_repo = (repo / root).exists() or (repo / f"{root}.py").exists()
-        root_beside_script = (script_dir / root).exists() or (script_dir / f"{root}.py").exists()
-        if root_at_repo and not root_beside_script:
-            module = normalized[:-3].replace("/", ".")
-            return f"python -m {module}"
+        if (script_dir / root).exists() or (script_dir / f"{root}.py").exists():
+            if root not in {"src", "config"}:
+                return f"python {normalized}"
+
+    # Package/root imports such as "from src..." or "from config..." are safer
+    # in module mode when the script itself does not explicitly add repo root.
+    explicitly_adds_root = "sys.path.insert" in text or "sys.path.append" in text
+    if not explicitly_adds_root:
+        for root in imported_roots:
+            root_at_repo = (repo / root).exists() or (repo / f"{root}.py").exists()
+            root_beside_script = (script_dir / root).exists() or (script_dir / f"{root}.py").exists()
+            if root_at_repo and not root_beside_script:
+                module = normalized[:-3].replace("/", ".")
+                return f"python -m {module}"
 
     return f"python {normalized}"
 
