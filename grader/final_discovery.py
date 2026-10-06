@@ -12,6 +12,13 @@ def _read(path: Path, limit: int = 120_000) -> str:
         return ""
 
 
+def _read_readme(repo: Path, limit: int = 250_000) -> tuple[str, str | None]:
+    for path in sorted(repo.iterdir(), key=lambda p: p.name.lower()):
+        if path.is_file() and path.name.lower() == "readme.md":
+            return _read(path, limit), path.name
+    return "", None
+
+
 def _iter_python(repo: Path):
     for path in sorted(repo.rglob("*.py")):
         if any(part in {".git", ".venv", "venv", "__pycache__", "node_modules"} for part in path.parts):
@@ -83,7 +90,7 @@ def discover_final_plan(repo_path: str | Path) -> dict[str, Any]:
         api_target = _module_target(repo, chosen, app_name)
 
     corpus = "\n".join(all_text)
-    readme = _read(repo / "README.md", 250_000)
+    readme, readme_name = _read_readme(repo, 250_000)
     requirements = _read(repo / "requirements.txt", 100_000)
     env_example_exists = (repo / ".env.example").is_file() or (repo / "example.env").is_file()
     lower_req = requirements.lower()
@@ -106,6 +113,7 @@ def discover_final_plan(repo_path: str | Path) -> dict[str, Any]:
 
     static = {
         "has_readme": bool(readme.strip()),
+        "readme_file": readme_name,
         "has_requirements": bool(requirements.strip()),
         "has_env_example": env_example_exists,
         "fastapi_declared": "fastapi" in lower_req,
