@@ -1,4 +1,5 @@
 import unittest
+import tempfile
 from pathlib import Path
 from grader.discovery import discover_execution_plan
 
@@ -25,6 +26,62 @@ class DiscoveryTests(unittest.TestCase):
         self.assertIn("--threshold-mb", p.ingest_command)
         self.assertTrue(p.threshold_configurable)
         self.assertEqual(p.spark_master, "local[*]")
+
+    def test_cli_alias_file_path(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            (repo / "src").mkdir()
+            (repo / "src" / "main.py").write_text(
+                "import argparse\np=argparse.ArgumentParser()\np.add_argument('--file-path')\n"
+                "if __name__ == '__main__': p.parse_args()\n",
+                encoding="utf-8",
+            )
+            p = discover_execution_plan(repo)
+            self.assertIn("--file-path {file}", p.ingest_command)
+
+    def test_required_run_subcommand(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            (repo / "src").mkdir()
+            (repo / "src" / "main.py").write_text(
+                "import argparse\np=argparse.ArgumentParser()\n"
+                "s=p.add_subparsers(dest='cmd', required=True)\n"
+                "r=s.add_parser('run')\nr.add_argument('--input')\n"
+                "if __name__ == '__main__': p.parse_args()\n",
+                encoding="utf-8",
+            )
+            p = discover_execution_plan(repo)
+            self.assertIn(" run --input {file}", p.ingest_command)
+
+    def test_short_file_alias_prefers_declared_f(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            (repo / "src").mkdir()
+            (repo / "src" / "main.py").write_text(
+                "import argparse\np=argparse.ArgumentParser()\n"
+                "p.add_argument('-f', '--file')\n"
+                "if __name__ == '__main__': p.parse_args()\n",
+                encoding="utf-8",
+            )
+            p = discover_execution_plan(repo)
+            self.assertIn("--file {file}", p.ingest_command)
+
+    def test_root_wrapper_resolves_src_main(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            (repo / "src").mkdir()
+            (repo / "main.py").write_text(
+                "from src.main import main\nif __name__ == '__main__': main()\n",
+                encoding="utf-8",
+            )
+            (repo / "src" / "main.py").write_text(
+                "import argparse\ndef main():\n p=argparse.ArgumentParser(); p.add_argument('--input'); p.parse_args()\n"
+                "if __name__ == '__main__': main()\n",
+                encoding="utf-8",
+            )
+            p = discover_execution_plan(repo)
+            self.assertEqual(p.entrypoint, "src/main.py")
+            self.assertIn("--input {file}", p.ingest_command)
 
 if __name__ == "__main__":
     unittest.main()
