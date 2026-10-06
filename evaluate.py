@@ -51,15 +51,29 @@ def main() -> int:
     project_id = args.project_id
     repo_url = args.repo_url or ""
     selected_ref = args.ref
+    submission_row = None
 
     if args.project:
         row = find_submission(base / args.submissions, args.project)
+        submission_row = row
         project_id = row["project_id"]
         repo_url = row["repo_url"]
         selected_ref = selected_ref or row.get("commit_sha") or row.get("ref") or None
 
     if args.workspace:
         repo = Path(args.workspace).resolve()
+        if submission_row:
+            subdir = (submission_row.get("workspace_subdir") or "").strip().replace("\\", "/")
+            if subdir:
+                subpath = Path(subdir)
+                if subpath.is_absolute() or ".." in subpath.parts:
+                    p.error(f"Unsafe workspace_subdir for {project_id}: {subdir}")
+                candidate = (repo / subpath).resolve()
+                if repo not in candidate.parents and candidate != repo:
+                    p.error(f"workspace_subdir escapes frozen repository for {project_id}: {subdir}")
+                if not candidate.exists() or not candidate.is_dir():
+                    p.error(f"workspace_subdir not found for {project_id}: {subdir}")
+                repo = candidate
     else:
         if not repo_url:
             p.error("Provide --project, --repo-url, or --workspace")
