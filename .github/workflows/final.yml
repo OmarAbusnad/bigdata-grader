@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       project_id:
-        description: Optional single project ID for a pilot (leave blank to grade all)
+        description: Optional project ID(s), comma-separated (leave blank to grade all)
         required: false
         default: ''
         type: string
@@ -57,9 +57,12 @@ jobs:
           ready = [r['project_id'] for r in rows if r.get('project_id') and r.get('freeze_status') == 'READY']
           requested = os.environ.get('REQUESTED_PROJECT_ID', '').strip()
           if requested:
-              if requested not in ready:
-                  raise SystemExit(f'Requested project {requested} is not READY in the selected freeze run.')
-              ready = [requested]
+              requested_ids = [x.strip().upper() for x in requested.split(',') if x.strip()]
+              missing = [x for x in requested_ids if x not in ready]
+              if missing:
+                  raise SystemExit(f'Requested project(s) not READY in the selected freeze run: {missing}')
+              ready = requested_ids
+              print(f'Selected project subset: {", ".join(ready)}')
           print(f'Final grading projects: {len(ready)}')
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
               f.write('projects=' + json.dumps(ready) + '\n')
