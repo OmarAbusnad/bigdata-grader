@@ -34,6 +34,47 @@ def _assertion(key: str, label: str, verdict: str, *, expected: Any = None, actu
     }
 
 
+def _classify_startup_failure(repo: Path, service_run: dict[str, Any]) -> dict[str, Any]:
+    """Use deterministic evidence first; keep AI out of root-cause classification when rules suffice."""
+    stdout = str(service_run.get("stdout") or "")
+    stderr = str(service_run.get("stderr") or "")
+    text = stdout + "\n" + stderr
+    if service_run.get("timed_out"):
+        return {"code": "TIMEOUT", "evidence": ["service startup timed out"]}
+
+    m = re.search(r"ModuleNotFoundError:\s*No module named ['\"]([^'\"]+)['\"]", text)
+    if m:
+        module = m.group(1)
+        top = module.split(".", 1)[0]
+        local = (repo / f"{top}.py").is_file() or (repo / top / "__init__.py").is_file()
+        requirements = ""
+        try:
+            requirements = (repo / "requirements.txt").read_text(encoding="utf-8-sig", errors="replace").lower()
+        except Exception:
+            pass
+        declared = bool(re.search(rf"(?m)^\s*{re.escape(top.lower())}(?:\s|[<>=!~\[]|$)", requirements))
+        if not local and not declared:
+            return {
+                "code": "STUDENT_DEPENDENCY_FAILURE",
+                "evidence": [f"missing module: {module}", f"{top} not declared in requirements.txt"],
+            }
+        return {
+            "code": "STUDENT_CONFIGURATION_FAILURE",
+            "evidence": [f"module import failed: {module}"],
+        }
+
+    if re.search(r"SyntaxError|IndentationError", text):
+        return {"code": "STUDENT_CODE_FAILURE", "evidence": ["Python syntax/import-time error"]}
+    if re.search(r"ImportError:", text):
+        return {"code": "STUDENT_CONFIGURATION_FAILURE", "evidence": ["ImportError during API startup"]}
+    if re.search(r"Address already in use|port.*already", text, re.I):
+        return {"code": "GRADER_INFRA_FAILURE", "evidence": ["port collision in sandbox"]}
+    return {
+        "code": "STUDENT_CONFIGURATION_OR_DEPENDENCY_FAILURE",
+        "evidence": ["server did not become ready; no narrower deterministic rule matched"],
+    }
+
+
 def _blocked_assertions(reason: str) -> list[dict[str, Any]]:
     """Dependent final checks are blocked when runtime readiness was not achieved."""
     specs = [
@@ -522,7 +563,8 @@ def run_final_suite(
         probe["semantic_normalization"] = semantic
 
         if not probe.get("server_ready"):
-            reason = "STUDENT_CONFIGURATION_OR_DEPENDENCY_FAILURE"
+            classified = _classify_startup_failure(repo, service_run)
+            reason = str(classified.get("code") or "STUDENT_CONFIGURATION_OR_DEPENDENCY_FAILURE")
             startup = _assertion(
                 "final.api.server", "FastAPI server starts in a clean environment", "FAIL",
                 expected=True, actual=False,
@@ -540,6 +582,7 @@ def run_final_suite(
             return {
                 "status": "STARTUP_BLOCKED",
                 "root_cause": reason,
+                "root_cause_evidence": classified.get("evidence") or [],
                 "runtime_ready": False,
                 "assertions": assertions,
                 "assertion_counts": counts,
