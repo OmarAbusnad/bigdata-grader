@@ -192,12 +192,28 @@ def _command_from_entry(repo: Path, entrypoint: str | None) -> tuple[str | None,
     return cmd, reset_cmd, threshold_configurable, database_configurable
 
 def _detect_setup_command(repo: Path, readme: str) -> str | None:
-    # Prefer an explicitly documented Mongo/init command.
+    # Prefer an explicitly documented executable command. Never treat README
+    # directory trees or prose containing a filename ending in ".py " as "py".
     command_lines = []
     for line in readme.splitlines():
-        s = line.strip().strip('`')
-        if re.search(r"(?:python|py)\s+", s, re.I) and re.search(r"mongo_setup|setup_mongo|init_db|init_project|setup\.py", s, re.I):
-            command_lines.append(s)
+        text = line.strip().strip('`').strip()
+        if any(x in text for x in ["│", "├", "└", "─", "|--", "+--"]):
+            continue
+        text = re.sub(r"^\$\s*", "", text)
+        # The interpreter must start the line; substring matches inside ".py"
+        # are forbidden.
+        if not re.match(r"^(?:python(?:3)?|py)\s+", text, re.I):
+            continue
+        if not re.search(r"mongo_setup|setup_mongo|init_db|init_project|setup\.py", text, re.I):
+            continue
+        text = re.sub(r"\s+#.*$", "", text).strip()
+        m = re.match(r"^(?:python(?:3)?|py)\s+(?:-m\s+)?([^\s]+)", text, re.I)
+        if not m:
+            continue
+        target = m.group(1).replace("\\", "/")
+        if target.endswith(".py") and not (repo / target).is_file():
+            continue
+        command_lines.append(text)
     if command_lines:
         return command_lines[0]
     candidates = [
