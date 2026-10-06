@@ -67,8 +67,14 @@ def static_checks(repo_path: str | Path) -> dict:
         if 'tests' in p.parts and (p.name.startswith('test_') or p.name.endswith('_test.py'))
     ]
 
+    readme_candidates = [
+        p for p in repo.iterdir()
+        if p.is_file() and p.name.lower() == "readme.md"
+    ]
+    readme_name = readme_candidates[0].name if readme_candidates else None
+
     checks = {
-        'has_readme': (repo / 'README.md').exists(),
+        'has_readme': bool(readme_candidates),
         'has_requirements': (repo / 'requirements.txt').exists(),
         'has_batch_loader': bool(batch_files),
         'has_spark_loader': bool(spark_files),
@@ -81,7 +87,7 @@ def static_checks(repo_path: str | Path) -> dict:
     }
 
     evidence = {
-        'has_readme': ['README.md'] if checks['has_readme'] else [],
+        'has_readme': [readme_name] if readme_name else [],
         'has_requirements': ['requirements.txt'] if checks['has_requirements'] else [],
         'has_batch_loader': [rel(p) for p in batch_files[:8]],
         'has_spark_loader': [rel(p) for p in spark_files[:8]],
