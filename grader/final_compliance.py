@@ -12,6 +12,8 @@ import requests
 META_KEYS = {
     "status", "success", "message", "detail", "count", "total", "meta", "metadata",
     "name", "id", "key", "type", "elapsed", "duration", "timestamp",
+    "title", "description", "query_name", "report_name", "aggregation_name", "job_name",
+    "label", "method", "endpoint",
 }
 
 
