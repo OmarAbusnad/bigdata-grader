@@ -510,6 +510,8 @@ def run_final_suite(
     *, base: Path, project_id: str, repo: Path, hidden_dir: Path,
     execution_plan, final_plan: dict[str, Any], sandbox_config: SandboxConfig,
     timeout: int = 1200, keep_sandbox: bool = False,
+    shared_sandbox: DockerSandbox | None = None,
+    manage_sandbox: bool = True,
 ) -> dict[str, Any]:
     assertions = []
     api_target = str(final_plan.get("api_target") or "")
@@ -530,13 +532,15 @@ def run_final_suite(
     (hidden_dir / "final_api_probe.py").write_text(_probe_python(), encoding="utf-8")
     (hidden_dir / "run_final_api.sh").write_text(_probe_shell(), encoding="utf-8")
 
-    sb = DockerSandbox(base, f"{project_id}-final", repo, hidden_dir, sandbox_config)
+    sb = shared_sandbox or DockerSandbox(base, f"{project_id}-final", repo, hidden_dir, sandbox_config)
+    if shared_sandbox is not None:
+        sb.hidden_dir = hidden_dir
     probe = {}
     service_run = {}
     host_evidence = {}
 
     try:
-        build = sb.build()
+        build = sb.build() if manage_sandbox else {"ok": True, "shared": True, "image": sb.image_name}
         if not build.get("ok"):
             return {
                 "status": "COMPLETED_WITH_FAILURES",
@@ -554,7 +558,10 @@ def run_final_suite(
                 "assertion_counts": {"PASS": 0, "FAIL": 1, "INCONCLUSIVE": len(_blocked_assertions("x")), "ERROR": 0},
             }
 
-        sb.start()
+        if manage_sandbox:
+            sb.start()
+        if not sb.mongo_host_uri:
+            raise RuntimeError("Shared sandbox was not started before final suite")
         sb.reset_database(db_name)
 
         if execution_plan.setup_command:
@@ -958,7 +965,7 @@ def run_final_suite(
         assertions.append(_assertion("final.runtime.exception", "Final runtime suite", "ERROR",
                                      expected="suite completes", actual=f"{type(exc).__name__}: {exc}"))
     finally:
-        if not keep_sandbox:
+        if manage_sandbox and not keep_sandbox:
             sb.cleanup()
 
     counts = {k: 0 for k in ["PASS", "FAIL", "INCONCLUSIVE", "ERROR"]}
