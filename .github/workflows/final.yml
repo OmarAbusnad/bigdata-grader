@@ -81,6 +81,9 @@ jobs:
       contents: read
       actions: read
     env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
       PYTHONUNBUFFERED: 1
 
     steps:
