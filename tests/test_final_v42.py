@@ -323,3 +323,45 @@ def test_recovery_agent_is_called_for_discovery_failure():
         "cases": [{"name": "batch_pipeline", "command": "python main.py", "run": {"returncode": 1, "stderr_tail": "EOFError"}}],
     }
     assert "EOFError" in _runtime_command_failure_context(runtime)
+
+
+def test_requirements_utf16_platform_fallback(tmp_path: Path):
+    from grader.sandbox import _write_compat_requirements
+
+    src = tmp_path / "requirements.txt"
+    dst = tmp_path / "compat.txt"
+    src.write_text("pymongo==4.17.0\npywin32==311\n", encoding="utf-16")
+    skipped = _write_compat_requirements(src, dst)
+    text = dst.read_text(encoding="utf-8")
+    assert skipped == ["pywin32"]
+    assert "pymongo==4.17.0" in text
+    assert "\x00" not in text
+
+
+def test_lowercase_readme_final_discovery_and_contract(tmp_path: Path):
+    from grader.final_discovery import discover_final_plan
+    from grader.final_compliance import readme_contract
+
+    (tmp_path / "readme.md").write_text(
+        """
+Install: pip install -r requirements.txt
+Run: uvicorn src.api:app --host 127.0.0.1 --port 8000
+FastAPI /health /docs
+Queries, Indexes, Explain executionStats
+Aggregation reports
+Materialized Views
+Scheduled Jobs
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "requirements.txt").write_text("fastapi\nuvicorn\n", encoding="utf-8")
+    (tmp_path / ".env.example").write_text("MONGO_URI=mongodb://localhost\n", encoding="utf-8")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "api.py").write_text("from fastapi import FastAPI\napp=FastAPI()\n", encoding="utf-8")
+    plan = discover_final_plan(tmp_path)
+    contract = readme_contract(tmp_path)
+    assert plan["api_target"] == "src.api:app"
+    assert plan["static"]["has_readme"] is True
+    assert plan["static"]["readme_file"] == "readme.md"
+    assert contract["readme_file"] == "readme.md"
+    assert contract["covered_topics"] == contract["required_topics"]
