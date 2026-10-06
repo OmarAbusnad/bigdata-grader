@@ -38,7 +38,18 @@ def clone_repository(repo_url: str, destination: Path, ref: str | None = None, t
 
 
 def current_commit(repo_path: Path) -> str | None:
+    repo_path = Path(repo_path).resolve()
+    # Frozen snapshots intentionally exclude .git. Do not let git walk up into
+    # the grader repository and accidentally report the grader commit as the
+    # student's commit.
+    if not (repo_path / ".git").exists():
+        return None
     try:
-        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo_path, text=True, stderr=subprocess.DEVNULL).strip()
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_path,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
     except Exception:
         return None
