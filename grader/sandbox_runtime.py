@@ -79,13 +79,16 @@ def run_behavioral_suite(
     timeout: int = 1200,
     plan_b: bool = False,
     keep_sandbox: bool = False,
+    shared_sandbox: DockerSandbox | None = None,
+    student_inputs_dir: Path | None = None,
+    manage_sandbox: bool = True,
 ) -> dict[str, Any]:
     """Behavior-first midterm suite in Docker with host-side independent Mongo verification."""
     if not plan.ingest_command:
         return {"status": "MANUAL_REVIEW_REQUIRED", "reason": "No ingest command resolved"}
 
     _live(f"{project_id}: preparing student-visible hidden inputs")
-    inputs_dir = base / "sandboxes" / project_id / "input_view"
+    inputs_dir = Path(student_inputs_dir) if student_inputs_dir is not None else (base / "sandboxes" / project_id / "input_view")
     input_names = _copy_input_view(hidden_dir, oracle, inputs_dir)
 
     safe_pid = "".join(c if c.isalnum() else "_" for c in project_id).lower()
@@ -97,7 +100,9 @@ def run_behavioral_suite(
     # hard-coded threshold when it is not configurable.
     threshold = float(oracle.threshold_mb if plan.threshold_configurable else (plan.threshold_mb or oracle.threshold_mb))
 
-    sb = DockerSandbox(base, project_id, repo, inputs_dir, sandbox_config)
+    sb = shared_sandbox or DockerSandbox(base, project_id, repo, inputs_dir, sandbox_config)
+    if shared_sandbox is not None:
+        sb.hidden_dir = inputs_dir
     report: dict[str, Any] = {
         "status": "STARTING",
         "grading_mode": "behavior_first_sandboxed",
@@ -112,15 +117,19 @@ def run_behavioral_suite(
     mongo: MongoChecker | None = None
 
     try:
-        _live(f"{project_id}: building student dependency image")
-        build = sb.build()
-        report["build"] = build
-        if not build["ok"]:
-            report["status"] = "DEPENDENCY_BUILD_ERROR"
-            return report
+        if manage_sandbox:
+            _live(f"{project_id}: building student dependency image")
+            build = sb.build()
+            report["build"] = build
+            if not build["ok"]:
+                report["status"] = "DEPENDENCY_BUILD_ERROR"
+                return report
 
-        _live(f"{project_id}: starting isolated Docker sandbox + MongoDB")
-        report["sandbox_start"] = sb.start()
+            _live(f"{project_id}: starting isolated Docker sandbox + MongoDB")
+            report["sandbox_start"] = sb.start()
+        else:
+            report["build"] = {"ok": True, "shared": True, "image": sb.image_name}
+            report["sandbox_start"] = {"shared": True, "network": sb.network, "mongo": sb.mongo_name}
         if not sb.mongo_host_uri:
             raise SandboxError("MongoDB grader-side host URI was not established")
 
@@ -367,7 +376,7 @@ def run_behavioral_suite(
     finally:
         if mongo:
             mongo.close()
-        if not keep_sandbox:
+        if manage_sandbox and not keep_sandbox:
             try:
                 _live(f"{project_id}: cleaning sandbox")
                 sb.cleanup()
