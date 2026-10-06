@@ -9,7 +9,7 @@ from pymongo import MongoClient
 
 from .sandbox import DockerSandbox, SandboxConfig
 from .api_semantic_normalizer import normalize_probe
-from .final_compliance import meaningful_payload, readme_contract, explain_compliance, job_log_compliance
+from .final_compliance import meaningful_payload, readme_contract, explain_compliance, job_log_compliance, materialized_view_aggregation_basis
 
 
 REQUIRED_ENDPOINTS = {
@@ -812,6 +812,18 @@ def run_final_suite(
                                      "PASS" if incremental else ("INCONCLUSIVE" if mv2.get("ok") else "FAIL"),
                                      expected="incremental or zero-change second refresh",
                                      actual=json.dumps(mv2.get("body"), ensure_ascii=False)[:1200], evidence=inc_ev))
+
+        mv_basis = materialized_view_aggregation_basis(repo)
+        assertions.append(_assertion(
+            "final.mv.aggregation_basis",
+            "Materialized views are based on aggregation logic/results",
+            "PASS" if mv_basis.get("supported") is True else (
+                "INCONCLUSIVE" if mv_basis.get("supported") is None else "FAIL"
+            ),
+            expected=True,
+            actual=mv_basis,
+            evidence=[json.dumps(mv_basis, ensure_ascii=False)[:2200]],
+        ))
 
         jnames = (semantic.get("jobs") or {}).get("names") or probe.get("job_names") or []
         jmeta = semantic.get("jobs") or {}
