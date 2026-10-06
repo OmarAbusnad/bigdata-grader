@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 
-from grader.plan_resolution import resolve_execution_plan
+from grader.plan_resolution import resolve_execution_plan, resolve_execution_plan_after_failure
 from grader.repository import clone_repository, current_commit
 from grader.report import write_report
 from grader.static_checks import static_checks
@@ -21,6 +21,33 @@ def find_submission(csv_path: Path, project_id: str) -> dict:
             if row.get("project_id") == project_id:
                 return row
     raise KeyError(project_id)
+
+
+def _runtime_command_failure_context(runtime: dict | None) -> str:
+    """Return failure evidence only when the first documented execution attempt failed."""
+    if not isinstance(runtime, dict):
+        return ""
+    if runtime.get("status") in {"DEPENDENCY_BUILD_ERROR", "INFRA_ERROR", "INFRA_OR_RUNTIME_ERROR"}:
+        return ""
+    cases = runtime.get("cases") or []
+    if not cases:
+        return ""
+    first = cases[0] if isinstance(cases[0], dict) else {}
+    run = first.get("run") or {}
+    rc = run.get("returncode")
+    timed_out = bool(run.get("timed_out"))
+    if rc in (None, 0) and not timed_out:
+        return ""
+    return "\n".join([
+        f"case={first.get('name')}",
+        f"command={first.get('command')}",
+        f"returncode={rc}",
+        f"timed_out={timed_out}",
+        "stdout_tail:",
+        str(run.get("stdout_tail") or "")[-6000:],
+        "stderr_tail:",
+        str(run.get("stderr_tail") or "")[-6000:],
+    ])
 
 
 def main() -> int:
@@ -97,7 +124,7 @@ def main() -> int:
     student_nos = (submission_row or {}).get("student_nos", "") if submission_row else ""
 
     payload = {
-        "grader_version": "4.1.0",
+        "grader_version": "4.2.0",
         "project_id": project_id,
         "students": student_names,
         "student_nos": student_nos,
@@ -144,6 +171,41 @@ def main() -> int:
                     plan_b=args.plan_b,
                     keep_sandbox=args.keep_sandbox,
                 )
+
+                # Level 2 is deliberately lazy: inspect source only after the
+                # README-derived execution command actually failed.
+                failure_context = _runtime_command_failure_context(payload["runtime"])
+                if failure_context and not args.no_ai:
+                    recovered_plan, recovery = resolve_execution_plan_after_failure(
+                        repo,
+                        plan,
+                        failure_context,
+                        confidence_threshold=args.confidence_threshold,
+                        override_path=override_path,
+                    )
+                    changed = recovered_plan.ingest_command != plan.ingest_command or recovered_plan.setup_command != plan.setup_command
+                    payload["execution_recovery"] = {
+                        **recovery,
+                        "original_command": plan.ingest_command,
+                        "recovered_command": recovered_plan.ingest_command,
+                        "command_changed": changed,
+                    }
+                    if changed and recovered_plan.ingest_command:
+                        payload["runtime_first_attempt"] = payload["runtime"]
+                        plan = recovered_plan
+                        payload["execution_plan"] = plan.to_dict()
+                        payload["runtime"] = run_behavioral_suite(
+                            base=base,
+                            project_id=project_id,
+                            repo=repo,
+                            hidden_dir=hidden,
+                            oracle=oracle,
+                            plan=plan,
+                            sandbox_config=sandbox_cfg,
+                            timeout=args.timeout,
+                            plan_b=args.plan_b,
+                            keep_sandbox=args.keep_sandbox,
+                        )
 
     result_json, result_md = write_report(base / args.reports, project_id, payload)
     summary = {
