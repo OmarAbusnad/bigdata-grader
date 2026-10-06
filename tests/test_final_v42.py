@@ -148,3 +148,42 @@ def test_startup_classifier_detects_missing_declared_dependency(tmp_path: Path):
         },
     )
     assert result["code"] == "STUDENT_DEPENDENCY_FAILURE"
+
+
+def test_final_discovery_uses_documented_uvicorn_target_without_agent(tmp_path: Path):
+    from grader.final_discovery import discover_final_plan
+
+    (tmp_path / "README.md").write_text(
+        "Run:\nuvicorn src.api:app --host 127.0.0.1 --port 8000\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "requirements.txt").write_text("fastapi\nuvicorn\n", encoding="utf-8")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "api.py").write_text(
+        "from fastapi import FastAPI\napp = FastAPI()\n@app.get('/health')\ndef health(): return {'ok': True}\n",
+        encoding="utf-8",
+    )
+    plan = discover_final_plan(tmp_path)
+    assert plan["api_target"] == "src.api:app"
+    assert plan["api_target_source"] == "readme"
+    assert plan["requires_agent"] is False
+
+
+def test_midterm_plan_skips_agent_when_deterministic_is_strong(tmp_path: Path, monkeypatch):
+    from grader.plan_resolution import resolve_execution_plan
+
+    (tmp_path / "README.md").write_text("python main.py --input data.csv\n", encoding="utf-8")
+    (tmp_path / "requirements.txt").write_text("pymongo\n", encoding="utf-8")
+    (tmp_path / "main.py").write_text(
+        "import argparse\np=argparse.ArgumentParser()\np.add_argument('--input')\np.parse_args()\n",
+        encoding="utf-8",
+    )
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("agent should not be called for a strong deterministic plan")
+
+    monkeypatch.setattr("grader.plan_resolution.analyze_repository_with_llm", forbidden)
+    plan, meta = resolve_execution_plan(tmp_path, use_ai=True, confidence_threshold=0.50)
+    assert plan.ingest_command
+    assert meta["status"] == "DETERMINISTIC_READY"
+    assert meta["agent_called"] is False
