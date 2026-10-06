@@ -381,3 +381,29 @@ def test_platform_fallback_skips_tensorflow_intel_but_keeps_tensorflow(tmp_path:
     assert "tensorflow-intel" in skipped
     assert "tensorflow==2.17.0" in text
     assert "pymongo==4.17.0" in text
+
+
+def test_runtime_requirements_profile_keeps_declared_bigdata_dependencies_only(tmp_path: Path):
+    from grader.sandbox import _write_runtime_requirements
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "api.py").write_text(
+        "from fastapi import FastAPI\nimport pymongo\nimport pandas\n",
+        encoding="utf-8",
+    )
+    req = tmp_path / "requirements.txt"
+    out = tmp_path / "runtime.txt"
+    req.write_text(
+        "fastapi==0.127.0\npymongo==4.17.0\npandas==2.2.3\n"
+        "tensorflow==2.17.0\ndeepface==0.0.93\npywin32==311\n",
+        encoding="utf-8",
+    )
+    meta = _write_runtime_requirements(tmp_path, req, out)
+    text = out.read_text(encoding="utf-8")
+    assert "fastapi==0.127.0" in text
+    assert "pymongo==4.17.0" in text
+    assert "pandas==2.2.3" in text
+    assert "tensorflow" not in text
+    assert "deepface" not in text
+    assert "pywin32" not in text
+    assert meta["selected_count"] == 3
