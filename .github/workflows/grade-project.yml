@@ -63,7 +63,7 @@ jobs:
             echo "freeze_run_id=37390623044" >> "$GITHUB_OUTPUT"
             echo "mode=all" >> "$GITHUB_OUTPUT"
             echo "network_profile=isolated" >> "$GITHUB_OUTPUT"
-            echo "plan_b=false" >> "$GITHUB_OUTPUT"
+            echo "plan_b=true" >> "$GITHUB_OUTPUT"
             echo "max_parallel=2" >> "$GITHUB_OUTPUT"
           else
             echo "freeze_run_id=${{ inputs.freeze_run_id }}" >> "$GITHUB_OUTPUT"
@@ -85,7 +85,7 @@ jobs:
       - id: read
         shell: python
         env:
-          REQUESTED_PROJECT_ID: ${{ github.event_name == 'push' && 'P06,P38,P46,P60,P66,P67,P68' || inputs.project_id }}
+          REQUESTED_PROJECT_ID: ${{ github.event_name == 'push' && '' || inputs.project_id }}
         run: |
           import csv, json, os
           rows = list(csv.DictReader(open('freeze_manifest/frozen_submissions.csv', encoding='utf-8-sig', newline='')))
