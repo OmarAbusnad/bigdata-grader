@@ -65,9 +65,17 @@ def _sanitize_command(cmd: str | None) -> str | None:
 
 def _normalize_response(data: dict[str, Any], fallback: ExecutionPlan, *, provider: str = "gemini") -> tuple[ExecutionPlan, dict[str, Any]]:
     plan = ExecutionPlan(**asdict(fallback))
+    # Deterministic discovery is authoritative when it already resolved a
+    # command. The LLM may fill a missing command, but must not make execution
+    # nondeterministic by replacing a known-safe heuristic command differently
+    # from one run to another.
     for key in ["ingest_command", "reset_command", "setup_command"]:
+        current = getattr(plan, key)
+        if current:
+            continue
         cmd = _sanitize_command(data.get(key))
-        if cmd: setattr(plan, key, cmd)
+        if cmd:
+            setattr(plan, key, cmd)
     for field in ["entrypoint", "mongo_uri", "business_key", "spark_master"]:
         v = data.get(field)
         if isinstance(v, str) and v.strip(): setattr(plan, field, v.strip())
