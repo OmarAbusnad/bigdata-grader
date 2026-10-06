@@ -11,6 +11,7 @@ class ExecutionPlan:
     setup_command: str | None = None
     entrypoint: str | None = None
     ingest_command: str | None = None
+    ingest_stdin: str | None = None
     reset_command: str | None = None
     database_name: str | None = None
     database_configurable: bool = False
