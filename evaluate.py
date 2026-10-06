@@ -93,9 +93,14 @@ def main() -> int:
         override_path=override_path,
     )
 
+    student_names = (submission_row or {}).get("students", "") if submission_row else ""
+    student_nos = (submission_row or {}).get("student_nos", "") if submission_row else ""
+
     payload = {
         "grader_version": "4.1.0",
         "project_id": project_id,
+        "students": student_names,
+        "student_nos": student_nos,
         "repo_url": repo_url,
         "commit_sha": current_commit(repo) or selected_ref or "",
         "repository_path": str(repo),
@@ -143,6 +148,8 @@ def main() -> int:
     result_json, result_md = write_report(base / args.reports, project_id, payload)
     summary = {
         "project_id": project_id,
+        "students": student_names,
+        "student_nos": student_nos,
         "commit_sha": payload["commit_sha"],
         "plan_confidence": resolution.get("confidence"),
         "manual_review": resolution.get("requires_manual_review"),
