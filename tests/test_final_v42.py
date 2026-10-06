@@ -282,3 +282,44 @@ def test_static_checks_accept_lowercase_readme(tmp_path: Path):
     result = static_checks(tmp_path)
     assert result["has_readme"] is True
     assert result["_evidence"]["has_readme"] == ["readme.md"]
+
+
+def test_midterm_readiness_gate_classifies_interactive_discovery(tmp_path: Path):
+    from grader.sandbox_runtime import _classify_midterm_start_failure
+
+    result = _classify_midterm_start_failure(
+        tmp_path,
+        {"stderr_tail": "EOFError: EOF when reading a line", "stdout_tail": "", "timed_out": False},
+    )
+    assert result["code"] == "GRADER_DISCOVERY_FAILURE"
+
+
+def test_midterm_readiness_gate_classifies_missing_local_config(tmp_path: Path):
+    from grader.sandbox_runtime import _classify_midterm_start_failure
+
+    (tmp_path / "requirements.txt").write_text("pymongo\n", encoding="utf-8")
+    result = _classify_midterm_start_failure(
+        tmp_path,
+        {"stderr_tail": "ModuleNotFoundError: No module named 'config'", "stdout_tail": "", "timed_out": False},
+    )
+    assert result["code"] == "STUDENT_CONFIGURATION_FAILURE"
+
+
+def test_recovery_agent_is_not_called_for_deterministic_student_failure():
+    from evaluate import _runtime_command_failure_context
+    runtime = {
+        "status": "STARTUP_BLOCKED",
+        "root_cause": "STUDENT_CONFIGURATION_FAILURE",
+        "cases": [{"run": {"returncode": 1, "stderr_tail": "boom"}}],
+    }
+    assert _runtime_command_failure_context(runtime) == ""
+
+
+def test_recovery_agent_is_called_for_discovery_failure():
+    from evaluate import _runtime_command_failure_context
+    runtime = {
+        "status": "STARTUP_BLOCKED",
+        "root_cause": "GRADER_DISCOVERY_FAILURE",
+        "cases": [{"name": "batch_pipeline", "command": "python main.py", "run": {"returncode": 1, "stderr_tail": "EOFError"}}],
+    }
+    assert "EOFError" in _runtime_command_failure_context(runtime)
