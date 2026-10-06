@@ -28,6 +28,11 @@ def _live(message: str) -> None:
     print(f"[GRADER] {message}", flush=True)
 
 
+def _format_threshold_env(value: float | int) -> str:
+    value = float(value)
+    return str(int(value)) if value.is_integer() else str(value)
+
+
 def _render_command(plan: ExecutionPlan, file_rel: str, db_name: str, threshold_mb: float | None) -> str:
     if not plan.ingest_command:
         raise SandboxError("No ingest command was resolved")
@@ -130,9 +135,9 @@ def run_behavioral_suite(
                 "MONGO_DB_NAME": effective_db,
                 "MONGO_DATABASE": effective_db,
                 "DATABASE_NAME": effective_db,
-                "SMALL_FILE_THRESHOLD_MB": str(threshold),
-                "FILE_SIZE_THRESHOLD_MB": str(threshold),
-                "THRESHOLD_MB": str(threshold),
+                "SMALL_FILE_THRESHOLD_MB": _format_threshold_env(threshold),
+                "FILE_SIZE_THRESHOLD_MB": _format_threshold_env(threshold),
+                "THRESHOLD_MB": _format_threshold_env(threshold),
             }
             r = sb.run_student(plan.setup_command, env=env, timeout=min(timeout, 300))
             report["setup_runs"].append({**r, "stdout": r.get("stdout", "")[-8000:], "stderr": r.get("stderr", "")[-8000:]})
@@ -169,9 +174,9 @@ def run_behavioral_suite(
                 "MONGO_DB_NAME": effective_db,
                 "MONGO_DATABASE": effective_db,
                 "DATABASE_NAME": effective_db,
-                "SMALL_FILE_THRESHOLD_MB": str(effective_threshold),
-                "FILE_SIZE_THRESHOLD_MB": str(effective_threshold),
-                "THRESHOLD_MB": str(effective_threshold),
+                "SMALL_FILE_THRESHOLD_MB": _format_threshold_env(effective_threshold),
+                "FILE_SIZE_THRESHOLD_MB": _format_threshold_env(effective_threshold),
+                "THRESHOLD_MB": _format_threshold_env(effective_threshold),
                 "GRADER_RUN": "1",
             }
             file_mb = source.stat().st_size / (1024 * 1024)
