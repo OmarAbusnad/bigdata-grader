@@ -79,6 +79,85 @@ def _write_compat_requirements(source: Path, dest: Path) -> list[str]:
     return skipped
 
 
+def _requirement_name(line: str) -> str:
+    stripped = line.strip()
+    if not stripped or stripped.startswith(("#", "-", "--")):
+        return ""
+    return re.split(r"[<>=!~\[;\s]", stripped, maxsplit=1)[0].strip().lower().replace("_", "-")
+
+
+def _write_runtime_requirements(repo: Path, source: Path, dest: Path) -> dict[str, Any]:
+    """Build a bounded requirements profile for oversized environment snapshots.
+
+    Only student-declared packages are eligible. We keep Big Data/API core packages
+    and packages imported by runtime-relevant project modules. This avoids treating
+    unrelated workstation/ML packages as mandatory grader dependencies.
+    """
+    text, _encoding = _read_requirements_text(source)
+    lines = text.splitlines()
+    by_name: dict[str, str] = {}
+    for raw in lines:
+        name = _requirement_name(raw)
+        if name and name not in PLATFORM_ONLY_PACKAGES:
+            by_name.setdefault(name, raw)
+
+    core = {
+        "pymongo", "pyspark", "fastapi", "uvicorn", "apscheduler", "schedule",
+        "python-dotenv", "pandas", "numpy", "requests", "pydantic", "httpx",
+        "pytest", "mongomock", "pyyaml", "tqdm", "gunicorn",
+    }
+    import_map = {
+        "dotenv": "python-dotenv", "yaml": "pyyaml", "sklearn": "scikit-learn",
+        "cv2": "opencv-python", "pil": "pillow", "bson": "pymongo",
+        "dateutil": "python-dateutil", "fastapi": "fastapi", "uvicorn": "uvicorn",
+        "pymongo": "pymongo", "pyspark": "pyspark", "pandas": "pandas",
+        "numpy": "numpy", "apscheduler": "apscheduler", "schedule": "schedule",
+        "tqdm": "tqdm", "requests": "requests", "pydantic": "pydantic",
+        "httpx": "httpx", "mongomock": "mongomock", "flask": "flask",
+    }
+    relevant = re.compile(
+        r"(main|api|pipeline|batch|spark|elt|quality|mongo|database|db|"
+        r"quer|index|aggregat|material|scheduler|job|loader|router)",
+        re.I,
+    )
+    imported: set[str] = set()
+    for path in repo.rglob("*.py"):
+        if any(part in {".git", ".venv", "venv", "__pycache__", "node_modules"} for part in path.parts):
+            continue
+        if not relevant.search(path.as_posix()):
+            continue
+        try:
+            tree = __import__("ast").parse(path.read_text(encoding="utf-8-sig", errors="replace"))
+        except Exception:
+            continue
+        for node in __import__("ast").walk(tree):
+            if isinstance(node, __import__("ast").Import):
+                for alias in node.names:
+                    imported.add(alias.name.split(".", 1)[0].lower())
+            elif isinstance(node, __import__("ast").ImportFrom) and node.module:
+                imported.add(node.module.split(".", 1)[0].lower())
+
+    selected = set(core)
+    selected |= {import_map.get(x, x.replace("_", "-")) for x in imported}
+    selected &= set(by_name)
+
+    # Preserve declaration order and exact student pins.
+    out: list[str] = []
+    selected_names: list[str] = []
+    for raw in lines:
+        name = _requirement_name(raw)
+        if name in selected and name not in selected_names:
+            out.append(raw)
+            selected_names.append(name)
+
+    dest.write_text("\n".join(out) + "\n", encoding="utf-8")
+    return {
+        "declared_count": len(by_name),
+        "selected_count": len(selected_names),
+        "selected_packages": selected_names,
+    }
+
+
 def docker_available() -> tuple[bool, str]:
     exe = shutil.which("docker")
     if not exe:
@@ -151,13 +230,32 @@ class DockerSandbox:
         shutil.copytree(self.repo, self.build_context, ignore=shutil.ignore_patterns(".git", ".venv", "venv", ".grader_venv", "__pycache__", "*.pyc"))
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         compat_skipped: list[str] = []
+        runtime_profile: dict[str, Any] = {}
         req = self.build_context / "requirements.txt"
         compat_req = self.build_context / ".grader.requirements.compat.txt"
+        runtime_req = self.build_context / ".grader.requirements.runtime.txt"
+        use_runtime_profile = False
         if req.is_file():
             compat_skipped = _write_compat_requirements(req, compat_req)
+            runtime_profile = _write_runtime_requirements(self.build_context, req, runtime_req)
+            # Large requirements files are commonly workstation/environment
+            # snapshots. Installing all of them can exceed GitHub runner disk
+            # before the actual Big Data project is tested.
+            use_runtime_profile = int(runtime_profile.get("declared_count", 0) or 0) > 80
         self._compat_requirements_skipped = compat_skipped
+        self._runtime_requirements_profile = runtime_profile
+        self._use_runtime_requirements_profile = use_runtime_profile
 
-        dockerfile = textwrap.dedent("""
+        install_clause = (
+            '/opt/student-venv/bin/pip install --no-cache-dir -r .grader.requirements.runtime.txt '
+            '&& echo "GRADER_REQUIREMENTS_MODE=runtime_profile_large_manifest"'
+            if use_runtime_profile
+            else '(/opt/student-venv/bin/pip install --no-cache-dir -r requirements.txt '
+                 '|| (echo "GRADER_REQUIREMENTS_FALLBACK=platform_compat" '
+                 '&& /opt/student-venv/bin/pip install --no-cache-dir -r .grader.requirements.compat.txt))'
+        )
+
+        dockerfile = textwrap.dedent(f"""
             FROM bigdata-grader/student-runtime:4.1
             WORKDIR /workspace
             COPY . /workspace
@@ -165,9 +263,7 @@ class DockerSandbox:
             RUN python -m venv /opt/student-venv \
                 && /opt/student-venv/bin/python -m pip install --upgrade pip setuptools wheel \
                 && if [ -f requirements.txt ]; then \
-                     (/opt/student-venv/bin/pip install --no-cache-dir -r requirements.txt \
-                      || (echo "GRADER_REQUIREMENTS_FALLBACK=platform_compat" \
-                          && /opt/student-venv/bin/pip install --no-cache-dir -r .grader.requirements.compat.txt)); \
+                     {install_clause}; \
                    elif [ -f pyproject.toml ] || [ -f setup.py ]; then /opt/student-venv/bin/pip install --no-cache-dir .; \
                    fi
             ENV PATH=/opt/student-venv/bin:$PATH \
@@ -187,13 +283,16 @@ class DockerSandbox:
         (self.logs_dir / "docker_build.stderr.log").write_text(p.stderr, encoding="utf-8", errors="replace")
         combined = (p.stdout or "") + "\n" + (p.stderr or "")
         fallback_used = "GRADER_REQUIREMENTS_FALLBACK=platform_compat" in combined
+        runtime_profile_used = "GRADER_REQUIREMENTS_MODE=runtime_profile_large_manifest" in combined
         return {
             "ok": p.returncode == 0,
             "returncode": p.returncode,
             "elapsed_seconds": round(time.time()-t, 2),
             "image": self.image_name,
             "compatibility_fallback_used": fallback_used,
-            "platform_packages_skipped": list(getattr(self, "_compat_requirements_skipped", []) or []) if fallback_used else [],
+            "runtime_profile_used": runtime_profile_used,
+            "runtime_requirements_profile": getattr(self, "_runtime_requirements_profile", {}) if runtime_profile_used else None,
+            "platform_packages_skipped": list(getattr(self, "_compat_requirements_skipped", []) or []) if (fallback_used or runtime_profile_used) else [],
             "stdout_tail": p.stdout[-4000:],
             "stderr_tail": p.stderr[-8000:],
         }
