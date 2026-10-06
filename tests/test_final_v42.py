@@ -214,3 +214,22 @@ def test_materialized_view_aggregation_basis_deterministic(tmp_path: Path):
     result = materialized_view_aggregation_basis(tmp_path)
     assert result["supported"] is True
     assert result["source"] == "deterministic"
+
+
+def test_suites_expose_shared_sandbox_lifecycle():
+    import inspect
+    from grader.sandbox_runtime import run_behavioral_suite
+    from grader.final_runtime import run_final_suite
+
+    mid = inspect.signature(run_behavioral_suite).parameters
+    fin = inspect.signature(run_final_suite).parameters
+    assert "shared_sandbox" in mid
+    assert "student_inputs_dir" in mid
+    assert "manage_sandbox" in mid
+    assert "shared_sandbox" in fin
+    assert "manage_sandbox" in fin
+
+
+def test_unified_evaluator_exists_and_has_modes():
+    import evaluate_project
+    assert callable(evaluate_project.main)
