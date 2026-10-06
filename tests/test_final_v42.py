@@ -104,3 +104,32 @@ def test_startup_gate_blocks_dependents_instead_of_cascade_fails():
     assert blocked
     assert all(x["verdict"] == "INCONCLUSIVE" for x in blocked)
     assert all(x["actual"] == "BLOCKED" for x in blocked)
+
+
+def test_setup_discovery_rejects_tree_diagram(tmp_path: Path):
+    from grader.discovery import discover_execution_plan
+
+    (tmp_path / "README.md").write_text(
+        """
+Project tree:
+|-- src/
+|   |-- mongo_setup.py                # init indexes
+
+Run:
+python main.py --input data.csv
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.py").write_text(
+        'import argparse\np=argparse.ArgumentParser()\np.add_argument("--input")\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "mongo_setup.py").write_text("print('setup')\n", encoding="utf-8")
+    plan = discover_execution_plan(tmp_path)
+    assert plan.setup_command == "python src/mongo_setup.py"
+
+
+def test_meaningful_payload_does_not_accept_labels_only():
+    result = meaningful_payload({"query_name": "q1", "title": "My Query", "status": "SUCCESS"})
+    assert result["supported"] is not True
