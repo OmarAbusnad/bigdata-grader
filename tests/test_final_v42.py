@@ -233,3 +233,52 @@ def test_suites_expose_shared_sandbox_lifecycle():
 def test_unified_evaluator_exists_and_has_modes():
     import evaluate_project
     assert callable(evaluate_project.main)
+
+
+def test_platform_compat_requirements_only_skip_known_windows_packages(tmp_path: Path):
+    from grader.sandbox import _write_compat_requirements
+
+    src = tmp_path / "requirements.txt"
+    dst = tmp_path / "compat.txt"
+    src.write_text(
+        "pymongo==4.17.0\npywin32==311\nnumpy==2.1.0\nwindows-curses==2.4.1\n",
+        encoding="utf-8",
+    )
+    skipped = _write_compat_requirements(src, dst)
+    text = dst.read_text(encoding="utf-8")
+    assert set(skipped) == {"pywin32", "windows-curses"}
+    assert "pymongo==4.17.0" in text
+    assert "numpy==2.1.0" in text
+    assert "# GRADER platform-only skip: pywin32==311" in text
+
+
+def test_structured_stdin_renders_without_shell_pipe():
+    from grader.models import ExecutionPlan
+    from grader.sandbox_runtime import _render_stdin
+
+    plan = ExecutionPlan(
+        repo_path="/tmp/project",
+        ingest_command="python src/main.py",
+        ingest_stdin="2\n{file}\n\n3\n",
+    )
+    value = _render_stdin(plan, "hidden.csv", "grader_p1", 20)
+    assert value == "2\n/grader-tests/hidden.csv\n\n3\n"
+
+
+def test_spark_network_dependency_is_inconclusive_candidate():
+    from grader.sandbox_runtime import _spark_dependency_resolution_blocked
+
+    blocked, evidence = _spark_dependency_resolution_blocked({
+        "stderr_tail": "UNRESOLVED DEPENDENCIES\nHost repo1.maven.org not found\nmodule not found: org.mongodb.spark#mongo-spark-connector",
+    })
+    assert blocked is True
+    assert evidence
+
+
+def test_static_checks_accept_lowercase_readme(tmp_path: Path):
+    from grader.static_checks import static_checks
+
+    (tmp_path / "readme.md").write_text("# docs\n", encoding="utf-8")
+    result = static_checks(tmp_path)
+    assert result["has_readme"] is True
+    assert result["_evidence"]["has_readme"] == ["readme.md"]
