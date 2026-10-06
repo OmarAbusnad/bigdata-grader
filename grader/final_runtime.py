@@ -53,6 +53,18 @@ def _classify_startup_failure(repo: Path, service_run: dict[str, Any]) -> dict[s
         except Exception:
             pass
         declared = bool(re.search(rf"(?m)^\s*{re.escape(top.lower())}(?:\s|[<>=!~\[]|$)", requirements))
+        local_name_hints = {
+            "config", "src", "app", "core", "common", "utils", "services",
+            "models", "database", "db", "pipeline", "etl", "queries",
+        }
+        if not local and not declared and top.lower() in local_name_hints:
+            return {
+                "code": "STUDENT_CONFIGURATION_FAILURE",
+                "evidence": [
+                    f"missing local-style module: {module}",
+                    f"{top} is not present at the expected case-sensitive path",
+                ],
+            }
         if not local and not declared:
             return {
                 "code": "STUDENT_DEPENDENCY_FAILURE",
@@ -82,6 +94,7 @@ def _blocked_assertions(reason: str) -> list[dict[str, Any]]:
         ("final.api.health", "GET /health works"),
         ("final.api.docs", "Swagger /docs is available"),
         ("final.api.ingest", "POST /ingest invokes the project pipeline"),
+        ("final.api.json", "Operational API responses are JSON"),
         ("final.queries.count", "At least five practical queries are exposed"),
         ("final.queries.runtime", "Practical queries execute against seeded data"),
         ("final.aggregations.count", "At least five aggregation reports are exposed"),
@@ -92,6 +105,7 @@ def _blocked_assertions(reason: str) -> list[dict[str, Any]]:
         ("final.mv.refresh", "Materialized-view refresh endpoint works"),
         ("final.mv.collections", "At least two populated materialized-view collections exist"),
         ("final.mv.incremental", "Materialized-view refresh is incremental"),
+        ("final.mv.aggregation_basis", "Materialized views are based on aggregation logic"),
         ("final.jobs.count", "At least two scheduled jobs are exposed"),
         ("final.jobs.manual_run", "Scheduled jobs support manual execution"),
         ("final.jobs.schedule", "Job schedules are visible/configured"),
@@ -155,16 +169,24 @@ def request(method, path, body=None, timeout=180):
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             raw = r.read().decode("utf-8", errors="replace")
-            try: parsed = json.loads(raw)
-            except Exception: parsed = raw[:5000]
-            return {"status": r.status, "ok": 200 <= r.status < 300, "body": parsed}
+            try:
+                parsed = json.loads(raw)
+                is_json = True
+            except Exception:
+                parsed = raw[:5000]
+                is_json = False
+            return {"status": r.status, "ok": 200 <= r.status < 300, "body": parsed, "is_json": is_json}
     except urllib.error.HTTPError as e:
         raw = e.read().decode("utf-8", errors="replace")
-        try: parsed = json.loads(raw)
-        except Exception: parsed = raw[:5000]
-        return {"status": e.code, "ok": False, "body": parsed}
+        try:
+            parsed = json.loads(raw)
+            is_json = True
+        except Exception:
+            parsed = raw[:5000]
+            is_json = False
+        return {"status": e.code, "ok": False, "body": parsed, "is_json": is_json}
     except Exception as e:
-        return {"status": None, "ok": False, "error": f"{type(e).__name__}: {e}"}
+        return {"status": None, "ok": False, "error": f"{type(e).__name__}: {e}", "is_json": False}
 
 def resolve_schema(openapi, schema):
     if not isinstance(schema, dict): return {}
