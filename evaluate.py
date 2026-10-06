@@ -183,7 +183,11 @@ def main() -> int:
                         confidence_threshold=args.confidence_threshold,
                         override_path=override_path,
                     )
-                    changed = recovered_plan.ingest_command != plan.ingest_command or recovered_plan.setup_command != plan.setup_command
+                    changed = (
+                        recovered_plan.ingest_command != plan.ingest_command
+                        or recovered_plan.ingest_stdin != plan.ingest_stdin
+                        or recovered_plan.setup_command != plan.setup_command
+                    )
                     payload["execution_recovery"] = {
                         **recovery,
                         "original_command": plan.ingest_command,
