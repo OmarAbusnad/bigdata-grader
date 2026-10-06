@@ -9,6 +9,7 @@ from pymongo import MongoClient
 
 from .sandbox import DockerSandbox, SandboxConfig
 from .api_semantic_normalizer import normalize_probe
+from .final_compliance import meaningful_payload, readme_contract, explain_compliance, job_log_compliance
 
 
 REQUIRED_ENDPOINTS = {
@@ -31,6 +32,35 @@ def _assertion(key: str, label: str, verdict: str, *, expected: Any = None, actu
         "key": key, "label": label, "verdict": verdict, "expected": expected,
         "actual": actual, "evidence": evidence or [], "note": note,
     }
+
+
+def _blocked_assertions(reason: str) -> list[dict[str, Any]]:
+    """Dependent final checks are blocked when runtime readiness was not achieved."""
+    specs = [
+        ("final.api.contract", "Required unified API contract is exposed"),
+        ("final.api.health", "GET /health works"),
+        ("final.api.docs", "Swagger /docs is available"),
+        ("final.api.ingest", "POST /ingest invokes the project pipeline"),
+        ("final.queries.count", "At least five practical queries are exposed"),
+        ("final.queries.runtime", "Practical queries execute against seeded data"),
+        ("final.aggregations.count", "At least five aggregation reports are exposed"),
+        ("final.aggregations.runtime", "Aggregation reports execute and return actual data"),
+        ("final.indexes.count", "Indexes required for Phase 2 exist"),
+        ("final.indexes.compound", "At least one compound index exists"),
+        ("final.indexes.explain", "Three explain/executionStats cases before/after indexes are evidenced"),
+        ("final.mv.refresh", "Materialized-view refresh endpoint works"),
+        ("final.mv.collections", "At least two populated materialized-view collections exist"),
+        ("final.mv.incremental", "Materialized-view refresh is incremental"),
+        ("final.jobs.count", "At least two scheduled jobs are exposed"),
+        ("final.jobs.manual_run", "Scheduled jobs support manual execution"),
+        ("final.jobs.schedule", "Job schedules are visible/configured"),
+        ("final.jobs.logging", "Job logs include start/end/status/result"),
+    ]
+    return [
+        _assertion(k, label, "INCONCLUSIVE", expected="runtime ready", actual="BLOCKED",
+                   note=f"Blocked by root cause: {reason}")
+        for k, label in specs
+    ]
 
 
 def _fixture_docs() -> list[dict[str, Any]]:
@@ -361,12 +391,16 @@ def run_final_suite(
                 "status": "COMPLETED_WITH_FAILURES",
                 "error": "Student dependency image could not be built.",
                 "build": build,
-                "assertions": [_assertion(
-                    "final.environment.build", "Student environment builds from declared dependencies", "FAIL",
-                    expected="successful image build", actual=build.get("returncode"),
-                    evidence=[build.get("stderr_tail", "")[-3000:]],
-                )],
-                "assertion_counts": {"PASS": 0, "FAIL": 1, "INCONCLUSIVE": 0, "ERROR": 0},
+                "assertions": [
+                    _assertion(
+                        "final.environment.build", "Student environment builds from declared dependencies", "FAIL",
+                        expected="successful image build", actual=build.get("returncode"),
+                        evidence=[build.get("stderr_tail", "")[-3000:]],
+                        note="Root cause: STUDENT_DEPENDENCY_FAILURE",
+                    ),
+                    *_blocked_assertions("STUDENT_DEPENDENCY_FAILURE"),
+                ],
+                "assertion_counts": {"PASS": 0, "FAIL": 1, "INCONCLUSIVE": len(_blocked_assertions("x")), "ERROR": 0},
             }
 
         sb.start()
@@ -398,6 +432,40 @@ def run_final_suite(
         probe = _extract_probe(str(service_run.get("stdout") or ""))
         semantic = normalize_probe(probe)
         probe["semantic_normalization"] = semantic
+
+        if not probe.get("server_ready"):
+            reason = "STUDENT_CONFIGURATION_OR_DEPENDENCY_FAILURE"
+            startup = _assertion(
+                "final.api.server", "FastAPI server starts in a clean environment", "FAIL",
+                expected=True, actual=False,
+                evidence=[str(service_run.get("stderr") or "")[-3500:], str(service_run.get("stdout") or "")[-3500:]],
+                note=f"Root cause: {reason}. Dependent checks are BLOCKED, not failed.",
+            )
+            blocked = _blocked_assertions(reason)
+            assertions.extend([
+                _assertion("final.api.discovered", "FastAPI application discovered", "PASS",
+                           expected="FastAPI app", actual=api_target, evidence=final_plan.get("evidence") or []),
+                startup,
+                *blocked,
+            ])
+            counts = {"PASS": 1, "FAIL": 1, "INCONCLUSIVE": len(blocked), "ERROR": 0}
+            return {
+                "status": "STARTUP_BLOCKED",
+                "root_cause": reason,
+                "runtime_ready": False,
+                "assertions": assertions,
+                "assertion_counts": counts,
+                "probe": probe,
+                "service_run": {
+                    "returncode": service_run.get("returncode"),
+                    "elapsed_seconds": service_run.get("elapsed_seconds"),
+                    "timed_out": service_run.get("timed_out"),
+                    "stdout_tail": str(service_run.get("stdout") or "")[-7000:],
+                    "stderr_tail": str(service_run.get("stderr") or "")[-5000:],
+                },
+                "host_evidence": host_evidence,
+                "sandbox": sb.metadata(),
+            }
 
         openapi_paths = ((probe.get("openapi") or {}).get("paths") or {})
         assertions.append(_assertion("final.api.discovered", "FastAPI application discovered", "PASS",
@@ -440,10 +508,22 @@ def run_final_suite(
                                      evidence=[json.dumps(qmeta, ensure_ascii=False)[:1800]]))
         qcalls = probe.get("query_calls") or []
         qok = sum(1 for x in qcalls if (x.get("response") or {}).get("ok"))
-        assertions.append(_assertion("final.queries.runtime", "Practical queries execute against seeded data",
-                                     "PASS" if qok >= 5 and len(qnames) >= 5 else ("INCONCLUSIVE" if qcount >= 5 else "FAIL"),
-                                     expected="5 successful query calls", actual=f"{qok}/{len(qcalls)}",
-                                     evidence=[json.dumps(qcalls, ensure_ascii=False)[:3000]]))
+        qpayload = [
+            meaningful_payload((x.get("response") or {}).get("body"))
+            for x in qcalls if (x.get("response") or {}).get("ok")
+        ]
+        qmeaningful = sum(1 for x in qpayload if x.get("supported") is True)
+        qambiguous = any(x.get("supported") is None for x in qpayload)
+        qverdict = (
+            "PASS" if qok >= 5 and qmeaningful >= 5
+            else "INCONCLUSIVE" if (qcount >= 5 and (qambiguous or qok > 0))
+            else "FAIL"
+        )
+        assertions.append(_assertion("final.queries.runtime", "Practical queries execute and return actual data",
+                                     qverdict,
+                                     expected="5 successful query calls with actual results",
+                                     actual={"http_ok": qok, "meaningful_results": qmeaningful, "called": len(qcalls)},
+                                     evidence=[json.dumps(qpayload, ensure_ascii=False)[:3000]]))
 
         anames = (semantic.get("aggregations") or {}).get("names") or probe.get("aggregation_names") or []
         ameta = semantic.get("aggregations") or {}
@@ -453,10 +533,22 @@ def run_final_suite(
                                      evidence=[json.dumps(ameta, ensure_ascii=False)[:1800]]))
         acalls = probe.get("aggregation_calls") or []
         aok = sum(1 for x in acalls if (x.get("response") or {}).get("ok"))
-        assertions.append(_assertion("final.aggregations.runtime", "Aggregation reports execute",
-                                     "PASS" if aok >= 5 and len(anames) >= 5 else ("INCONCLUSIVE" if acount >= 5 else "FAIL"),
-                                     expected="5 successful aggregation calls", actual=f"{aok}/{len(acalls)}",
-                                     evidence=[json.dumps(acalls, ensure_ascii=False)[:3000]]))
+        apayload = [
+            meaningful_payload((x.get("response") or {}).get("body"))
+            for x in acalls if (x.get("response") or {}).get("ok")
+        ]
+        ameaningful = sum(1 for x in apayload if x.get("supported") is True)
+        aambiguous = any(x.get("supported") is None for x in apayload)
+        averdict = (
+            "PASS" if aok >= 5 and ameaningful >= 5
+            else "INCONCLUSIVE" if (acount >= 5 and (aambiguous or aok > 0))
+            else "FAIL"
+        )
+        assertions.append(_assertion("final.aggregations.runtime", "Aggregation reports execute and return actual data",
+                                     averdict,
+                                     expected="5 successful aggregation calls with actual results",
+                                     actual={"http_ok": aok, "meaningful_results": ameaningful, "called": len(acalls)},
+                                     evidence=[json.dumps(apayload, ensure_ascii=False)[:3000]]))
 
         indexes_after = validated.index_information()
         non_id = [(n, spec) for n, spec in indexes_after.items() if n != "_id_"]
@@ -469,31 +561,49 @@ def run_final_suite(
                                      "PASS" if compound else "FAIL", expected=">= 1 compound index", actual=len(compound),
                                      evidence=[json.dumps({k: v.get("key") for k, v in compound}, ensure_ascii=False)[:1500]]))
 
-        ixscan = False
+        ixscan_hits = 0
         ixscan_evidence = []
+        seen_fields = set()
         for name, spec in non_id:
             keys = spec.get("key") or []
-            if not keys: continue
+            if not keys:
+                continue
             field = str(keys[0][0])
-            if field == execution_plan.business_key: continue
+            if field == execution_plan.business_key or field in seen_fields:
+                continue
+            seen_fields.add(field)
             doc = validated.find_one({field: {"$exists": True}})
-            if not doc: continue
+            if not doc:
+                continue
             value = _nested(doc, field)
-            if value is None: continue
+            if value is None:
+                continue
             try:
                 exp = db.command("explain", {"find": validated_name, "filter": {field: value}}, verbosity="executionStats")
                 if _contains_ixscan(exp):
-                    ixscan = True
+                    ixscan_hits += 1
                     ixscan_evidence.append(f"{name}: IXSCAN observed for {field}")
-                    break
             except Exception as exc:
                 ixscan_evidence.append(f"{name}: explain error {type(exc).__name__}: {exc}")
+
         static = final_plan.get("static") or {}
-        explain_impl = bool(static.get("has_explain_code") and static.get("has_execution_stats"))
-        assertions.append(_assertion("final.indexes.explain", "Explain/executionStats implementation and index use are evidenced",
-                                     "PASS" if explain_impl and ixscan else ("INCONCLUSIVE" if explain_impl or ixscan else "FAIL"),
-                                     expected={"implementation": True, "IXSCAN": True},
-                                     actual={"implementation": explain_impl, "IXSCAN": ixscan}, evidence=ixscan_evidence))
+        explain_doc = explain_compliance(repo)
+        explain_pass = bool(explain_doc.get("supported") and ixscan_hits >= 1)
+        explain_partial = bool(explain_doc.get("supported") or ixscan_hits >= 1)
+        assertions.append(_assertion(
+            "final.indexes.explain",
+            "Three explain/executionStats cases before/after indexes plus rationale/effect are evidenced",
+            "PASS" if explain_pass else ("INCONCLUSIVE" if explain_partial else "FAIL"),
+            expected={
+                "distinct_queries": ">= 3",
+                "executionStats": True,
+                "before_after": True,
+                "index_rationale_effect": True,
+                "runtime_index_use": True,
+            },
+            actual={**explain_doc, "runtime_ixscan_hits": ixscan_hits},
+            evidence=ixscan_evidence + [json.dumps(explain_doc, ensure_ascii=False)[:2200]],
+        ))
 
         mv1 = probe.get("refresh_mv_first") or {}
         mv2 = probe.get("refresh_mv_second") or {}
@@ -539,29 +649,71 @@ def run_final_suite(
                                      expected=True, actual=schedule_evident,
                                      evidence=[json.dumps(jobs_body, ensure_ascii=False)[:1800]]))
         job_log_names = []
+        job_log_values = []
+        for call in jcalls:
+            response = call.get("response") or {}
+            if response.get("body") is not None:
+                job_log_values.append(response.get("body"))
         for name in sorted(collections_after):
-            if re.search(r"job.*log|log.*job", name.lower()):
+            if re.search(r"job.*log|log.*job|execution.*log|run.*log", name.lower()):
                 try:
-                    if db[name].count_documents({}) > 0: job_log_names.append(name)
-                except Exception: pass
-        assertions.append(_assertion("final.jobs.logging", "Job execution logging is evidenced",
-                                     "PASS" if job_log_names else ("INCONCLUSIVE" if jnames else "FAIL"),
-                                     expected="job log evidence", actual=job_log_names or None))
+                    docs = list(db[name].find({}, {"_id": 0}).sort([("_id", -1)]).limit(10))
+                    if docs:
+                        job_log_names.append(name)
+                        job_log_values.extend(docs)
+                except Exception:
+                    pass
+        job_logging = job_log_compliance(job_log_values)
+        assertions.append(_assertion(
+            "final.jobs.logging",
+            "Job execution logs include start time, end time, status, and result",
+            "PASS" if job_logging.get("supported") else ("INCONCLUSIVE" if jcount >= 2 else "FAIL"),
+            expected={"start_time": True, "end_time": True, "status": True, "result": True},
+            actual=job_logging,
+            evidence=[json.dumps({"collections": job_log_names, "normalization": job_logging}, ensure_ascii=False)[:2500]],
+        ))
 
+        readme_evidence = readme_contract(repo)
         readme_ok = bool(static.get("has_readme"))
-        readme_final = sum(bool(static.get(k)) for k in [
-            "readme_mentions_indexes", "readme_mentions_aggregations",
-            "readme_mentions_materialized_views", "readme_mentions_jobs", "readme_mentions_api",
-        ])
-        assertions.append(_assertion("final.github_readme", "README documents the final extension",
-                                     "PASS" if readme_ok and readme_final >= 4 else ("INCONCLUSIVE" if readme_ok else "FAIL"),
-                                     expected="README covers major Phase 2 components", actual=f"{readme_final}/5 component areas"))
-        deps_ok = bool(static.get("has_requirements") and static.get("fastapi_declared") and static.get("uvicorn_declared"))
-        assertions.append(_assertion("final.dependencies", "Final API dependencies are declared",
-                                     "PASS" if deps_ok else "FAIL", expected="requirements include FastAPI and Uvicorn",
-                                     actual={"requirements": static.get("has_requirements"),
-                                             "fastapi": static.get("fastapi_declared"),
-                                             "uvicorn": static.get("uvicorn_declared")}))
+        readme_topics_ok = (
+            readme_evidence.get("covered_topics") == readme_evidence.get("required_topics")
+        )
+        github_readme_pass = bool(
+            readme_ok
+            and readme_topics_ok
+            and readme_evidence.get("requirements")
+            and readme_evidence.get("env_example")
+        )
+        assertions.append(_assertion(
+            "final.github_readme",
+            "README documents installation, execution, API, queries, indexes/Explain, aggregations, materialized views, and jobs",
+            "PASS" if github_readme_pass else ("INCONCLUSIVE" if readme_ok else "FAIL"),
+            expected={
+                "all_required_topics": True,
+                "requirements.txt": True,
+                ".env.example_or_example.env": True,
+            },
+            actual=readme_evidence,
+            evidence=[json.dumps(readme_evidence, ensure_ascii=False)[:3000]],
+        ))
+        deps_ok = bool(
+            static.get("has_requirements")
+            and static.get("fastapi_declared")
+            and static.get("uvicorn_declared")
+            and static.get("has_env_example")
+        )
+        assertions.append(_assertion(
+            "final.dependencies",
+            "Final API dependencies and environment example are declared",
+            "PASS" if deps_ok else "FAIL",
+            expected="requirements include FastAPI/Uvicorn and .env.example (or example.env) exists",
+            actual={
+                "requirements": static.get("has_requirements"),
+                "fastapi": static.get("fastapi_declared"),
+                "uvicorn": static.get("uvicorn_declared"),
+                "env_example": static.get("has_env_example"),
+            },
+        ))
 
         assertions.append(_assertion("final.discussion", "Discussion / understanding", "INCONCLUSIVE",
                                      expected="Manual viva", actual="Not automated",
@@ -587,7 +739,7 @@ def run_final_suite(
         if a["verdict"] in counts: counts[a["verdict"]] += 1
     status = "COMPLETED_WITH_ERRORS" if counts["ERROR"] else ("COMPLETED_WITH_FAILURES" if counts["FAIL"] else "COMPLETED")
     return {
-        "status": status, "assertions": assertions, "assertion_counts": counts, "probe": probe,
+        "status": status, "runtime_ready": True, "assertions": assertions, "assertion_counts": counts, "probe": probe,
         "service_run": {
             "returncode": service_run.get("returncode"), "elapsed_seconds": service_run.get("elapsed_seconds"),
             "timed_out": service_run.get("timed_out"),
