@@ -8,6 +8,7 @@ from pathlib import Path
 from grader.discovery import discover_execution_plan
 from grader.final_discovery import discover_final_plan
 from grader.final_runtime import run_final_suite
+from grader.agent_analyzer import analyze_final_repository_with_llm
 from grader.sandbox import SandboxConfig, docker_available
 
 
@@ -146,6 +147,27 @@ def write_final_report(out_root: Path, payload: dict) -> tuple[Path, Path]:
     return js, md
 
 
+def final_runtime_failure_context(runtime: dict | None) -> str:
+    if not isinstance(runtime, dict):
+        return ""
+    probe = runtime.get("probe") or {}
+    if probe.get("server_ready"):
+        return ""
+    service = runtime.get("service_run") or {}
+    parts = [
+        f"status={runtime.get('status')}",
+        f"returncode={service.get('returncode')}",
+        f"timed_out={service.get('timed_out')}",
+        "stdout_tail:",
+        str(service.get("stdout_tail") or "")[-6000:],
+        "stderr_tail:",
+        str(service.get("stderr_tail") or "")[-6000:],
+        "probe:",
+        json.dumps(probe, ensure_ascii=False)[:5000],
+    ]
+    return "\n".join(parts)
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Behavioral grader for the 7-point final extension")
     p.add_argument("--project", required=True)
@@ -163,10 +185,15 @@ def main() -> int:
     row = find_submission(base / args.submissions, args.project)
     repo = safe_workspace(Path(args.workspace), row)
     execution_plan = discover_execution_plan(repo)
-    final_plan = discover_final_plan(repo)
+    deterministic_final_plan = discover_final_plan(repo)
+    final_plan, final_agent = analyze_final_repository_with_llm(
+        repo,
+        deterministic_final_plan,
+        mode="readme",
+    )
 
     payload = {
-        "grader_version": "final-v1",
+        "grader_version": "final-v1.1-readme-first",
         "project_id": args.project,
         "students": row.get("students", ""),
         "student_nos": row.get("student_nos", ""),
@@ -175,6 +202,7 @@ def main() -> int:
         "repository_path": str(repo),
         "execution_plan": execution_plan.to_dict(),
         "final_plan": final_plan,
+        "final_plan_resolution": final_agent,
         "rubric": RUBRIC,
         "runtime": None,
     }
@@ -185,6 +213,12 @@ def main() -> int:
     else:
         from datasets.prepare_hidden_tests import ensure_prepared
         hidden = ensure_prepared()
+        sandbox_cfg = SandboxConfig(
+            cpus=args.cpus,
+            memory=args.memory,
+            timeout_seconds=args.timeout,
+            network_profile=args.network_profile,
+        )
         payload["runtime"] = run_final_suite(
             base=base,
             project_id=args.project,
@@ -192,15 +226,42 @@ def main() -> int:
             hidden_dir=hidden,
             execution_plan=execution_plan,
             final_plan=final_plan,
-            sandbox_config=SandboxConfig(
-                cpus=args.cpus,
-                memory=args.memory,
-                timeout_seconds=args.timeout,
-                network_profile=args.network_profile,
-            ),
+            sandbox_config=sandbox_cfg,
             timeout=args.timeout,
             keep_sandbox=args.keep_sandbox,
         )
+
+        # Level 2: only after the README-derived startup target failed.
+        failure_context = final_runtime_failure_context(payload["runtime"])
+        if failure_context:
+            recovered_plan, recovery = analyze_final_repository_with_llm(
+                repo,
+                deterministic_final_plan,
+                mode="targeted",
+                failure_context=failure_context,
+            )
+            changed = recovered_plan.get("api_target") != final_plan.get("api_target")
+            payload["final_execution_recovery"] = {
+                **recovery,
+                "original_api_target": final_plan.get("api_target"),
+                "recovered_api_target": recovered_plan.get("api_target"),
+                "target_changed": changed,
+            }
+            if changed and recovered_plan.get("api_target"):
+                payload["runtime_first_attempt"] = payload["runtime"]
+                final_plan = recovered_plan
+                payload["final_plan"] = final_plan
+                payload["runtime"] = run_final_suite(
+                    base=base,
+                    project_id=args.project,
+                    repo=repo,
+                    hidden_dir=hidden,
+                    execution_plan=execution_plan,
+                    final_plan=final_plan,
+                    sandbox_config=sandbox_cfg,
+                    timeout=args.timeout,
+                    keep_sandbox=args.keep_sandbox,
+                )
 
     result_json, result_md = write_final_report(Path(args.reports), payload)
     print(json.dumps({
