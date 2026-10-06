@@ -28,6 +28,23 @@ def resolve_execution_plan(
             "evidence": override_evidence,
         }
 
+    heuristic_conf = float(getattr(heuristic, "confidence", 0.0) or 0.0)
+    if heuristic.ingest_command and heuristic_conf >= confidence_threshold:
+        plan, override_evidence = apply_instructor_override(heuristic, override)
+        conf = max(0.99, heuristic_conf) if override else heuristic_conf
+        meta = {
+            "status": "INSTRUCTOR_OVERRIDE" if override else "DETERMINISTIC_READY",
+            "confidence": conf,
+            "requires_manual_review": False,
+            "confidence_threshold": confidence_threshold,
+            "heuristic_plan": heuristic.to_dict(),
+            "resolved_plan": plan.to_dict(),
+            "override_path": str(override_path) if override else None,
+            "agent_called": False,
+            "evidence": override_evidence,
+        }
+        return plan, meta
+
     plan, agent = analyze_repository_with_llm(repo, heuristic)
     conf = float(agent.get("confidence", 0.0) or 0.0)
     if agent.get("status") != "OK":
