@@ -7,6 +7,11 @@ on:
         description: Run ID from "Freeze & Prepare Submissions"
         required: true
         type: string
+      project_id:
+        description: Optional single project ID for a pilot (leave blank to grade all)
+        required: false
+        default: ''
+        type: string
       network_profile:
         description: Runtime network profile
         required: true
@@ -43,11 +48,19 @@ jobs:
 
       - id: read
         shell: python
+        env:
+          REQUESTED_PROJECT_ID: ${{ inputs.project_id }}
         run: |
           import csv, json, os, sys
           path = 'freeze_manifest/frozen_submissions.csv'
           rows = list(csv.DictReader(open(path, encoding='utf-8-sig', newline='')))
           ready = [r['project_id'] for r in rows if r.get('project_id') and r.get('freeze_status') == 'READY']
+          requested = os.environ.get('REQUESTED_PROJECT_ID', '').strip()
+          if requested:
+              if requested not in ready:
+                  raise SystemExit(f'Requested project {requested} is not READY in the selected freeze run.')
+              ready = [requested]
+              print(f'Single-project pilot mode: {requested}')
           failed = [
               {'project_id': r.get('project_id'), 'error': r.get('freeze_error')}
               for r in rows if r.get('project_id') and r.get('freeze_status') != 'READY'
