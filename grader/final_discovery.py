@@ -76,7 +76,7 @@ def discover_final_plan(repo_path: str | Path) -> dict[str, Any]:
         "has_requirements": bool(requirements.strip()),
         "fastapi_declared": "fastapi" in lower_req,
         "uvicorn_declared": "uvicorn" in lower_req,
-        "has_explain_code": bool(re.search(r"\.explain\s*\(|explain\s*\(|command\s*\(\s*[\\"\']explain[\\"\']", corpus, re.I)),
+        "has_explain_code": bool(re.search(r'\.explain\s*\(|explain\s*\(|command\s*\(\s*["\']explain["\']', corpus, re.I)),
         "has_execution_stats": "executionstats" in corpus.lower(),
         "has_aggregation_code": bool(re.search(r"\.aggregate\s*\(", corpus, re.I)),
         "has_materialized_view_code": bool(re.search(r"materialized|refresh[_\s-]*mv|mv_", corpus, re.I)),
