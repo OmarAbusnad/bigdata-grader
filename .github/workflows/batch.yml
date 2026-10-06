@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       project_id:
-        description: Optional single project ID for a pilot (leave blank to grade all)
+        description: Optional project ID or comma-separated IDs (leave blank to grade all)
         required: false
         default: ''
         type: string
@@ -57,10 +57,12 @@ jobs:
           ready = [r['project_id'] for r in rows if r.get('project_id') and r.get('freeze_status') == 'READY']
           requested = os.environ.get('REQUESTED_PROJECT_ID', '').strip()
           if requested:
-              if requested not in ready:
-                  raise SystemExit(f'Requested project {requested} is not READY in the selected freeze run.')
-              ready = [requested]
-              print(f'Single-project pilot mode: {requested}')
+              requested_ids = [x.strip() for x in requested.split(',') if x.strip()]
+              missing = [x for x in requested_ids if x not in ready]
+              if missing:
+                  raise SystemExit(f'Requested project(s) not READY in the selected freeze run: {", ".join(missing)}')
+              ready = requested_ids
+              print(f'Selected-project mode: {", ".join(requested_ids)}')
           failed = [
               {'project_id': r.get('project_id'), 'error': r.get('freeze_error')}
               for r in rows if r.get('project_id') and r.get('freeze_status') != 'READY'
