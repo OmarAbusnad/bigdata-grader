@@ -29,6 +29,9 @@ def _runtime_command_failure_context(runtime: dict | None) -> str:
         return ""
     if runtime.get("status") in {"DEPENDENCY_BUILD_ERROR", "INFRA_ERROR", "INFRA_OR_RUNTIME_ERROR"}:
         return ""
+    root_cause = str(runtime.get("root_cause") or "")
+    if root_cause and root_cause not in {"GRADER_DISCOVERY_FAILURE", "AMBIGUOUS", "EXECUTION_INCONCLUSIVE"}:
+        return ""
     cases = runtime.get("cases") or []
     if not cases:
         return ""
