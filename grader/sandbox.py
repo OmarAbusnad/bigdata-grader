@@ -78,8 +78,23 @@ class DockerSandbox:
         self.logs_dir = self.sandbox_dir / "logs"
         self._started = False
 
-    def _run(self, args: list[str], *, timeout: int | None = None, check: bool = False, cwd: Path | None = None) -> subprocess.CompletedProcess:
-        p = subprocess.run(args, capture_output=True, text=True, timeout=timeout or self.config.timeout_seconds, cwd=str(cwd) if cwd else None)
+    def _run(
+        self,
+        args: list[str],
+        *,
+        timeout: int | None = None,
+        check: bool = False,
+        cwd: Path | None = None,
+        input_text: str | None = None,
+    ) -> subprocess.CompletedProcess:
+        p = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            input=input_text,
+            timeout=timeout or self.config.timeout_seconds,
+            cwd=str(cwd) if cwd else None,
+        )
         if check and p.returncode != 0:
             raise SandboxError(f"Command failed ({p.returncode}): {' '.join(args)}\nSTDOUT:\n{p.stdout}\nSTDERR:\n{p.stderr}")
         return p
@@ -158,7 +173,14 @@ class DockerSandbox:
             time.sleep(1)
         raise SandboxError("MongoDB sandbox did not become ready")
 
-    def run_student(self, command: str, *, env: dict[str, str] | None = None, timeout: int | None = None) -> dict[str, Any]:
+    def run_student(
+        self,
+        command: str,
+        *,
+        env: dict[str, str] | None = None,
+        timeout: int | None = None,
+        stdin_text: str | None = None,
+    ) -> dict[str, Any]:
         """Run one student command in an ephemeral restricted container.
 
         /grader-tests is a read-only mount containing input datasets only. Teacher oracle files
@@ -186,7 +208,7 @@ class DockerSandbox:
         args += [self.image_name, "bash", "-c", cmd]
         t = time.time()
         try:
-            p = self._run(args, timeout=timeout)
+            p = self._run(args, timeout=timeout, input_text=stdin_text)
             result = {"returncode": p.returncode, "stdout": p.stdout, "stderr": p.stderr, "elapsed_seconds": round(time.time()-t, 3), "timed_out": False}
         except subprocess.TimeoutExpired as exc:
             self._run(["docker", "rm", "-f", self.runner_name], timeout=20)
