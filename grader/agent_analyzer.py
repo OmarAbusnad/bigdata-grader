@@ -402,6 +402,15 @@ def analyze_final_repository_with_llm(
                 if isinstance(part.get("text"), str):
                     parts.append(part["text"])
         data = json.loads("".join(parts).strip() or "{}")
+        if not isinstance(data, dict):
+            return dict(fallback), {
+                "status": "ERROR",
+                "reason": f"Gemini returned {type(data).__name__}, expected JSON object",
+                "confidence": 0.0,
+                "model": model,
+                "provider": "gemini",
+                "analysis_level": mode,
+            }
 
         plan = dict(fallback)
         api_target = _valid_api_target(repo, data.get("api_target"))
