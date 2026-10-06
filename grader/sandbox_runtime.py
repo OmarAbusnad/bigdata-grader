@@ -39,7 +39,7 @@ def _render_command(plan: ExecutionPlan, file_rel: str, db_name: str, threshold_
     cmd = plan.ingest_command
     cmd = cmd.replace("{file}", f"/grader-tests/{file_rel}")
     cmd = cmd.replace("{db_name}", db_name)
-    cmd = cmd.replace("{threshold_mb}", str(threshold_mb if threshold_mb is not None else 200))
+    cmd = cmd.replace("{threshold_mb}", _format_threshold_env(threshold_mb if threshold_mb is not None else 200))
     if any(x in cmd for x in ["&&", "||", ";", "|", ">", "<", "`", "$("]):
         raise SandboxError("Unsafe shell metacharacters detected in resolved command")
     return cmd
