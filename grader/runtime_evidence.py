@@ -64,6 +64,20 @@ def detect_engine(stdout: str, stderr: str, metrics: dict[str, Any] | None,
             votes.append(eng)
             evidence.append(f'mongodb:engine={value}')
     text = f'{stdout}\n{stderr}'
+
+    # A direct router/selection statement is stronger than generic Spark
+    # signatures that may appear later in a secondary ELT stage or traceback.
+    explicit_patterns = [
+        r'(?:selected|used|chosen|decision|القرار|المحرك(?:\s+المستخدم|\s+المختار)?)[^\n:]{0,80}(?:[:=]|استخدام)\s*\[?([^\n\]]+)',
+        r'(?:route|routing|توجيه)[^\n]{0,80}\b(pyspark|python[_ -]?batch)\b',
+    ]
+    for pat in explicit_patterns:
+        for m in re.finditer(pat, stdout, re.I):
+            eng = normalize_engine(m.group(1))
+            if eng:
+                evidence.append(f'console-explicit:{m.group(1).strip()[:120]}')
+                return eng, evidence
+
     patterns = [
         (r'(?:selected|used|chosen|المحرك(?:\s+المستخدم|\s+المختار)?)[^\n:]{0,50}[:=]\s*([^\n]+)', 'console'),
         (r'\b(pyspark|python[_ -]?batch)\b', 'console'),
