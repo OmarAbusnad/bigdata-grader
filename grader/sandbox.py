@@ -179,7 +179,12 @@ class DockerSandbox:
         if env:
             for k, v in env.items():
                 args += ["-e", f"{k}={v}"]
-        # Do not use a login shell here. `bash -l` may rebuild PATH from\n        # /etc/profile and hide /opt/student-venv/bin, which makes declared\n        # student dependencies appear missing at runtime. Preserve the image\n        # ENV PATH so commands execute with the per-project virtualenv.\n        args += [self.image_name, "bash", "-c", cmd]\n        t = time.time()
+        # Do not use a login shell here. `bash -l` may rebuild PATH from
+        # /etc/profile and hide /opt/student-venv/bin, which makes declared
+        # student dependencies appear missing at runtime. Preserve the image
+        # ENV PATH so commands execute with the per-project virtualenv.
+        args += [self.image_name, "bash", "-c", cmd]
+        t = time.time()
         try:
             p = self._run(args, timeout=timeout)
             result = {"returncode": p.returncode, "stdout": p.stdout, "stderr": p.stderr, "elapsed_seconds": round(time.time()-t, 3), "timed_out": False}
