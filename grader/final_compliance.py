@@ -25,10 +25,23 @@ def _read(path: Path, limit: int = 250_000) -> str:
 
 
 def _read_readme(repo: Path) -> tuple[str, str | None]:
-    for path in sorted(repo.iterdir(), key=lambda p: p.name.lower()):
-        if path.is_file() and path.name.lower() == "readme.md":
-            return _read(path), path.name
-    return "", None
+    candidates = [
+        p for p in repo.rglob("*")
+        if p.is_file() and p.name.lower() == "readme.md"
+        and len(p.relative_to(repo).parts) <= 3
+        and (
+            len(p.relative_to(repo).parts) == 1
+            or p.relative_to(repo).parts[0].lower() in {"final_extension", "final", "phase2", "phase_2", "phase-2"}
+        )
+    ]
+    if not candidates:
+        return "", None
+    candidates.sort(key=lambda p: (
+        0 if len(p.relative_to(repo).parts) == 1 else 1,
+        p.as_posix().lower(),
+    ))
+    chosen = candidates[0]
+    return _read(chosen), chosen.relative_to(repo).as_posix()
 
 
 def _gemini_json(system: str, payload: dict[str, Any], *, timeout: int = 45) -> dict[str, Any] | None:
@@ -174,8 +187,15 @@ def readme_contract(repo: Path) -> dict[str, Any]:
                     deterministic[key] = True
             source = "deterministic+agent_fallback"
 
-    env_exists = (repo / ".env.example").is_file() or (repo / "example.env").is_file()
-    requirements_exists = (repo / "requirements.txt").is_file()
+    env_exists = any(
+        p.is_file()
+        for name in (".env.example", "example.env", "env.example")
+        for p in [repo / name, repo / "final_extension" / name, repo / "final" / name, repo / "phase2" / name]
+    )
+    requirements_exists = any(
+        p.is_file() and len(p.relative_to(repo).parts) <= 3
+        for p in repo.rglob("requirements*.txt")
+    )
     covered = sum(1 for v in deterministic.values() if v)
     return {
         "topics": deterministic,
