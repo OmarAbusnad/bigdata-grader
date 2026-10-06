@@ -85,7 +85,7 @@ jobs:
       - id: read
         shell: python
         env:
-          REQUESTED_PROJECT_ID: ${{ github.event_name == 'push' && 'P06,P38,P60,P67,P68' || inputs.project_id }}
+          REQUESTED_PROJECT_ID: ${{ github.event_name == 'push' && 'P06,P38,P46,P60,P66,P67,P68' || inputs.project_id }}
         run: |
           import csv, json, os
           rows = list(csv.DictReader(open('freeze_manifest/frozen_submissions.csv', encoding='utf-8-sig', newline='')))
