@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import math
+from datetime import datetime
 from typing import Any
 
 FIELD_ALIASES = {
@@ -38,6 +39,22 @@ def _pick(mapping: dict[str, Any], names: list[str]) -> Any:
         if n in mapping:
             return mapping[n]
     return None
+
+
+def _normalize_date_value(value: Any) -> Any:
+    """Normalize equivalent ISO-like date representations for fair comparison."""
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, str):
+        raw = value.strip()
+        try:
+            dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return value
+    else:
+        return value
+    # Preserve timezone information when present; normalize separator/precision.
+    return dt.isoformat(timespec="seconds")
 
 
 def _parse_items(value: Any) -> Any:
@@ -78,7 +95,12 @@ def clean_payload(doc: dict[str, Any] | None) -> dict[str, Any]:
         if value is None and nested is not None:
             value = _pick(doc, aliases)
         if value is not None:
-            out[canon] = _parse_items(value) if canon == 'items' else value
+            if canon == 'items':
+                out[canon] = _parse_items(value)
+            elif canon == 'order_date':
+                out[canon] = _normalize_date_value(value)
+            else:
+                out[canon] = value
     return out
 
 
