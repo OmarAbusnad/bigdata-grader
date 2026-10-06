@@ -35,7 +35,7 @@ class SandboxError(RuntimeError):
 
 PLATFORM_ONLY_PACKAGES = {
     "pywin32", "pypiwin32", "pywinpty", "pywin32-ctypes",
-    "windows-curses", "wincertstore", "win32-setctime",
+    "windows-curses", "wincertstore", "win32-setctime", "tensorflow-intel",
 }
 
 
