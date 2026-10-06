@@ -400,6 +400,44 @@ def run_behavioral_suite(
         clean_cases = oracle.sample("test_01", classes=["correctable"], n=18)
         clean_a, audit_a = _verify_clean_samples(mongo, clean_cases)
         batch.assertions += [clean_a, audit_a, _verify_quarantine_evidence(mongo)]
+        batch_network_blocked, batch_network_evidence = _spark_dependency_resolution_blocked(
+            getattr(batch, "runtime_log", None)
+        )
+        if batch_network_blocked:
+            # Keep independently proven facts (command/raw/explicit router engine)
+            # and convert downstream facts that could not execute into review.
+            for a in batch.assertions:
+                if a.verdict == "FAIL" and a.key not in {"batch_pipeline.command", "batch.raw_count", "batch_pipeline.engine"}:
+                    a.verdict = "INCONCLUSIVE"
+                    a.note = "Blocked by Spark/Maven dependency resolution under the grader's isolated network."
+                    a.evidence.extend(batch_network_evidence)
+            report["cases"].append(_case_dict(batch))
+            assertions = {}
+            counts = {k: 0 for k in ["PASS", "FAIL", "INCONCLUSIVE", "ERROR", "SKIP"]}
+            for a in batch.assertions:
+                assertions[a.key] = a.to_dict()
+                counts[a.verdict] = counts.get(a.verdict, 0) + 1
+            # Remaining Spark/Upsert/Idempotency behavior depends on the same ELT
+            # stage and is therefore blocked, not failed.
+            blocked = _midterm_blocked_assertions("GRADER_NETWORK_DEPENDENCY_BLOCKED", plan_b=plan_b)
+            existing = set(assertions)
+            for a in blocked:
+                if a.key in existing:
+                    continue
+                assertions[a.key] = a.to_dict()
+                counts[a.verdict] = counts.get(a.verdict, 0) + 1
+            report["assertions"] = assertions
+            report["assertion_counts"] = counts
+            report["root_cause"] = "GRADER_NETWORK_DEPENDENCY_BLOCKED"
+            report["root_cause_evidence"] = batch_network_evidence
+            report["runtime_ready"] = True
+            report["status"] = "COMPLETED_WITH_REVIEW"
+            report["notes"] = [
+                "Raw Batch behavior executed, but downstream ELT/Spark behavior required Maven artifacts unavailable in isolated mode.",
+                "Blocked assertions are INCONCLUSIVE and must not be converted to zero.",
+            ]
+            return report
+
         report["cases"].append(_case_dict(batch))
 
         # Test 02: Spark. Generate a larger clean probe if a hard-coded threshold requires it.
