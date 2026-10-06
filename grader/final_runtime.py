@@ -660,6 +660,33 @@ def run_final_suite(
         assertions.append(_assertion("final.api.docs", "Swagger /docs is available", "PASS" if docs.get("ok") else "FAIL",
                                      expected="2xx", actual=docs.get("status")))
 
+        json_wrappers = [
+            probe.get("health") or {},
+            probe.get("indexes") or {},
+            probe.get("queries") or {},
+            probe.get("aggregations") or {},
+            probe.get("refresh_mv_first") or {},
+            probe.get("refresh_mv_second") or {},
+            probe.get("jobs") or {},
+            probe.get("jobs_after_runs") or {},
+        ]
+        json_wrappers += [
+            (x.get("response") or {}) for x in (probe.get("ingest_attempts") or [])
+            if (x.get("response") or {}).get("status") is not None
+        ]
+        json_checked = [x for x in json_wrappers if x.get("status") is not None]
+        json_ok = bool(json_checked) and all(x.get("is_json") is True for x in json_checked)
+        assertions.append(_assertion(
+            "final.api.json",
+            "Operational API responses are JSON",
+            "PASS" if json_ok else "FAIL",
+            expected=True,
+            actual={
+                "checked": len(json_checked),
+                "json_responses": sum(1 for x in json_checked if x.get("is_json") is True),
+            },
+        ))
+
         ingest_attempts = probe.get("ingest_attempts") or []
         ingest_ok = any((x.get("response") or {}).get("ok") for x in ingest_attempts)
         pipeline_counts = {}
