@@ -365,3 +365,19 @@ Scheduled Jobs
     assert plan["static"]["readme_file"] == "readme.md"
     assert contract["readme_file"] == "readme.md"
     assert contract["covered_topics"] == contract["required_topics"]
+
+
+def test_platform_fallback_skips_tensorflow_intel_but_keeps_tensorflow(tmp_path: Path):
+    from grader.sandbox import _write_compat_requirements
+
+    src = tmp_path / "requirements.txt"
+    dst = tmp_path / "compat.txt"
+    src.write_text(
+        "tensorflow==2.17.0\ntensorflow-intel==2.17.0\npymongo==4.17.0\n",
+        encoding="utf-8",
+    )
+    skipped = _write_compat_requirements(src, dst)
+    text = dst.read_text(encoding="utf-8")
+    assert "tensorflow-intel" in skipped
+    assert "tensorflow==2.17.0" in text
+    assert "pymongo==4.17.0" in text
