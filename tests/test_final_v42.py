@@ -187,3 +187,30 @@ def test_midterm_plan_skips_agent_when_deterministic_is_strong(tmp_path: Path, m
     assert plan.ingest_command
     assert meta["status"] == "DETERMINISTIC_READY"
     assert meta["agent_called"] is False
+
+
+def test_startup_classifier_treats_missing_config_as_configuration(tmp_path: Path):
+    from grader.final_runtime import _classify_startup_failure
+
+    (tmp_path / "requirements.txt").write_text("fastapi\nuvicorn\n", encoding="utf-8")
+    result = _classify_startup_failure(
+        tmp_path,
+        {
+            "stdout": "",
+            "stderr": "ModuleNotFoundError: No module named 'config'",
+            "timed_out": False,
+        },
+    )
+    assert result["code"] == "STUDENT_CONFIGURATION_FAILURE"
+
+
+def test_materialized_view_aggregation_basis_deterministic(tmp_path: Path):
+    from grader.final_compliance import materialized_view_aggregation_basis
+
+    (tmp_path / "mv.py").write_text(
+        "def refresh_mv(db):\n    rows = db.orders.aggregate([])\n    return list(rows)\n",
+        encoding="utf-8",
+    )
+    result = materialized_view_aggregation_basis(tmp_path)
+    assert result["supported"] is True
+    assert result["source"] == "deterministic"
