@@ -33,6 +33,36 @@ class SandboxError(RuntimeError):
     pass
 
 
+PLATFORM_ONLY_PACKAGES = {
+    "pywin32", "pypiwin32", "pywinpty", "pywin32-ctypes",
+    "windows-curses", "wincertstore", "win32-setctime",
+}
+
+
+def _write_compat_requirements(source: Path, dest: Path) -> list[str]:
+    """Create a conservative Linux-compatible fallback for Windows-only extras.
+
+    The original requirements are always attempted first. This fallback never
+    relaxes versions or removes general dependencies; it only skips a small,
+    explicit set of packages that cannot install on Linux.
+    """
+    skipped: list[str] = []
+    out: list[str] = []
+    for raw in source.read_text(encoding="utf-8-sig", errors="replace").splitlines():
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith(("-", "--")):
+            out.append(raw)
+            continue
+        name = re.split(r"[<>=!~\[;\s]", stripped, maxsplit=1)[0].strip().lower()
+        if name in PLATFORM_ONLY_PACKAGES:
+            skipped.append(name)
+            out.append(f"# GRADER platform-only skip: {raw}")
+        else:
+            out.append(raw)
+    dest.write_text("\n".join(out) + "\n", encoding="utf-8")
+    return skipped
+
+
 def docker_available() -> tuple[bool, str]:
     exe = shutil.which("docker")
     if not exe:
@@ -104,6 +134,13 @@ class DockerSandbox:
             shutil.rmtree(self.build_context)
         shutil.copytree(self.repo, self.build_context, ignore=shutil.ignore_patterns(".git", ".venv", "venv", ".grader_venv", "__pycache__", "*.pyc"))
         self.logs_dir.mkdir(parents=True, exist_ok=True)
+        compat_skipped: list[str] = []
+        req = self.build_context / "requirements.txt"
+        compat_req = self.build_context / ".grader.requirements.compat.txt"
+        if req.is_file():
+            compat_skipped = _write_compat_requirements(req, compat_req)
+        self._compat_requirements_skipped = compat_skipped
+
         dockerfile = textwrap.dedent("""
             FROM bigdata-grader/student-runtime:4.1
             WORKDIR /workspace
@@ -111,7 +148,10 @@ class DockerSandbox:
             USER root
             RUN python -m venv /opt/student-venv \
                 && /opt/student-venv/bin/python -m pip install --upgrade pip setuptools wheel \
-                && if [ -f requirements.txt ]; then /opt/student-venv/bin/pip install --no-cache-dir -r requirements.txt; \
+                && if [ -f requirements.txt ]; then \
+                     (/opt/student-venv/bin/pip install --no-cache-dir -r requirements.txt \
+                      || (echo "GRADER_REQUIREMENTS_FALLBACK=platform_compat" \
+                          && /opt/student-venv/bin/pip install --no-cache-dir -r .grader.requirements.compat.txt)); \
                    elif [ -f pyproject.toml ] || [ -f setup.py ]; then /opt/student-venv/bin/pip install --no-cache-dir .; \
                    fi
             ENV PATH=/opt/student-venv/bin:$PATH \
@@ -129,8 +169,18 @@ class DockerSandbox:
         p = self._run(["docker", "build", "-f", ".grader.Dockerfile", "-t", self.image_name, "."], cwd=self.build_context, timeout=max(1800, self.config.timeout_seconds))
         (self.logs_dir / "docker_build.stdout.log").write_text(p.stdout, encoding="utf-8", errors="replace")
         (self.logs_dir / "docker_build.stderr.log").write_text(p.stderr, encoding="utf-8", errors="replace")
-        return {"ok": p.returncode == 0, "returncode": p.returncode, "elapsed_seconds": round(time.time()-t, 2), "image": self.image_name,
-                "stdout_tail": p.stdout[-4000:], "stderr_tail": p.stderr[-8000:]}
+        combined = (p.stdout or "") + "\n" + (p.stderr or "")
+        fallback_used = "GRADER_REQUIREMENTS_FALLBACK=platform_compat" in combined
+        return {
+            "ok": p.returncode == 0,
+            "returncode": p.returncode,
+            "elapsed_seconds": round(time.time()-t, 2),
+            "image": self.image_name,
+            "compatibility_fallback_used": fallback_used,
+            "platform_packages_skipped": list(getattr(self, "_compat_requirements_skipped", []) or []) if fallback_used else [],
+            "stdout_tail": p.stdout[-4000:],
+            "stderr_tail": p.stderr[-8000:],
+        }
 
     def start(self) -> dict[str, Any]:
         ok, detail = docker_available()
