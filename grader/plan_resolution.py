@@ -55,3 +55,38 @@ def resolve_execution_plan(
     if override_evidence:
         meta["evidence"] = list(meta.get("evidence") or []) + override_evidence
     return plan, meta
+
+
+def resolve_execution_plan_after_failure(
+    repo: Path,
+    current_plan,
+    failure_context: str,
+    *,
+    confidence_threshold: float = 0.80,
+    override_path: str | Path | None = None,
+):
+    """Level 2: targeted inspection only after the README-derived command failed."""
+    override = load_instructor_override(override_path)
+    plan, agent = analyze_repository_with_llm(
+        repo,
+        current_plan,
+        mode="targeted",
+        failure_context=failure_context,
+    )
+    plan, override_evidence = apply_instructor_override(plan, override)
+    conf = float(agent.get("confidence", 0.0) or 0.0)
+    if override:
+        conf = max(conf, 0.99)
+    meta = {
+        **agent,
+        "confidence": conf,
+        "requires_manual_review": conf < confidence_threshold or not bool(plan.ingest_command),
+        "confidence_threshold": confidence_threshold,
+        "resolved_plan": plan.to_dict(),
+        "override_path": str(override_path) if override else None,
+        "fallback_level": 2,
+        "fallback_reason": "documented_execution_failed",
+    }
+    if override_evidence:
+        meta["evidence"] = list(meta.get("evidence") or []) + override_evidence
+    return plan, meta
