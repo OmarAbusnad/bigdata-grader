@@ -19,4 +19,4 @@ jobs:
           cache: pip
       - run: python -m pip install -r requirements.txt
       - run: pytest -q
-      - run: python -m py_compile evaluate.py evaluate_final.py evaluate_all.py freeze_submissions.py grader/*.py datasets/*.py
+      - run: python -m py_compile evaluate.py evaluate_final.py evaluate_project.py evaluate_all.py freeze_submissions.py grader/*.py datasets/*.py
