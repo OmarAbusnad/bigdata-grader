@@ -241,6 +241,7 @@ def main() -> int:
                             )
                             changed = (
                                 recovered_plan.ingest_command != plan.ingest_command
+                                or recovered_plan.ingest_stdin != plan.ingest_stdin
                                 or recovered_plan.setup_command != plan.setup_command
                             )
                             midterm_recovery = {
