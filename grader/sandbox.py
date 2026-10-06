@@ -158,6 +158,45 @@ def _write_runtime_requirements(repo: Path, source: Path, dest: Path) -> dict[st
     }
 
 
+def _collect_requirement_manifests(repo: Path) -> list[Path]:
+    """Collect student dependency manifests from root and conventional Phase-2 folders."""
+    out: list[Path] = []
+    root = repo / "requirements.txt"
+    if root.is_file():
+        out.append(root)
+    allowed_roots = {"final_extension", "final", "phase2", "phase_2", "phase-2"}
+    for path in repo.rglob("requirements*.txt"):
+        if path == root or not path.is_file():
+            continue
+        rel = path.relative_to(repo)
+        if len(rel.parts) <= 3 and rel.parts[0].lower() in allowed_roots:
+            out.append(path)
+    return sorted(out, key=lambda p: (0 if p == root else 1, p.as_posix().lower()))
+
+
+def _write_combined_requirements(repo: Path, dest: Path) -> dict[str, Any]:
+    manifests = _collect_requirement_manifests(repo)
+    if not manifests:
+        return {"manifests": [], "line_count": 0}
+    seen: set[str] = set()
+    lines: list[str] = []
+    for manifest in manifests:
+        text, _enc = _read_requirements_text(manifest)
+        lines.append(f"# --- {manifest.relative_to(repo).as_posix()} ---")
+        for raw in text.splitlines():
+            key = raw.strip()
+            if not key or key.startswith("#"):
+                continue
+            if key not in seen:
+                seen.add(key)
+                lines.append(raw)
+    dest.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return {
+        "manifests": [p.relative_to(repo).as_posix() for p in manifests],
+        "line_count": len(seen),
+    }
+
+
 def docker_available() -> tuple[bool, str]:
     exe = shutil.which("docker")
     if not exe:
@@ -231,7 +270,9 @@ class DockerSandbox:
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         compat_skipped: list[str] = []
         runtime_profile: dict[str, Any] = {}
-        req = self.build_context / "requirements.txt"
+        combined_req = self.build_context / ".grader.requirements.combined.txt"
+        manifest_meta = _write_combined_requirements(self.build_context, combined_req)
+        req = combined_req if combined_req.is_file() and manifest_meta.get("line_count") else (self.build_context / "requirements.txt")
         compat_req = self.build_context / ".grader.requirements.compat.txt"
         runtime_req = self.build_context / ".grader.requirements.runtime.txt"
         use_runtime_profile = False
@@ -244,13 +285,15 @@ class DockerSandbox:
             use_runtime_profile = int(runtime_profile.get("declared_count", 0) or 0) > 80
         self._compat_requirements_skipped = compat_skipped
         self._runtime_requirements_profile = runtime_profile
+        self._requirements_manifest_meta = manifest_meta
         self._use_runtime_requirements_profile = use_runtime_profile
 
+        install_source = ".grader.requirements.combined.txt" if combined_req.is_file() and manifest_meta.get("line_count") else "requirements.txt"
         install_clause = (
             '/opt/student-venv/bin/pip install --no-cache-dir -r .grader.requirements.runtime.txt '
             '&& echo "GRADER_REQUIREMENTS_MODE=runtime_profile_large_manifest"'
             if use_runtime_profile
-            else '(/opt/student-venv/bin/pip install --no-cache-dir -r requirements.txt '
+            else f'(/opt/student-venv/bin/pip install --no-cache-dir -r {install_source} '
                  '|| (echo "GRADER_REQUIREMENTS_FALLBACK=platform_compat" '
                  '&& /opt/student-venv/bin/pip install --no-cache-dir -r .grader.requirements.compat.txt))'
         )
@@ -262,7 +305,7 @@ class DockerSandbox:
             USER root
             RUN python -m venv /opt/student-venv \
                 && /opt/student-venv/bin/python -m pip install --upgrade pip setuptools wheel \
-                && if [ -f requirements.txt ]; then \
+                && if [ -f {install_source} ]; then \
                      {install_clause}; \
                    elif [ -f pyproject.toml ] || [ -f setup.py ]; then /opt/student-venv/bin/pip install --no-cache-dir .; \
                    fi
@@ -292,6 +335,7 @@ class DockerSandbox:
             "compatibility_fallback_used": fallback_used,
             "runtime_profile_used": runtime_profile_used,
             "runtime_requirements_profile": getattr(self, "_runtime_requirements_profile", {}) if runtime_profile_used else None,
+            "requirements_manifests": getattr(self, "_requirements_manifest_meta", {}).get("manifests", []),
             "platform_packages_skipped": list(getattr(self, "_compat_requirements_skipped", []) or []) if (fallback_used or runtime_profile_used) else [],
             "stdout_tail": p.stdout[-4000:],
             "stderr_tail": p.stderr[-8000:],
