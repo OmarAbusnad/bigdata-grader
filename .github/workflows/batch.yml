@@ -90,6 +90,7 @@ jobs:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GRADER_LLM_PROVIDER: gemini
       GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-2.5-flash' }}
+      PYTHONUNBUFFERED: 1
 
     steps:
       - uses: actions/checkout@v4
