@@ -70,53 +70,114 @@ def _python_invocation(repo: Path, script_path: str) -> str:
     return f"python {normalized}"
 
 
+def _safe_repo_relative(candidate: str) -> str | None:
+    normalized = re.sub(r"/+", "/", candidate.replace("\\", "/")).strip()
+    p = Path(normalized)
+    if not normalized or p.is_absolute() or ".." in p.parts:
+        return None
+    return normalized
+
+
+def _looks_like_wrapper(repo: Path, candidate: str) -> str | None:
+    """Resolve thin root wrappers that forward to another main module."""
+    text = _read(repo / candidate)
+    m = re.search(
+        r"^\s*from\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s+import\s+main\b",
+        text,
+        re.M,
+    )
+    if not m:
+        return None
+    target = m.group(1).replace(".", "/") + ".py"
+    target = _safe_repo_relative(target)
+    if target and (repo / target).exists():
+        target_text = _read(repo / target)
+        if "argparse" in target_text or "add_argument" in target_text:
+            return target
+    return None
+
+
 def _detect_entrypoint(repo: Path, readme: str) -> str | None:
     commands = re.findall(r"(?:python|py)\s+(?:-m\s+)?([\w./\\-]*main\.py)", readme, re.I)
-    for candidate in commands:
-        candidate = re.sub(r"/+", "/", candidate.replace("\\", "/"))
-        if (repo / candidate).exists():
+    for raw in commands:
+        candidate = _safe_repo_relative(raw)
+        if not candidate or not (repo / candidate).exists():
+            continue
+        wrapper = _looks_like_wrapper(repo, candidate)
+        return wrapper or candidate
+
+    for candidate in PYTHON_ENTRY_CANDIDATES:
+        if not (repo / candidate).exists():
+            continue
+        wrapper = _looks_like_wrapper(repo, candidate)
+        if wrapper:
+            return wrapper
+        text = _read(repo / candidate)
+        if "argparse" in text or "add_argument" in text:
             return candidate
+
     for candidate in PYTHON_ENTRY_CANDIDATES:
         if (repo / candidate).exists():
             return candidate
+
     for p in sorted(repo.rglob("*.py")):
         txt = _read(p)
         if "argparse" in txt and "__main__" in txt:
-            return str(p.relative_to(repo)).replace("\\", "/")
+            rel = _safe_repo_relative(str(p.relative_to(repo)))
+            if rel:
+                return rel
     return None
+
+
+def _argument_flags(text: str) -> set[str]:
+    flags: set[str] = set()
+    for call in re.findall(r"add_argument\((.*?)\)", text, re.S):
+        for flag in re.findall(r"[\"'](-{1,2}[A-Za-z0-9_-]+)[\"']", call):
+            flags.add(flag)
+    return flags
 
 
 def _command_from_entry(repo: Path, entrypoint: str | None) -> tuple[str | None, str | None, bool, bool]:
     if not entrypoint:
         return None, None, False, False
     text = _read(repo / entrypoint)
-    flags = set(re.findall(r"add_argument\(\s*[\"'](--[\w-]+)", text))
+    flags = _argument_flags(text)
     base_cmd = _python_invocation(repo, entrypoint)
-    if "--input" in flags:
-        cmd = f"{base_cmd} --input {{file}}"
-    elif "--file" in flags:
-        cmd = f"{base_cmd} --file {{file}}"
-    elif "-i" in text and "add_argument" in text:
-        cmd = f"{base_cmd} -i {{file}}"
+
+    run_prefix = ""
+    if re.search(r"add_subparsers\([^\)]*required\s*=\s*True", text, re.S) and re.search(
+        r"add_parser\(\s*[\"']run[\"']", text
+    ):
+        run_prefix = " run"
+
+    file_flag = next(
+        (flag for flag in ("--input", "--file", "--file-path", "--file_path", "-f", "-i") if flag in flags),
+        None,
+    )
+    if file_flag:
+        cmd = f"{base_cmd}{run_prefix} {file_flag} {{file}}"
+    elif "argparse" in text or "add_argument" in text:
+        cmd = None
     else:
         cmd = f"{base_cmd} {{file}}"
 
-    threshold_configurable = "--threshold-mb" in flags
-    database_configurable = "--db-name" in flags or "--database" in flags
-    if "--threshold-mb" in flags:
-        cmd += " --threshold-mb {threshold_mb}"
-    if "--db-name" in flags:
-        cmd += " --db-name {db_name}"
-    elif "--database" in flags:
-        cmd += " --database {db_name}"
+    threshold_flag = next((f for f in ("--threshold-mb", "--threshold", "-t") if f in flags), None)
+    db_name_flag = next((f for f in ("--db-name", "--database") if f in flags), None)
+    threshold_configurable = bool(threshold_flag)
+    database_configurable = bool(db_name_flag)
+
+    if cmd and threshold_flag:
+        cmd += f" {threshold_flag} {{threshold_mb}}"
+    if cmd and db_name_flag:
+        cmd += f" {db_name_flag} {{db_name}}"
 
     reset_cmd = None
-    if "--reset-db" in flags:
-        reset_cmd = cmd + " --reset-db"
-    elif "--reset" in flags:
-        reset_cmd = cmd + " --reset"
+    if cmd:
+        if "--reset-db" in flags:
+            reset_cmd = cmd + " --reset-db"
+        elif "--reset" in flags:
+            reset_cmd = cmd + " --reset"
     return cmd, reset_cmd, threshold_configurable, database_configurable
-
 
 def _detect_setup_command(repo: Path, readme: str) -> str | None:
     # Prefer an explicitly documented Mongo/init command.
