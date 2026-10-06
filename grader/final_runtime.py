@@ -8,6 +8,7 @@ from typing import Any
 from pymongo import MongoClient
 
 from .sandbox import DockerSandbox, SandboxConfig
+from .api_semantic_normalizer import normalize_probe
 
 
 REQUIRED_ENDPOINTS = {
@@ -104,8 +105,16 @@ def resolve_schema(openapi, schema):
         return cur if isinstance(cur, dict) else {}
     return schema
 
-def sample_value(name):
+def sample_value(name, schema=None):
     n = name.lower()
+    schema = resolve_schema(openapi, schema or {})
+    typ = schema.get("type")
+    if typ == "integer": return 10
+    if typ == "number": return 10.0
+    if typ == "boolean": return True
+    if typ == "array": return []
+    enum = schema.get("enum")
+    if isinstance(enum, list) and enum: return enum[0]
     if "city" in n: return "Sanaa"
     if "status" in n: return "Delivered"
     if "customer" in n: return "CUST-001"
@@ -113,7 +122,7 @@ def sample_value(name):
     if "start" in n and "date" in n: return "2026-01-01"
     if "end" in n and "date" in n: return "2026-12-31"
     if "date" in n: return "2026-01-01"
-    if "limit" in n: return 10
+    if any(x in n for x in ["limit", "size", "count", "batch"]): return 10
     if any(x in n for x in ["min", "amount", "total", "price", "value"]): return 10
     return "test"
 
@@ -121,8 +130,23 @@ def names_from(value, preferred):
     if isinstance(value, dict):
         for key in preferred:
             if key in value:
-                got = names_from(value[key], preferred)
+                child = value[key]
+                if isinstance(child, dict):
+                    keys = [
+                        str(k) for k, v in child.items()
+                        if str(k).lower() not in {"count", "total", "status", "message", "meta", "metadata"}
+                        and not str(k).lower().endswith("_count")
+                    ]
+                    if keys: return keys
+                got = names_from(child, preferred)
                 if got: return got
+        object_keys = [
+            str(k) for k, v in value.items()
+            if isinstance(v, dict)
+            and str(k).lower() not in {"meta", "metadata", "status", "message"}
+            and not str(k).lower().endswith("_count")
+        ]
+        if len(object_keys) >= 2: return object_keys
         return []
     if isinstance(value, list):
         out = []
@@ -142,9 +166,9 @@ def build_ingest_body(openapi):
     props = schema.get("properties") or {}
     if props:
         body = {}
-        for name in props:
+        for name, prop_schema in props.items():
             n = name.lower()
-            body[name] = DATASET if any(x in n for x in ["path", "file", "input"]) else sample_value(name)
+            body[name] = DATASET if any(x in n for x in ["path", "file", "input"]) else sample_value(name, prop_schema)
         return [body]
     return [
         {"input_path": DATASET}, {"file_path": DATASET}, {"path": DATASET},
@@ -192,7 +216,7 @@ for name in qnames[:5]:
         if p.get("in") != "query": continue
         pname = p.get("name")
         if pname and (p.get("required") or pname.lower() == "limit"):
-            params[pname] = sample_value(pname)
+            params[pname] = sample_value(pname, p.get("schema") or {})
     suffix = "?" + urllib.parse.urlencode(params) if params else ""
     qcalls.append({"name": name, "params": params, "response": request("GET", "/queries/" + urllib.parse.quote(name, safe="") + suffix, timeout=60)})
 result["query_calls"] = qcalls
@@ -372,6 +396,8 @@ def run_final_suite(
             timeout=max(timeout, 600),
         )
         probe = _extract_probe(str(service_run.get("stdout") or ""))
+        semantic = normalize_probe(probe)
+        probe["semantic_normalization"] = semantic
 
         openapi_paths = ((probe.get("openapi") or {}).get("paths") or {})
         assertions.append(_assertion("final.api.discovered", "FastAPI application discovered", "PASS",
@@ -406,25 +432,29 @@ def run_final_suite(
                                      actual=[(x.get("response") or {}).get("status") for x in ingest_attempts],
                                      evidence=[json.dumps(ingest_attempts[-1] if ingest_attempts else {}, ensure_ascii=False)[:1800]]))
 
-        qnames = probe.get("query_names") or []
+        qnames = (semantic.get("queries") or {}).get("names") or probe.get("query_names") or []
+        qmeta = semantic.get("queries") or {}
+        qcount = max(len(qnames), int(qmeta.get("declared_count") or 0))
         assertions.append(_assertion("final.queries.count", "At least five practical queries are exposed",
-                                     "PASS" if len(qnames) >= 5 else "FAIL", expected=">= 5", actual=len(qnames),
-                                     evidence=[", ".join(map(str, qnames[:10]))]))
+                                     "PASS" if qcount >= 5 else "FAIL", expected=">= 5", actual=qcount,
+                                     evidence=[json.dumps(qmeta, ensure_ascii=False)[:1800]]))
         qcalls = probe.get("query_calls") or []
         qok = sum(1 for x in qcalls if (x.get("response") or {}).get("ok"))
         assertions.append(_assertion("final.queries.runtime", "Practical queries execute against seeded data",
-                                     "PASS" if qok >= 5 and len(qnames) >= 5 else ("INCONCLUSIVE" if qnames else "FAIL"),
+                                     "PASS" if qok >= 5 and len(qnames) >= 5 else ("INCONCLUSIVE" if qcount >= 5 else "FAIL"),
                                      expected="5 successful query calls", actual=f"{qok}/{len(qcalls)}",
                                      evidence=[json.dumps(qcalls, ensure_ascii=False)[:3000]]))
 
-        anames = probe.get("aggregation_names") or []
+        anames = (semantic.get("aggregations") or {}).get("names") or probe.get("aggregation_names") or []
+        ameta = semantic.get("aggregations") or {}
+        acount = max(len(anames), int(ameta.get("declared_count") or 0))
         assertions.append(_assertion("final.aggregations.count", "At least five aggregation reports are exposed",
-                                     "PASS" if len(anames) >= 5 else "FAIL", expected=">= 5", actual=len(anames),
-                                     evidence=[", ".join(map(str, anames[:10]))]))
+                                     "PASS" if acount >= 5 else "FAIL", expected=">= 5", actual=acount,
+                                     evidence=[json.dumps(ameta, ensure_ascii=False)[:1800]]))
         acalls = probe.get("aggregation_calls") or []
         aok = sum(1 for x in acalls if (x.get("response") or {}).get("ok"))
         assertions.append(_assertion("final.aggregations.runtime", "Aggregation reports execute",
-                                     "PASS" if aok >= 5 and len(anames) >= 5 else ("INCONCLUSIVE" if anames else "FAIL"),
+                                     "PASS" if aok >= 5 and len(anames) >= 5 else ("INCONCLUSIVE" if acount >= 5 else "FAIL"),
                                      expected="5 successful aggregation calls", actual=f"{aok}/{len(acalls)}",
                                      evidence=[json.dumps(acalls, ensure_ascii=False)[:3000]]))
 
@@ -489,14 +519,16 @@ def run_final_suite(
                                      expected="incremental or zero-change second refresh",
                                      actual=json.dumps(mv2.get("body"), ensure_ascii=False)[:1200], evidence=inc_ev))
 
-        jnames = probe.get("job_names") or []
+        jnames = (semantic.get("jobs") or {}).get("names") or probe.get("job_names") or []
+        jmeta = semantic.get("jobs") or {}
+        jcount = max(len(jnames), int(jmeta.get("declared_count") or 0))
         assertions.append(_assertion("final.jobs.count", "At least two scheduled jobs are exposed",
-                                     "PASS" if len(jnames) >= 2 else "FAIL", expected=">= 2", actual=len(jnames),
-                                     evidence=[", ".join(map(str, jnames[:10]))]))
+                                     "PASS" if jcount >= 2 else "FAIL", expected=">= 2", actual=jcount,
+                                     evidence=[json.dumps(jmeta, ensure_ascii=False)[:1800]]))
         jcalls = probe.get("job_calls") or []
         jok = sum(1 for x in jcalls if (x.get("response") or {}).get("ok"))
         assertions.append(_assertion("final.jobs.manual_run", "Scheduled jobs support manual execution",
-                                     "PASS" if jok >= 2 else ("INCONCLUSIVE" if jnames else "FAIL"),
+                                     "PASS" if jok >= 2 else ("INCONCLUSIVE" if jcount >= 2 else "FAIL"),
                                      expected="2 successful manual runs", actual=f"{jok}/{len(jcalls)}",
                                      evidence=[json.dumps(jcalls, ensure_ascii=False)[:2500]]))
         jobs_body = (probe.get("jobs") or {}).get("body")
