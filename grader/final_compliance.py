@@ -336,3 +336,54 @@ def job_log_compliance(values: list[Any]) -> dict[str, Any]:
         "evidence": (agent or {}).get("evidence_paths") or [],
         "model": (agent or {}).get("_model"),
     }
+
+
+def materialized_view_aggregation_basis(repo: Path) -> dict[str, Any]:
+    """Evidence that materialized views are derived through aggregation logic."""
+    candidates: list[dict[str, str]] = []
+    for path in sorted(repo.rglob("*.py")):
+        if any(part in {".git", ".venv", "venv", "__pycache__", "node_modules"} for part in path.parts):
+            continue
+        text = _read(path, 80_000)
+        lower = text.lower()
+        if not any(x in lower for x in ["materialized", "refresh_mv", "refresh-mv", "mv_", "summary"]):
+            continue
+        if ".aggregate(" in lower or "aggregate(" in lower:
+            return {
+                "supported": True,
+                "source": "deterministic",
+                "evidence": [f"{path.relative_to(repo).as_posix()}: materialized-view logic and aggregation call occur in the same source file"],
+                "confidence": 1.0,
+            }
+        candidates.append({"path": path.relative_to(repo).as_posix(), "content": text[:30000]})
+
+    readme = _read(repo / "README.md")
+    if re.search(r"materialized.{0,300}aggregat|aggregat.{0,300}materialized", readme, re.I | re.S):
+        return {
+            "supported": True,
+            "source": "deterministic",
+            "evidence": ["README explicitly links materialized views to aggregation logic/results"],
+            "confidence": 0.95,
+        }
+
+    if not candidates:
+        return {"supported": False, "source": "deterministic", "evidence": [], "confidence": 1.0}
+
+    agent = _gemini_json(
+        "You extract evidence only. Determine whether the supplied source implements materialized views/summaries "
+        "from aggregation logic or aggregation results. Do not grade and do not infer missing code. Return JSON only.",
+        {
+            "files": candidates[:8],
+            "schema": {"supported": "true|false|null", "evidence": ["supported fact"], "confidence": "0..1"},
+        },
+    )
+    supported = (agent or {}).get("supported")
+    if supported not in (True, False):
+        supported = None
+    return {
+        "supported": supported,
+        "source": "agent" if agent else "undetermined",
+        "evidence": (agent or {}).get("evidence") or [],
+        "confidence": float((agent or {}).get("confidence", 0.0) or 0.0),
+        "model": (agent or {}).get("_model"),
+    }
