@@ -314,7 +314,11 @@ for name in qnames[:5]:
     for p in qspec.get("parameters") or []:
         if p.get("in") != "query": continue
         pname = p.get("name")
-        if pname and (p.get("required") or pname.lower() == "limit"):
+        if pname:
+            # Optional FastAPI parameters are often semantically required only
+            # for specific named queries (the endpoint returns 400 when absent).
+            # Supplying schema-valid samples for every documented query parameter
+            # is safer than treating optional-in-OpenAPI as unnecessary.
             params[pname] = sample_value(pname, p.get("schema") or {})
     suffix = "?" + urllib.parse.urlencode(params) if params else ""
     qcalls.append({"name": name, "params": params, "response": request("GET", "/queries/" + urllib.parse.quote(name, safe="") + suffix, timeout=60)})
