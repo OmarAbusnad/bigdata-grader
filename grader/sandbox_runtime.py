@@ -28,6 +28,21 @@ def _live(message: str) -> None:
     print(f"[GRADER] {message}", flush=True)
 
 
+def _spark_dependency_resolution_blocked(runtime_log: dict[str, Any] | None) -> tuple[bool, list[str]]:
+    runtime_log = runtime_log or {}
+    text = (str(runtime_log.get("stdout_tail") or "") + "\n" + str(runtime_log.get("stderr_tail") or "")).lower()
+    markers = [
+        "unresolved dependencies",
+        "module not found: org.mongodb.spark",
+        "host repo1.maven.org not found",
+        "host repos.spark-packages.org not found",
+        "unknownhostexception",
+        "could not resolve dependencies",
+    ]
+    hits = [m for m in markers if m in text]
+    return bool(hits), hits
+
+
 def _format_threshold_env(value: float | int) -> str:
     value = float(value)
     return str(int(value)) if value.is_integer() else str(value)
@@ -293,12 +308,30 @@ def run_behavioral_suite(
         spark, t2_eff = execute_case("spark_pipeline", "test_02", fresh=False, expected_engine="pyspark",
                                      file_path=spark_file, spec_override=spark_spec, threshold_override=spark_threshold)
         s2 = spark.snapshot_after or {}
-        spark.assertions += [
-            assert_equal("spark.raw_count", "Spark: orders_raw = الإدخال", s2.get("raw"), int(t2_eff["input"])),
-            assert_equal("spark.validated_count", "Spark: validated = الإدخال النظيف", s2.get("validated"), int(t2_eff["validated_after_run"])),
-            assert_equal("spark.quarantine_count", "Spark: quarantine = 0", s2.get("quarantine"), int(t2_eff["quarantine"])),
-            assert_zero("spark.duplicates", "Spark: لا توجد Business Keys مكررة", int(s2.get("duplicate_business_keys", -1))),
-        ]
+        spark_blocked, spark_block_evidence = _spark_dependency_resolution_blocked(getattr(spark, "runtime_log", None))
+        if spark_blocked:
+            for a in spark.assertions:
+                if a.key in {"spark_pipeline.command", "spark_pipeline.engine"}:
+                    a.verdict = "INCONCLUSIVE"
+                    a.note = "Spark Maven dependency could not be resolved under the grader's isolated network; this is not an automatic student failure."
+                    a.evidence.extend(spark_block_evidence)
+            spark.assertions += [
+                A("spark.raw_count", "Spark: orders_raw = الإدخال", "INCONCLUSIVE", int(t2_eff["input"]), s2.get("raw"),
+                  spark_block_evidence, note="Blocked by isolated Maven dependency resolution."),
+                A("spark.validated_count", "Spark: validated = الإدخال النظيف", "INCONCLUSIVE", int(t2_eff["validated_after_run"]), s2.get("validated"),
+                  spark_block_evidence, note="Blocked by isolated Maven dependency resolution."),
+                A("spark.quarantine_count", "Spark: quarantine = 0", "INCONCLUSIVE", int(t2_eff["quarantine"]), s2.get("quarantine"),
+                  spark_block_evidence, note="Blocked by isolated Maven dependency resolution."),
+                A("spark.duplicates", "Spark: لا توجد Business Keys مكررة", "INCONCLUSIVE", 0, s2.get("duplicate_business_keys"),
+                  spark_block_evidence, note="Blocked by isolated Maven dependency resolution."),
+            ]
+        else:
+            spark.assertions += [
+                assert_equal("spark.raw_count", "Spark: orders_raw = الإدخال", s2.get("raw"), int(t2_eff["input"])),
+                assert_equal("spark.validated_count", "Spark: validated = الإدخال النظيف", s2.get("validated"), int(t2_eff["validated_after_run"])),
+                assert_equal("spark.quarantine_count", "Spark: quarantine = 0", s2.get("quarantine"), int(t2_eff["quarantine"])),
+                assert_zero("spark.duplicates", "Spark: لا توجد Business Keys مكررة", int(s2.get("duplicate_business_keys", -1))),
+            ]
         report["cases"].append(_case_dict(spark))
 
         # Test 03: baseline -> new/update/unchanged/quarantine -> rerun.
