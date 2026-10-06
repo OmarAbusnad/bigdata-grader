@@ -153,6 +153,9 @@ def final_runtime_failure_context(runtime: dict | None) -> str:
     probe = runtime.get("probe") or {}
     if probe.get("server_ready"):
         return ""
+    root_cause = str(runtime.get("root_cause") or "")
+    if root_cause and root_cause not in {"GRADER_DISCOVERY_FAILURE", "AMBIGUOUS", "EXECUTION_INCONCLUSIVE"}:
+        return ""
     service = runtime.get("service_run") or {}
     parts = [
         f"status={runtime.get('status')}",
