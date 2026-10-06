@@ -46,7 +46,12 @@ def _classify_startup_failure(repo: Path, service_run: dict[str, Any]) -> dict[s
     if m:
         module = m.group(1)
         top = module.split(".", 1)[0]
-        local = (repo / f"{top}.py").is_file() or (repo / top / "__init__.py").is_file()
+        local = (
+            (repo / f"{top}.py").is_file()
+            or (repo / top / "__init__.py").is_file()
+            or any(p.is_file() for p in repo.rglob(f"{top}.py"))
+            or any(p.is_file() for p in repo.rglob(f"{top}/__init__.py"))
+        )
         requirements = ""
         try:
             requirements = (repo / "requirements.txt").read_text(encoding="utf-8-sig", errors="replace").lower()
