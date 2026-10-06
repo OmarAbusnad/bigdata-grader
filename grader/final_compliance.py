@@ -24,6 +24,13 @@ def _read(path: Path, limit: int = 250_000) -> str:
         return ""
 
 
+def _read_readme(repo: Path) -> tuple[str, str | None]:
+    for path in sorted(repo.iterdir(), key=lambda p: p.name.lower()):
+        if path.is_file() and path.name.lower() == "readme.md":
+            return _read(path), path.name
+    return "", None
+
+
 def _gemini_json(system: str, payload: dict[str, Any], *, timeout: int = 45) -> dict[str, Any] | None:
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -134,7 +141,7 @@ def meaningful_payload(body: Any) -> dict[str, Any]:
 
 
 def readme_contract(repo: Path) -> dict[str, Any]:
-    readme = _read(repo / "README.md")
+    readme, readme_name = _read_readme(repo)
     lower = readme.lower()
     deterministic = {
         "installation": bool(re.search(r"install|installation|pip\s+install|تثبيت", lower, re.I)),
@@ -177,6 +184,7 @@ def readme_contract(repo: Path) -> dict[str, Any]:
         "env_example": env_exists,
         "requirements": requirements_exists,
         "source": source,
+        "readme_file": readme_name,
         "agent": agent_meta,
     }
 
