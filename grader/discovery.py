@@ -39,6 +39,37 @@ def _first_match(patterns: list[str], text: str, flags: int = re.I | re.M) -> st
     return None
 
 
+def _python_invocation(repo: Path, script_path: str) -> str:
+    """Choose script vs module execution deterministically.
+
+    Nested scripts such as src/main.py often import sibling top-level packages
+    (for example config.settings). Running them as a file sets sys.path[0] to
+    /workspace/src and can hide the repository root. In that case module mode
+    keeps the repository root importable without changing student code.
+    """
+    normalized = script_path.replace("\\", "/")
+    if "/" not in normalized or not normalized.endswith(".py"):
+        return f"python {normalized}"
+
+    script = repo / normalized
+    text = _read(script)
+    script_dir = script.parent
+
+    imported_roots = set(re.findall(
+        r"^\s*(?:from|import)\s+([A-Za-z_]\w*)",
+        text,
+        re.M,
+    ))
+    for root in imported_roots:
+        root_at_repo = (repo / root).exists() or (repo / f"{root}.py").exists()
+        root_beside_script = (script_dir / root).exists() or (script_dir / f"{root}.py").exists()
+        if root_at_repo and not root_beside_script:
+            module = normalized[:-3].replace("/", ".")
+            return f"python -m {module}"
+
+    return f"python {normalized}"
+
+
 def _detect_entrypoint(repo: Path, readme: str) -> str | None:
     commands = re.findall(r"(?:python|py)\s+(?:-m\s+)?([\w./\\-]*main\.py)", readme, re.I)
     for candidate in commands:
@@ -60,14 +91,15 @@ def _command_from_entry(repo: Path, entrypoint: str | None) -> tuple[str | None,
         return None, None, False, False
     text = _read(repo / entrypoint)
     flags = set(re.findall(r"add_argument\(\s*[\"'](--[\w-]+)", text))
+    base_cmd = _python_invocation(repo, entrypoint)
     if "--input" in flags:
-        cmd = f"python {entrypoint} --input {{file}}"
+        cmd = f"{base_cmd} --input {{file}}"
     elif "--file" in flags:
-        cmd = f"python {entrypoint} --file {{file}}"
+        cmd = f"{base_cmd} --file {{file}}"
     elif "-i" in text and "add_argument" in text:
-        cmd = f"python {entrypoint} -i {{file}}"
+        cmd = f"{base_cmd} -i {{file}}"
     else:
-        cmd = f"python {entrypoint} {{file}}"
+        cmd = f"{base_cmd} {{file}}"
 
     threshold_configurable = "--threshold-mb" in flags
     database_configurable = "--db-name" in flags or "--database" in flags
@@ -101,7 +133,7 @@ def _detect_setup_command(repo: Path, readme: str) -> str | None:
     ]
     for c in candidates:
         if (repo / c).exists():
-            return f"python {c}"
+            return _python_invocation(repo, c)
     return None
 
 
