@@ -186,11 +186,22 @@ def main() -> int:
     repo = safe_workspace(Path(args.workspace), row)
     execution_plan = discover_execution_plan(repo)
     deterministic_final_plan = discover_final_plan(repo)
-    final_plan, final_agent = analyze_final_repository_with_llm(
-        repo,
-        deterministic_final_plan,
-        mode="readme",
-    )
+    if deterministic_final_plan.get("requires_agent"):
+        final_plan, final_agent = analyze_final_repository_with_llm(
+            repo,
+            deterministic_final_plan,
+            mode="readme",
+        )
+    else:
+        final_plan = deterministic_final_plan
+        final_agent = {
+            "status": "NOT_NEEDED",
+            "provider": None,
+            "analysis_level": "deterministic",
+            "confidence": deterministic_final_plan.get("confidence"),
+            "reason": "README/source evidence resolved a valid FastAPI target deterministically.",
+            "files_sent": [],
+        }
 
     payload = {
         "grader_version": "final-v1.1-readme-first",
