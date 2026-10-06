@@ -1,1 +1,1 @@
-trigger unified V4.3 assurance after bounded runtime requirements; P06,P38,P46,P60,P66,P67,P68; freeze 37390623044
+OFFICIAL first-pass unified grading: all READY projects; freeze 37390623044; plan_b=true; issues only after grader-clean verification.
