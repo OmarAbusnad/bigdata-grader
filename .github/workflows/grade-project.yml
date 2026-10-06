@@ -1,0 +1,188 @@
+name: Grade Project Unified
+
+on:
+  workflow_dispatch:
+    inputs:
+      freeze_run_id:
+        description: Run ID from Freeze & Prepare Submissions
+        required: true
+        type: string
+      project_id:
+        description: Optional project ID(s), comma-separated (blank = all)
+        required: false
+        default: ''
+        type: string
+      mode:
+        description: Which suites to run
+        required: true
+        default: all
+        type: choice
+        options: [all, midterm, final]
+      network_profile:
+        description: Runtime network profile
+        required: true
+        default: isolated
+        type: choice
+        options: [isolated, compat]
+      plan_b:
+        description: Enable optional midterm incremental/Plan B tests
+        required: true
+        default: false
+        type: boolean
+      max_parallel:
+        description: Number of projects graded in parallel
+        required: true
+        default: '2'
+        type: choice
+        options: ['1', '2', '3']
+  push:
+    paths:
+      - '.grader/trigger-unified.txt'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      projects: ${{ steps.read.outputs.projects }}
+      freeze_run_id: ${{ steps.config.outputs.freeze_run_id }}
+      mode: ${{ steps.config.outputs.mode }}
+      network_profile: ${{ steps.config.outputs.network_profile }}
+      plan_b: ${{ steps.config.outputs.plan_b }}
+      max_parallel: ${{ steps.config.outputs.max_parallel }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: config
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "freeze_run_id=37390623044" >> "$GITHUB_OUTPUT"
+            echo "mode=all" >> "$GITHUB_OUTPUT"
+            echo "network_profile=isolated" >> "$GITHUB_OUTPUT"
+            echo "plan_b=false" >> "$GITHUB_OUTPUT"
+            echo "max_parallel=2" >> "$GITHUB_OUTPUT"
+          else
+            echo "freeze_run_id=${{ inputs.freeze_run_id }}" >> "$GITHUB_OUTPUT"
+            echo "mode=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+            echo "network_profile=${{ inputs.network_profile }}" >> "$GITHUB_OUTPUT"
+            echo "plan_b=${{ inputs.plan_b }}" >> "$GITHUB_OUTPUT"
+            echo "max_parallel=${{ inputs.max_parallel }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download frozen manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: frozen-manifest-${{ steps.config.outputs.freeze_run_id }}
+          path: freeze_manifest
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.config.outputs.freeze_run_id }}
+
+      - id: read
+        shell: python
+        env:
+          REQUESTED_PROJECT_ID: ${{ github.event_name == 'push' && 'P06,P38,P60,P67,P68' || inputs.project_id }}
+        run: |
+          import csv, json, os
+          rows = list(csv.DictReader(open('freeze_manifest/frozen_submissions.csv', encoding='utf-8-sig', newline='')))
+          ready = [r['project_id'] for r in rows if r.get('project_id') and r.get('freeze_status') == 'READY']
+          requested = os.environ.get('REQUESTED_PROJECT_ID', '').strip()
+          if requested:
+              requested_ids = [x.strip().upper() for x in requested.split(',') if x.strip()]
+              missing = [x for x in requested_ids if x not in ready]
+              if missing:
+                  raise SystemExit(f'Requested project(s) not READY: {missing}')
+              ready = requested_ids
+          print(f'Unified grading projects: {len(ready)} -> {ready}')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
+              f.write('projects=' + json.dumps(ready) + '\n')
+
+  grade:
+    needs: matrix
+    if: ${{ needs.matrix.outputs.projects != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(needs.matrix.outputs.max_parallel) }}
+      matrix:
+        project_id: ${{ fromJSON(needs.matrix.outputs.projects) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+      PYTHONUNBUFFERED: 1
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install grader dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Validate secrets
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "${HIDDEN_SEED:-}" || exit 2
+          test -n "${GEMINI_API_KEY:-}" || exit 2
+
+      - name: Download frozen manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: frozen-manifest-${{ needs.matrix.outputs.freeze_run_id }}
+          path: freeze_manifest
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ needs.matrix.outputs.freeze_run_id }}
+
+      - name: Download frozen project snapshot
+        uses: actions/download-artifact@v4
+        with:
+          name: frozen-${{ matrix.project_id }}-${{ needs.matrix.outputs.freeze_run_id }}
+          path: frozen_project
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ needs.matrix.outputs.freeze_run_id }}
+
+      - name: Restore immutable repository snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "workspaces/${{ matrix.project_id }}/repo"
+          tar -xzf "frozen_project/${{ matrix.project_id }}.repo.tar.gz" -C "workspaces/${{ matrix.project_id }}"
+          cp freeze_manifest/frozen_submissions.csv frozen_submissions.csv
+
+      - name: Build base runtime image
+        run: python build_runtime_image.py
+
+      - name: Generate identical hidden pack
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+
+      - name: Unified project evaluation
+        shell: bash
+        run: |
+          EXTRA=""
+          if [ "${{ needs.matrix.outputs.plan_b }}" = "true" ]; then EXTRA="--plan-b"; fi
+          python -u evaluate_project.py             --project "${{ matrix.project_id }}"             --submissions frozen_submissions.csv             --workspace "workspaces/${{ matrix.project_id }}/repo"             --mode "${{ needs.matrix.outputs.mode }}"             --network-profile "${{ needs.matrix.outputs.network_profile }}"             $EXTRA
+
+      - name: Upload unified evidence package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unified-${{ matrix.project_id }}-${{ github.run_id }}
+          path: |
+            reports_unified/${{ matrix.project_id }}/
+            reports/${{ matrix.project_id }}/
+            reports_final/${{ matrix.project_id }}/
+          if-no-files-found: warn
+          retention-days: 30
