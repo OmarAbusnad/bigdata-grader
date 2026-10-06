@@ -13,10 +13,29 @@ def _read(path: Path, limit: int = 120_000) -> str:
 
 
 def _read_readme(repo: Path, limit: int = 250_000) -> tuple[str, str | None]:
-    for path in sorted(repo.iterdir(), key=lambda p: p.name.lower()):
-        if path.is_file() and path.name.lower() == "readme.md":
-            return _read(path, limit), path.name
-    return "", None
+    candidates = [
+        p for p in repo.rglob("README.md")
+        if p.is_file()
+        and ".git" not in p.parts
+        and (
+            len(p.relative_to(repo).parts) == 1
+            or p.relative_to(repo).parts[0].lower() in {"final_extension", "final", "phase2", "phase_2", "phase-2"}
+        )
+    ]
+    if not candidates:
+        candidates = [
+            p for p in repo.rglob("*")
+            if p.is_file() and p.name.lower() == "readme.md"
+            and len(p.relative_to(repo).parts) <= 3
+        ]
+    if not candidates:
+        return "", None
+    candidates.sort(key=lambda p: (
+        0 if len(p.relative_to(repo).parts) == 1 else 1,
+        p.as_posix().lower(),
+    ))
+    chosen = candidates[0]
+    return _read(chosen, limit), chosen.relative_to(repo).as_posix()
 
 
 def _iter_python(repo: Path):
@@ -91,8 +110,20 @@ def discover_final_plan(repo_path: str | Path) -> dict[str, Any]:
 
     corpus = "\n".join(all_text)
     readme, readme_name = _read_readme(repo, 250_000)
-    requirements = _read(repo / "requirements.txt", 100_000)
-    env_example_exists = (repo / ".env.example").is_file() or (repo / "example.env").is_file()
+    requirement_files = [
+        p for p in repo.rglob("requirements*.txt")
+        if p.is_file() and len(p.relative_to(repo).parts) <= 3
+        and (
+            len(p.relative_to(repo).parts) == 1
+            or p.relative_to(repo).parts[0].lower() in {"final_extension", "final", "phase2", "phase_2", "phase-2"}
+        )
+    ]
+    requirements = "\n".join(_read(p, 100_000) for p in sorted(requirement_files))
+    env_example_exists = any(
+        p.is_file()
+        for name in (".env.example", "example.env", "env.example")
+        for p in [repo / name, repo / "final_extension" / name, repo / "final" / name, repo / "phase2" / name]
+    )
     lower_req = requirements.lower()
     lower_readme = readme.lower()
     readme_target, readme_start_command = _readme_api_target(repo, readme)
