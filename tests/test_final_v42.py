@@ -133,3 +133,18 @@ python main.py --input data.csv
 def test_meaningful_payload_does_not_accept_labels_only():
     result = meaningful_payload({"query_name": "q1", "title": "My Query", "status": "SUCCESS"})
     assert result["supported"] is not True
+
+
+def test_startup_classifier_detects_missing_declared_dependency(tmp_path: Path):
+    from grader.final_runtime import _classify_startup_failure
+
+    (tmp_path / "requirements.txt").write_text("fastapi\nuvicorn\n", encoding="utf-8")
+    result = _classify_startup_failure(
+        tmp_path,
+        {
+            "stdout": "",
+            "stderr": "ModuleNotFoundError: No module named 'tqdm'",
+            "timed_out": False,
+        },
+    )
+    assert result["code"] == "STUDENT_DEPENDENCY_FAILURE"
