@@ -45,6 +45,18 @@ def _render_command(plan: ExecutionPlan, file_rel: str, db_name: str, threshold_
     return cmd
 
 
+def _render_stdin(plan: ExecutionPlan, file_rel: str, db_name: str, threshold_mb: float | None) -> str | None:
+    if not plan.ingest_stdin:
+        return None
+    value = str(plan.ingest_stdin)
+    if "\x00" in value or len(value) > 4000:
+        raise SandboxError("Unsafe or oversized structured stdin in execution plan")
+    value = value.replace("{file}", f"/grader-tests/{file_rel}")
+    value = value.replace("{db_name}", db_name)
+    value = value.replace("{threshold_mb}", _format_threshold_env(threshold_mb if threshold_mb is not None else 200))
+    return value
+
+
 def _copy_input_view(hidden_dir: Path, oracle: HiddenOracle, inputs_dir: Path) -> dict[str, str]:
     """Copy only student-visible input datasets. Teacher oracle files are never mounted."""
     if inputs_dir.exists():
@@ -193,7 +205,8 @@ def run_behavioral_suite(
                 f"{project_id}: RUN {case_name} | file={source.name} | size={file_mb:.2f}MB "
                 f"| expected_engine={expected_engine or 'n/a'} | threshold={effective_threshold:.1f}MB"
             )
-            run = sb.run_student(cmd, env=env, timeout=timeout)
+            stdin_text = _render_stdin(plan, rel, effective_db, effective_threshold)
+            run = sb.run_student(cmd, env=env, timeout=timeout, stdin_text=stdin_text)
             after = mongo.snapshot().to_dict()
             _live(
                 f"{project_id}: DONE {case_name} | rc={run.get('returncode')} "
@@ -239,6 +252,7 @@ def run_behavioral_suite(
                 "timed_out": run.get("timed_out"),
                 "stdout_tail": str(run.get("stdout", ""))[-12000:],
                 "stderr_tail": str(run.get("stderr", ""))[-12000:],
+                "stdin_used": bool(stdin_text),
             }
             return case, spec
 
