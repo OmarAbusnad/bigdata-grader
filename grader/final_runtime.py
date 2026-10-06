@@ -149,6 +149,7 @@ def sample_value(name, schema=None):
     if "status" in n: return "Delivered"
     if "customer" in n: return "CUST-001"
     if "payment" in n or "method" in n: return "cash"
+    if "engine" in n: return "batch"
     if "start" in n and "date" in n: return "2026-01-01"
     if "end" in n and "date" in n: return "2026-12-31"
     if "date" in n: return "2026-01-01"
@@ -253,7 +254,7 @@ result["query_calls"] = qcalls
 
 a = request("GET", "/aggregations", timeout=30)
 result["aggregations"] = a
-anames = names_from(a.get("body"), ["aggregations", "items", "data", "results"])
+anames = names_from(a.get("body"), ["aggregations", "items", "data", "results", "reports", "aggregation_reports", "available_reports"])
 result["aggregation_names"] = anames[:30]
 result["aggregation_calls"] = [
     {"name": name, "response": request("GET", "/aggregations/" + urllib.parse.quote(name, safe=""), timeout=90)}
@@ -265,12 +266,13 @@ result["refresh_mv_second"] = request("POST", "/refresh-mv", {}, timeout=120)
 
 j = request("GET", "/jobs", timeout=30)
 result["jobs"] = j
-jnames = names_from(j.get("body"), ["jobs", "items", "data", "results"])
+jnames = names_from(j.get("body"), ["jobs", "items", "data", "results", "scheduled_jobs", "tasks", "registered_jobs"])
 result["job_names"] = jnames[:30]
 result["job_calls"] = [
     {"name": name, "response": request("POST", "/jobs/" + urllib.parse.quote(name, safe="") + "/run", {}, timeout=120)}
     for name in jnames[:2]
 ]
+result["jobs_after_runs"] = request("GET", "/jobs", timeout=30)
 
 print("FINAL_PROBE_JSON=" + json.dumps(result, ensure_ascii=False))
 '''
@@ -769,6 +771,9 @@ def run_final_suite(
             response = call.get("response") or {}
             if response.get("body") is not None:
                 job_log_values.append(response.get("body"))
+        jobs_after_runs = probe.get("jobs_after_runs") or {}
+        if jobs_after_runs.get("body") is not None:
+            job_log_values.append(jobs_after_runs.get("body"))
         for name in sorted(collections_after):
             if re.search(r"job.*log|log.*job|execution.*log|run.*log", name.lower()):
                 try:
