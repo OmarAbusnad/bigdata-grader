@@ -173,6 +173,15 @@ def _sanitize_command(cmd: str | None) -> str | None:
     return cmd
 
 
+def _sanitize_stdin(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = value.replace("\r\n", "\n").replace("\r", "\n")
+    if "\x00" in text or len(text) > 4000:
+        return None
+    return text if text.strip() else None
+
+
 def _normalize_response(
     data: dict[str, Any],
     fallback: ExecutionPlan,
@@ -193,6 +202,10 @@ def _normalize_response(
             cmd = None
         if cmd and (prefer_agent_commands or not current):
             setattr(plan, key, cmd)
+    stdin_value = _sanitize_stdin(data.get("ingest_stdin"))
+    if stdin_value is not None:
+        plan.ingest_stdin = stdin_value
+
     for field in ["entrypoint", "mongo_uri", "business_key", "spark_master"]:
         v = data.get(field)
         if isinstance(v, str) and v.strip(): setattr(plan, field, v.strip())
@@ -243,7 +256,8 @@ def analyze_repository_with_llm(
         "Never treat Markdown tables, directory trees, ASCII/Unicode tree drawings, bullets, prose, or filenames shown in diagrams as shell commands. "
         "A command must be an explicit executable command and must reference files/modules supported by the supplied evidence. "
         "Do not modify student code. Do not grade the student. Return JSON only. "
-        "Use {file}, {db_name}, and {threshold_mb} placeholders when the documented CLI supports them. "
+        "If the documented CLI is interactive, return ingest_stdin as plain newline-separated input data; do not use shell pipes. "
+        "Use {file}, {db_name}, and {threshold_mb} placeholders in commands or ingest_stdin when supported. "
         "If uncertain, return null for the command and lower confidence. Shell metacharacters are forbidden."
     )
     user = {
@@ -255,7 +269,7 @@ def analyze_repository_with_llm(
         "analysis_level": mode,
         "failure_context": (failure_context[-12000:] if mode == "targeted" else ""),
         "expected_schema": {
-            "entrypoint": "string|null", "ingest_command": "string|null", "setup_command": "string|null", "reset_command": "string|null",
+            "entrypoint": "string|null", "ingest_command": "string|null", "ingest_stdin": "string|null", "setup_command": "string|null", "reset_command": "string|null",
             "database": "string|null", "mongo_uri": "string|null",
             "collections": {"raw": "string", "validated": "string", "quarantine": "string"},
             "business_key": "string|null", "threshold_mb": "number|null", "spark_master": "string|null",
