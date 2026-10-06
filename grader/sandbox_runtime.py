@@ -28,6 +28,94 @@ def _live(message: str) -> None:
     print(f"[GRADER] {message}", flush=True)
 
 
+def _classify_midterm_start_failure(repo: Path, runtime_log: dict[str, Any] | None) -> dict[str, Any]:
+    runtime_log = runtime_log or {}
+    stdout = str(runtime_log.get("stdout_tail") or "")
+    stderr = str(runtime_log.get("stderr_tail") or "")
+    text = stdout + "\n" + stderr
+
+    if runtime_log.get("timed_out"):
+        return {"code": "TIMEOUT", "evidence": ["initial pipeline command timed out"]}
+
+    if "EOFError: EOF when reading a line" in text or re.search(r"\binput\s*\(", text):
+        return {
+            "code": "GRADER_DISCOVERY_FAILURE",
+            "evidence": ["interactive CLI requires structured stdin; execution plan did not provide it"],
+        }
+
+    m = re.search(r"ModuleNotFoundError:\s*No module named ['\"]([^'\"]+)['\"]", text)
+    if m:
+        module = m.group(1)
+        top = module.split(".", 1)[0]
+        local = (repo / f"{top}.py").is_file() or (repo / top / "__init__.py").is_file()
+        requirements = ""
+        try:
+            requirements = (repo / "requirements.txt").read_text(encoding="utf-8-sig", errors="replace").lower()
+        except Exception:
+            pass
+        declared = bool(re.search(rf"(?m)^\s*{re.escape(top.lower())}(?:\s|[<>=!~\[]|$)", requirements))
+        local_hints = {"config", "src", "app", "core", "common", "utils", "services", "database", "db", "pipeline", "etl"}
+        if not local and not declared and top.lower() in local_hints:
+            return {
+                "code": "STUDENT_CONFIGURATION_FAILURE",
+                "evidence": [f"missing local-style module: {module}"],
+            }
+        if not local and not declared:
+            return {
+                "code": "STUDENT_DEPENDENCY_FAILURE",
+                "evidence": [f"missing undeclared module: {module}"],
+            }
+        return {"code": "STUDENT_CONFIGURATION_FAILURE", "evidence": [f"module import failed: {module}"]}
+
+    if re.search(r"SyntaxError|IndentationError", text):
+        return {"code": "STUDENT_CODE_FAILURE", "evidence": ["Python syntax/import-time error"]}
+    if re.search(r"No such file or directory|can't open file", text, re.I):
+        return {"code": "GRADER_DISCOVERY_FAILURE", "evidence": ["resolved command references a missing executable path"]}
+    return {
+        "code": "STUDENT_CODE_OR_CONFIGURATION_FAILURE",
+        "evidence": ["initial pipeline command failed before runtime behavior could be verified"],
+    }
+
+
+def _midterm_blocked_assertions(reason: str, *, plan_b: bool) -> list[Any]:
+    specs = [
+        ("batch.raw_count", "orders_raw = عدد صفوف الإدخال"),
+        ("batch.validated_count", "orders_validated = النتيجة المتوقعة"),
+        ("batch.quarantine_count", "orders_quarantine = النتيجة المتوقعة"),
+        ("batch.duplicates", "لا توجد Business Keys مكررة"),
+        ("batch.unique_index_runtime", "Unique Index فعلي على Business Key"),
+        ("batch.schema_validator_runtime", "$jsonSchema Validator فعلي على validated"),
+        ("batch.cleaning_samples", "قواعد التنظيف تعمل على العينات المخفية"),
+        ("batch.audit_trail", "سجل أثر التعديل موجود"),
+        ("batch.quarantine_errors", "العزل يحتوي سبب الخطأ"),
+        ("spark_pipeline.command", "Spark pipeline execution"),
+        ("spark_pipeline.engine", "Spark engine selection"),
+        ("spark.raw_count", "Spark raw count"),
+        ("spark.validated_count", "Spark validated count"),
+        ("spark.quarantine_count", "Spark quarantine count"),
+        ("spark.duplicates", "Spark duplicate business keys"),
+        ("upsert.baseline_validated", "Upsert baseline"),
+        ("upsert.final_validated", "Upsert final validated"),
+        ("upsert.insert_samples", "Upsert insert samples"),
+        ("upsert.update_samples", "Upsert update samples"),
+        ("upsert.unchanged_samples", "Upsert unchanged samples"),
+        ("idempotency.validated_stable", "Idempotency validated stable"),
+        ("idempotency.duplicates", "Idempotency duplicates"),
+    ]
+    if plan_b:
+        specs += [
+            ("incremental.final_validated", "Incremental validated"),
+            ("incremental.duplicates_first", "Incremental duplicates"),
+            ("incremental.rerun_validated_stable", "Incremental rerun stable"),
+            ("incremental.rerun_duplicates", "Incremental rerun duplicates"),
+        ]
+    return [
+        A(key, label, "INCONCLUSIVE", "runtime ready", "BLOCKED",
+          note=f"Blocked by root cause: {reason}")
+        for key, label in specs
+    ]
+
+
 def _spark_dependency_resolution_blocked(runtime_log: dict[str, Any] | None) -> tuple[bool, list[str]]:
     runtime_log = runtime_log or {}
     text = (str(runtime_log.get("stdout_tail") or "") + "\n" + str(runtime_log.get("stderr_tail") or "")).lower()
@@ -275,6 +363,28 @@ def run_behavioral_suite(
         _live(f"{project_id}: stage 1/5 — Batch + ELT")
         batch, t1 = execute_case("batch_pipeline", "test_01", fresh=True, expected_engine="python_batch")
         s1 = batch.snapshot_after or {}
+        batch_run = getattr(batch, "runtime_log", None) or {}
+        if int(batch_run.get("returncode") or 0) != 0 or bool(batch_run.get("timed_out")):
+            root_cause = _classify_midterm_start_failure(repo, batch_run)
+            for a in batch.assertions:
+                if a.key == "batch_pipeline.engine":
+                    a.verdict = "INCONCLUSIVE"
+            batch.assertions += _midterm_blocked_assertions(str(root_cause.get("code")), plan_b=plan_b)
+            report["cases"].append(_case_dict(batch))
+            assertions = {}
+            counts = {k: 0 for k in ["PASS", "FAIL", "INCONCLUSIVE", "ERROR", "SKIP"]}
+            for a in batch.assertions:
+                assertions[a.key] = a.to_dict()
+                counts[a.verdict] = counts.get(a.verdict, 0) + 1
+            report["assertions"] = assertions
+            report["assertion_counts"] = counts
+            report["root_cause"] = root_cause.get("code")
+            report["root_cause_evidence"] = root_cause.get("evidence") or []
+            report["runtime_ready"] = False
+            report["status"] = "STARTUP_BLOCKED"
+            return report
+
+        report["runtime_ready"] = True
         batch.assertions += [
             assert_equal("batch.raw_count", "orders_raw = عدد صفوف الإدخال", s1.get("raw"), int(t1["input"])),
             assert_equal("batch.validated_count", "orders_validated = النتيجة المتوقعة", s1.get("validated"), int(t1["validated_after_run"])),
