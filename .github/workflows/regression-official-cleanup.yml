@@ -1,0 +1,79 @@
+name: Regression Official Cleanup
+
+on:
+  push:
+    paths:
+      - '.grader/trigger-official-cleanup.txt'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  grade:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        project_id: [P03, P08]
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+      PYTHONUNBUFFERED: 1
+      FREEZE_RUN_ID: '37390623044'
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Validate secrets
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "${HIDDEN_SEED:-}" || exit 2
+          test -n "${GEMINI_API_KEY:-}" || exit 2
+      - uses: actions/download-artifact@v4
+        with:
+          name: frozen-manifest-${{ env.FREEZE_RUN_ID }}
+          path: freeze_manifest
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.FREEZE_RUN_ID }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: frozen-${{ matrix.project_id }}-${{ env.FREEZE_RUN_ID }}
+          path: frozen_project
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.FREEZE_RUN_ID }}
+      - name: Restore immutable snapshot
+        shell: bash
+        run: |
+          mkdir -p "workspaces/${{ matrix.project_id }}/repo"
+          tar -xzf "frozen_project/${{ matrix.project_id }}.repo.tar.gz" -C "workspaces/${{ matrix.project_id }}"
+          cp freeze_manifest/frozen_submissions.csv frozen_submissions.csv
+      - run: python build_runtime_image.py
+      - name: Generate hidden pack
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Unified cleanup regression
+        run: |
+          python -u evaluate_project.py             --project "${{ matrix.project_id }}"             --submissions frozen_submissions.csv             --workspace "workspaces/${{ matrix.project_id }}/repo"             --mode all             --network-profile isolated             --plan-b             --allow-low-confidence
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cleanup-${{ matrix.project_id }}-${{ github.run_id }}
+          path: |
+            reports_unified/${{ matrix.project_id }}/
+            reports/${{ matrix.project_id }}/
+            reports_final/${{ matrix.project_id }}/
+          if-no-files-found: warn
+          retention-days: 30
