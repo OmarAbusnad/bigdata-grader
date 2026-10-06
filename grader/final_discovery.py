@@ -27,6 +27,30 @@ def _module_target(repo: Path, path: Path, app_name: str) -> str:
     return f"{module}:{app_name}"
 
 
+def _readme_api_target(repo: Path, readme: str) -> tuple[str, str]:
+    """Parse an explicit README uvicorn command without LLM inference."""
+    for line in readme.splitlines():
+        text = line.strip().strip('`').strip()
+        if any(x in text for x in ["│", "├", "└", "─", "|--", "+--"]):
+            continue
+        text = re.sub(r"^\$\s*", "", text)
+        m = re.match(
+            r"^(?:(?:python(?:3)?|py)\s+-m\s+)?uvicorn\s+"
+            r"([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*:[A-Za-z_]\w*)\b",
+            text,
+            re.I,
+        )
+        if not m:
+            continue
+        target = m.group(1)
+        module, _obj = target.split(":", 1)
+        module_file = repo / (module.replace(".", "/") + ".py")
+        package_init = repo / module.replace(".", "/") / "__init__.py"
+        if module_file.is_file() or package_init.is_file():
+            return target, text
+    return "", ""
+
+
 def discover_final_plan(repo_path: str | Path) -> dict[str, Any]:
     repo = Path(repo_path).resolve()
     candidates: list[tuple[int, Path, str]] = []
@@ -64,13 +88,21 @@ def discover_final_plan(repo_path: str | Path) -> dict[str, Any]:
     env_example_exists = (repo / ".env.example").is_file() or (repo / "example.env").is_file()
     lower_req = requirements.lower()
     lower_readme = readme.lower()
+    readme_target, readme_start_command = _readme_api_target(repo, readme)
 
     evidence: list[str] = []
     warnings: list[str] = []
-    if api_target:
-        evidence.append(f"FastAPI app: {api_target} ({api_file})")
-    else:
+    code_api_target = api_target
+    if readme_target:
+        evidence.append(f"README startup target: {readme_target}")
+        api_target = readme_target
+        api_file = readme_target.split(":", 1)[0].replace(".", "/") + ".py"
+    if code_api_target:
+        evidence.append(f"FastAPI app: {code_api_target}")
+    if not api_target:
         warnings.append("لم يتم اكتشاف FastAPI app بصورة حتمية.")
+    if readme_target and code_api_target and readme_target != code_api_target:
+        warnings.append(f"README target ({readme_target}) conflicts with source target ({code_api_target}).")
 
     static = {
         "has_readme": bool(readme.strip()),
@@ -103,9 +135,19 @@ def discover_final_plan(repo_path: str | Path) -> dict[str, Any]:
     if static["has_aggregation_code"] or static["has_materialized_view_code"] or static["has_scheduled_job_code"]:
         confidence += 0.10
 
+    requires_agent = bool(
+        not api_target
+        or (readme_target and code_api_target and readme_target != code_api_target)
+    )
+
     return {
         "api_target": api_target,
         "api_file": api_file,
+        "api_target_source": "readme" if readme_target else ("source" if code_api_target else "unresolved"),
+        "readme_api_target": readme_target,
+        "readme_start_command": readme_start_command,
+        "source_api_target": code_api_target,
+        "requires_agent": requires_agent,
         "confidence": round(min(confidence, 0.99), 2),
         "static": static,
         "evidence": evidence,
