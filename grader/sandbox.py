@@ -39,6 +39,21 @@ PLATFORM_ONLY_PACKAGES = {
 }
 
 
+def _read_requirements_text(source: Path) -> tuple[str, str]:
+    raw = source.read_bytes()
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return raw.decode("utf-16"), "utf-16"
+    if b"\x00" in raw[:200]:
+        for enc in ("utf-16-le", "utf-16-be"):
+            try:
+                text = raw.decode(enc)
+                if "\x00" not in text:
+                    return text, enc
+            except UnicodeError:
+                pass
+    return raw.decode("utf-8-sig", errors="replace"), "utf-8-sig"
+
+
 def _write_compat_requirements(source: Path, dest: Path) -> list[str]:
     """Create a conservative Linux-compatible fallback for Windows-only extras.
 
@@ -46,9 +61,10 @@ def _write_compat_requirements(source: Path, dest: Path) -> list[str]:
     relaxes versions or removes general dependencies; it only skips a small,
     explicit set of packages that cannot install on Linux.
     """
+    text, _encoding = _read_requirements_text(source)
     skipped: list[str] = []
     out: list[str] = []
-    for raw in source.read_text(encoding="utf-8-sig", errors="replace").splitlines():
+    for raw in text.splitlines():
         stripped = raw.strip()
         if not stripped or stripped.startswith("#") or stripped.startswith(("-", "--")):
             out.append(raw)
@@ -238,7 +254,12 @@ class DockerSandbox:
         """
         cmd = "set -eu; (socat TCP-LISTEN:27017,fork,reuseaddr TCP:mongo:27017 >/tmp/socat.log 2>&1 &) ; exec " + command
         args = [
-            "docker", "run", "--rm", "--name", self.runner_name,
+            "docker", "run", "--rm",
+        ]
+        if stdin_text is not None:
+            args.append("-i")
+        args += [
+            "--name", self.runner_name,
             "--network", self.network,
             "--cpus", str(self.config.cpus), "--memory", self.config.memory,
             "--pids-limit", str(self.config.pids_limit),
