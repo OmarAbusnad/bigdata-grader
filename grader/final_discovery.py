@@ -61,6 +61,7 @@ def discover_final_plan(repo_path: str | Path) -> dict[str, Any]:
     corpus = "\n".join(all_text)
     readme = _read(repo / "README.md", 250_000)
     requirements = _read(repo / "requirements.txt", 100_000)
+    env_example_exists = (repo / ".env.example").is_file() or (repo / "example.env").is_file()
     lower_req = requirements.lower()
     lower_readme = readme.lower()
 
@@ -74,6 +75,7 @@ def discover_final_plan(repo_path: str | Path) -> dict[str, Any]:
     static = {
         "has_readme": bool(readme.strip()),
         "has_requirements": bool(requirements.strip()),
+        "has_env_example": env_example_exists,
         "fastapi_declared": "fastapi" in lower_req,
         "uvicorn_declared": "uvicorn" in lower_req,
         "has_explain_code": bool(re.search(r'\.explain\s*\(|explain\s*\(|command\s*\(\s*["\']explain["\']', corpus, re.I)),
@@ -87,6 +89,8 @@ def discover_final_plan(repo_path: str | Path) -> dict[str, Any]:
         "readme_mentions_materialized_views": "materialized" in lower_readme or "mv_" in lower_readme,
         "readme_mentions_jobs": "job" in lower_readme or "scheduler" in lower_readme or "جدول" in readme,
         "readme_mentions_api": "fastapi" in lower_readme or "/health" in lower_readme or "/docs" in lower_readme,
+        "readme_mentions_install": bool(re.search(r"install|installation|pip\s+install|تثبيت", readme, re.I)),
+        "readme_mentions_run": bool(re.search(r"run|تشغيل|python\s+|uvicorn", readme, re.I)),
     }
 
     confidence = 0.25
