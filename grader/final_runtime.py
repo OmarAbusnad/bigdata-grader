@@ -328,6 +328,92 @@ def _contains_ixscan(value: Any) -> bool:
     return False
 
 
+def _find_active_database(
+    client: MongoClient,
+    preferred_name: str,
+    *,
+    validated_name: str,
+    raw_name: str,
+    quarantine_name: str,
+    health_body: Any = None,
+) -> tuple[str, dict[str, Any]]:
+    """Select the database actually used by the student's API from runtime state.
+
+    The grader container is isolated per project, so inspecting its database list
+    is stronger and safer than trusting a guessed database name.
+    """
+    hinted: set[str] = set()
+
+    def collect_hints(value: Any) -> None:
+        if isinstance(value, dict):
+            for k, v in value.items():
+                kl = str(k).lower()
+                if kl in {"database", "db", "db_name", "database_name", "mongo_db", "mongo_database"} and isinstance(v, str) and v.strip():
+                    hinted.add(v.strip())
+                collect_hints(v)
+        elif isinstance(value, list):
+            for item in value[:30]:
+                collect_hints(item)
+
+    collect_hints(health_body)
+    scores: list[tuple[float, str, dict[str, Any]]] = []
+    for name in client.list_database_names():
+        if name in {"admin", "config", "local"}:
+            continue
+        dbx = client[name]
+        try:
+            cols = set(dbx.list_collection_names())
+        except Exception:
+            continue
+        score = 0.0
+        reasons: list[str] = []
+        if name == preferred_name:
+            score += 1.0
+            reasons.append("preferred")
+        if name in hinted:
+            score += 8.0
+            reasons.append("health_hint")
+        for col_name, weight in [
+            (validated_name, 6.0),
+            (raw_name, 4.0),
+            (quarantine_name, 3.0),
+        ]:
+            if col_name in cols:
+                score += weight
+                try:
+                    count = dbx[col_name].count_documents({})
+                except Exception:
+                    count = 0
+                if count > 0:
+                    score += min(5.0, 1.0 + (count > 10) + (count > 1000))
+                    reasons.append(f"{col_name}:{count}")
+        extra_signal = 0
+        for cname in cols:
+            low = cname.lower()
+            if re.search(r"(^mv[_-]|material|summary|view|job.*log|log.*job)", low):
+                extra_signal += 1
+        if extra_signal:
+            score += min(3.0, extra_signal)
+            reasons.append(f"phase2_collections:{extra_signal}")
+        scores.append((score, name, {"collections": sorted(cols), "reasons": reasons}))
+
+    if not scores:
+        return preferred_name, {"source": "fallback", "candidates": []}
+    scores.sort(key=lambda x: (-x[0], x[1]))
+    best_score, best_name, meta = scores[0]
+    return best_name, {
+        "source": "runtime_database_state",
+        "selected": best_name,
+        "score": best_score,
+        "health_hints": sorted(hinted),
+        "reasons": meta["reasons"],
+        "candidates": [
+            {"database": name, "score": score, "reasons": m["reasons"]}
+            for score, name, m in scores[:8]
+        ],
+    }
+
+
 def _second_refresh_incremental(probe: dict[str, Any]) -> tuple[bool, list[str]]:
     response = probe.get("refresh_mv_second") or {}
     body = response.get("body")
@@ -467,6 +553,20 @@ def run_final_suite(
                 "sandbox": sb.metadata(),
             }
 
+        active_db_name, active_db_meta = _find_active_database(
+            client,
+            db_name,
+            validated_name=validated_name,
+            raw_name=raw_name,
+            quarantine_name=quarantine_name,
+            health_body=(probe.get("health") or {}).get("body"),
+        )
+        if active_db_name != db_name:
+            db_name = active_db_name
+            db = client[db_name]
+            validated = db[validated_name]
+        host_evidence["active_database_resolution"] = active_db_meta
+
         openapi_paths = ((probe.get("openapi") or {}).get("paths") or {})
         assertions.append(_assertion("final.api.discovered", "FastAPI application discovered", "PASS",
                                      expected="FastAPI app", actual=api_target, evidence=final_plan.get("evidence") or []))
@@ -495,10 +595,25 @@ def run_final_suite(
 
         ingest_attempts = probe.get("ingest_attempts") or []
         ingest_ok = any((x.get("response") or {}).get("ok") for x in ingest_attempts)
-        assertions.append(_assertion("final.api.ingest", "POST /ingest invokes the project pipeline",
-                                     "PASS" if ingest_ok else "FAIL", expected="2xx",
-                                     actual=[(x.get("response") or {}).get("status") for x in ingest_attempts],
-                                     evidence=[json.dumps(ingest_attempts[-1] if ingest_attempts else {}, ensure_ascii=False)[:1800]]))
+        pipeline_counts = {}
+        for cname in (raw_name, validated_name, quarantine_name):
+            try:
+                pipeline_counts[cname] = db[cname].count_documents({}) if cname in db.list_collection_names() else 0
+            except Exception:
+                pipeline_counts[cname] = 0
+        pipeline_effect = pipeline_counts.get(raw_name, 0) > 0 or pipeline_counts.get(validated_name, 0) > 0
+        assertions.append(_assertion(
+            "final.api.ingest",
+            "POST /ingest invokes the existing project pipeline on hidden data",
+            "PASS" if ingest_ok and pipeline_effect else ("INCONCLUSIVE" if ingest_ok else "FAIL"),
+            expected={"http_2xx": True, "pipeline_database_effect": True},
+            actual={
+                "statuses": [(x.get("response") or {}).get("status") for x in ingest_attempts],
+                "database": db_name,
+                "counts": pipeline_counts,
+            },
+            evidence=[json.dumps(ingest_attempts[-1] if ingest_attempts else {}, ensure_ascii=False)[:1800]],
+        ))
 
         qnames = (semantic.get("queries") or {}).get("names") or probe.get("query_names") or []
         qmeta = semantic.get("queries") or {}
@@ -721,6 +836,7 @@ def run_final_suite(
 
         host_evidence.update({
             "database": db_name, "validated_collection": validated_name,
+            "active_database_resolution": host_evidence.get("active_database_resolution"),
             "indexes_before": indexes_before, "indexes_after": indexes_after,
             "collections_before": sorted(collections_before), "collections_after": sorted(collections_after),
             "mv_counts": mv_counts, "job_log_collections": job_log_names,
