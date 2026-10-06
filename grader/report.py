@@ -13,8 +13,17 @@ def write_report(reports_root: Path, project_id: str, payload: dict):
     plan_meta = payload.get("plan_resolution") or {}
     plan = payload.get("execution_plan") or {}
     runtime = payload.get("runtime") or {}
+    students = (payload.get("students") or "").strip()
+    student_nos = (payload.get("student_nos") or "").strip()
+    title = f"# تقرير التقييم — {project_id}"
+    if students:
+        title += f" — {students}"
+
     lines = [
-        f"# تقرير التقييم — {project_id}", "",
+        title, "",
+        f"- **رقم المشروع:** `{project_id}`",
+        f"- **اسم الطالب/الطلاب:** {students or 'غير متوفر'}",
+        f"- **الرقم/الأرقام الجامعية:** {student_nos or 'غير متوفر'}",
         f"- **Grader:** V{payload.get('grader_version', '?')}",
         f"- **Commit:** `{payload.get('commit_sha') or 'unknown'}`",
         f"- **Plan confidence:** `{plan_meta.get('confidence', 'n/a')}`",
