@@ -1,1 +1,1 @@
-retry Gemini execution repair with transient retries and fallback models for P08 P12; freeze 37390623044
+verify working-directory-aware Gemini execution repair for P08; freeze 37390623044
