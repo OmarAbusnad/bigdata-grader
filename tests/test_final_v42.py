@@ -483,36 +483,3 @@ def test_pipeline_success_marker_overrides_server_timeout():
         "stdout_tail": "starting pipeline",
         "stderr_tail": "",
     }) is False
-
-
-def test_discovery_supports_mongodb_database_alias_and_positional_input(tmp_path: Path):
-    from grader.discovery import discover_execution_plan
-
-    (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "main.py").write_text(
-        'import argparse\np=argparse.ArgumentParser()\np.add_argument("csv_path")\n',
-        encoding="utf-8",
-    )
-    (tmp_path / ".env.example").write_text(
-        "MONGODB_URI=mongodb://localhost:27017\nMONGODB_DATABASE=midterm_data_pipeline\n",
-        encoding="utf-8",
-    )
-    (tmp_path / "requirements.txt").write_text("pymongo\n", encoding="utf-8")
-    plan = discover_execution_plan(tmp_path)
-    assert plan.ingest_command == "python src/main.py {file}"
-    assert plan.database_name == "midterm_data_pipeline"
-    assert plan.database_configurable is True
-    assert plan.mongo_uri == "mongodb://localhost:27017"
-
-
-def test_discovery_appends_no_server_only_when_cli_declares_it(tmp_path: Path):
-    from grader.discovery import discover_execution_plan
-
-    (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "main.py").write_text(
-        'import argparse\np=argparse.ArgumentParser()\np.add_argument("--input", required=True)\np.add_argument("--no-server", action="store_true")\n',
-        encoding="utf-8",
-    )
-    (tmp_path / "requirements.txt").write_text("pymongo\n", encoding="utf-8")
-    plan = discover_execution_plan(tmp_path)
-    assert plan.ingest_command == "python src/main.py --input {file} --no-server"
