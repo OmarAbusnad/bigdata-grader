@@ -335,7 +335,7 @@ def names_from(value, preferred):
             if isinstance(item, str):
                 out.append(item)
             elif isinstance(item, dict):
-                val = item.get("name") or item.get("id") or item.get("key") or item.get("job") or item.get("job_name") or item.get("query_name") or item.get("report_name")
+                val = item.get("id") or item.get("query_name") or item.get("job_name") or item.get("report_name") or item.get("key") or item.get("job") or item.get("name")
                 if val is not None: out.append(str(val))
         return out
     return []
@@ -344,7 +344,7 @@ def query_param_names_from_listing(value, target_name):
     """Extract parameters declared for one named query from heterogeneous list responses."""
     target = str(target_name)
     if isinstance(value, dict):
-        own_name = value.get("name") or value.get("id") or value.get("key") or value.get("query_name")
+        own_name = value.get("id") or value.get("query_name") or value.get("key") or value.get("name")
         if own_name is not None and str(own_name) == target:
             for key in ("required_parameters", "parameters", "params", "filters", "query_params", "supported_parameters"):
                 raw = value.get(key)
