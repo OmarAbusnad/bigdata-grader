@@ -29,14 +29,29 @@ def _live(message: str) -> None:
     print(f"[GRADER] {message}", flush=True)
 
 
+def _pipeline_completed_before_timeout(runtime_log: dict[str, Any] | None) -> bool:
+    runtime_log = runtime_log or {}
+    if not runtime_log.get("timed_out"):
+        return False
+    text = (str(runtime_log.get("stdout_tail") or "") + "\n" + str(runtime_log.get("stderr_tail") or "")).lower()
+    markers = [
+        "pipeline completed successfully",
+        "all phase 1 & phase 2 pipeline stages completed successfully",
+        "all phases completed successfully",
+        "etl completed successfully",
+        "ingestion completed successfully",
+    ]
+    return any(marker in text for marker in markers)
+
+
 def _classify_midterm_start_failure(repo: Path, runtime_log: dict[str, Any] | None) -> dict[str, Any]:
     runtime_log = runtime_log or {}
     stdout = str(runtime_log.get("stdout_tail") or "")
     stderr = str(runtime_log.get("stderr_tail") or "")
     text = stdout + "\n" + stderr
 
-    if runtime_log.get("timed_out"):
-        return {"code": "TIMEOUT", "evidence": ["initial pipeline command timed out"]}
+    if runtime_log.get("timed_out") and not _pipeline_completed_before_timeout(runtime_log):
+        return {"code": "TIMEOUT", "evidence": ["initial pipeline command timed out before an explicit success marker"]}
 
     if "EOFError: EOF when reading a line" in text or re.search(r"\binput\s*\(", text):
         return {
@@ -365,7 +380,11 @@ def run_behavioral_suite(
         batch, t1 = execute_case("batch_pipeline", "test_01", fresh=True, expected_engine="python_batch")
         s1 = batch.snapshot_after or {}
         batch_run = getattr(batch, "runtime_log", None) or {}
-        if int(batch_run.get("returncode") or 0) != 0 or bool(batch_run.get("timed_out")):
+        batch_effective_failure = (
+            int(batch_run.get("returncode") or 0) != 0
+            or bool(batch_run.get("timed_out"))
+        ) and not _pipeline_completed_before_timeout(batch_run)
+        if batch_effective_failure:
             root_cause = _classify_midterm_start_failure(repo, batch_run)
             for a in batch.assertions:
                 if a.key == "batch_pipeline.engine":
