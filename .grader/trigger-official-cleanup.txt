@@ -1,1 +1,1 @@
-sample never-before-tested projects P30 P34 P40 P48 P56 P64 on freeze 37390623044
+rerun P30 P48 P56 after csv/id/rejected-cli/readme-fallback fixes; freeze 37390623044
