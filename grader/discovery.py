@@ -283,6 +283,8 @@ def _command_from_entry(repo: Path, entrypoint: str | None) -> tuple[str | None,
     )
     if file_flag:
         cmd = f"{base_cmd}{run_prefix} {file_flag} {{file}}"
+    elif re.search(r"add_argument\(\s*[\"'][A-Za-z_]\w*[\"']", text):
+        cmd = f"{base_cmd}{run_prefix} {{file}}"
     elif "argparse" in text or "add_argument" in text:
         cmd = None
     else:
@@ -297,6 +299,11 @@ def _command_from_entry(repo: Path, entrypoint: str | None) -> tuple[str | None,
         cmd += f" {threshold_flag} {{threshold_mb}}"
     if cmd and db_name_flag:
         cmd += f" {db_name_flag} {{db_name}}"
+
+    if cmd and "--no-server" in flags and "--no-server" not in cmd:
+        cmd += " --no-server"
+    if cmd and "--no-browser" in flags and "--no-browser" not in cmd:
+        cmd += " --no-browser"
 
     reset_cmd = None
     if cmd:
@@ -346,15 +353,30 @@ def _parse_settings(text: str) -> dict:
     out["db"] = _first_match([
         r"MONGO_DB_NAME\s*=\s*os\.getenv\([^,]+,\s*[\"']([^\"']+)",
         r"MONGO_DATABASE\s*=\s*os\.getenv\([^,]+,\s*[\"']([^\"']+)",
+        r"MONGODB_DATABASE\s*=\s*os\.getenv\([^,]+,\s*[\"']([^\"']+)",
         r"MONGO_DATABASE\s*=\s*[\"']([^\"']+)",
         r"MONGO_DB_NAME\s*=\s*[\"']([^\"']+)",
+        r"MONGODB_DATABASE\s*=\s*[\"']([^\"']+)",
+        r"(?m)^\s*MONGODB_DATABASE\s*=\s*([^\s#]+)",
+        r"(?m)^\s*MONGO_DATABASE\s*=\s*([^\s#]+)",
+        r"(?m)^\s*MONGO_DB_NAME\s*=\s*([^\s#]+)",
     ], text)
-    out["db_env"] = bool(re.search(r"MONGO_(?:DB_NAME|DATABASE)\s*=\s*(?:os\.)?getenv", text, re.I))
+    out["db_env"] = bool(re.search(
+        r"(?:MONGO_(?:DB_NAME|DATABASE)|MONGODB_DATABASE)\s*=\s*(?:os\.)?getenv",
+        text, re.I,
+    )) or bool(re.search(r"(?m)^\s*MONGODB_DATABASE\s*=", text))
     out["uri"] = _first_match([
         r"MONGO_URI\s*=\s*os\.getenv\([^,]+,\s*[\"']([^\"']+)",
+        r"MONGODB_URI\s*=\s*os\.getenv\([^,]+,\s*[\"']([^\"']+)",
         r"MONGO_URI\s*=\s*[\"']([^\"']+)",
+        r"MONGODB_URI\s*=\s*[\"']([^\"']+)",
+        r"(?m)^\s*MONGODB_URI\s*=\s*([^\s#]+)",
+        r"(?m)^\s*MONGO_URI\s*=\s*([^\s#]+)",
     ], text)
-    out["uri_env"] = bool(re.search(r"MONGO_URI\s*=\s*(?:os\.)?getenv", text, re.I))
+    out["uri_env"] = bool(re.search(
+        r"(?:MONGO_URI|MONGODB_URI)\s*=\s*(?:os\.)?getenv",
+        text, re.I,
+    )) or bool(re.search(r"(?m)^\s*MONGODB_URI\s*=", text))
     threshold = _first_match([
         r"SMALL_FILE_THRESHOLD_MB\s*=\s*float\(os\.getenv\([^,]+,\s*[\"']?([0-9.]+)",
         r"(?:SMALL_FILE_THRESHOLD_MB|FILE_SIZE_THRESHOLD_MB|THRESHOLD_MB)\s*=\s*([0-9.]+)",
@@ -405,6 +427,8 @@ def discover_execution_plan(repo_path: str | Path) -> ExecutionPlan:
     req_exists = (repo / "requirements.txt").exists()
     settings_paths = [repo / "config/settings.py", repo / "settings.py", repo / "src/settings.py"]
     settings_text = "\n".join(_read(p) for p in settings_paths if p.exists())
+    env_paths = [repo / ".env.example", repo / "env.example", repo / "example.env"]
+    env_text = "\n".join(_read(p) for p in env_paths if p.exists())
     repo_text = _all_text(repo)
 
     documented_cmd, documented_entrypoint = _documented_ingest_command(repo, readme)
@@ -414,7 +438,7 @@ def discover_execution_plan(repo_path: str | Path) -> ExecutionPlan:
         ingest_cmd = documented_cmd
         threshold_flag = any(x in documented_cmd for x in ("--threshold", "--threshold-mb", " -t "))
         db_flag = any(x in documented_cmd for x in ("--database", "--db-name"))
-    settings = _parse_settings(settings_text + "\n" + repo_text)
+    settings = _parse_settings(settings_text + "\n" + env_text + "\n" + repo_text)
     setup_cmd = _detect_setup_command(repo, readme)
 
     collections = {
