@@ -1,1 +1,1 @@
-deep cleanup regression for suspicious completed projects after generic README/OpenAPI/runtime fixes; freeze 37390623044
+deep cleanup rerun after clean-ingest isolation, per-query probing, py launcher and timeout fixes; freeze 37390623044
