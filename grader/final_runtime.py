@@ -381,7 +381,7 @@ def semantic_query_param_names(name, available):
             for p in params:
                 if p in available: out.add(p)
     add_if("city", "city")
-    add_if("status", "status", "payment_status")
+    add_if("status", "status")
     add_if("customer", "customer_id")
     add_if("phone", "phone", "customer_phone")
     add_if("product", "sku", "product_id", "item_name", "product_name")
