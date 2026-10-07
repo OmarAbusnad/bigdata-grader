@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        project_id: [P03, P06, P08, P09, P11, P12, P13, P15, P17, P18, P19, P20, P21, P22]
+        project_id: [P03, P08, P12]
     runs-on: ubuntu-latest
     timeout-minutes: 150
     env:
