@@ -422,10 +422,7 @@ def build_ingest_attempts(openapi):
         fields = {}
         for name, prop_schema in props.items():
             n = name.lower()
-            is_path = (
-                any(x in n for x in ["path", "input_path", "file_path", "csv_path"])
-                or n in {"input", "file", "source_file", "source", "csv", "filename"}
-            )
+            is_path = any(x in n for x in ["path", "input_path", "file_path", "csv_path"])
             if is_path:
                 fields[name] = DATASET
             elif name in required:
@@ -434,7 +431,7 @@ def build_ingest_attempts(openapi):
             # Prefer the first semantically path-like field; otherwise rely on endpoint defaults.
             for name, prop_schema in props.items():
                 n = name.lower()
-                if any(x in n for x in ["path", "csv"]) or n in {"input", "file", "source_file", "source", "filename"}:
+                if any(x in n for x in ["path", "csv"]):
                     fields[name] = DATASET
                     break
         if media_type == "application/json":
