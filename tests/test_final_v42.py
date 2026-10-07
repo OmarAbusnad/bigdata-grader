@@ -528,3 +528,30 @@ def test_mongo_env_parser_rejects_getenv_expression_as_literal():
     assert result["db"] == "ecommerce_store"
     assert result["uri"] == "mongodb://localhost:27017"
     assert "." not in result["db"]
+
+
+def test_probe_names_from_supports_names_array():
+    from grader.final_runtime import _probe_python
+    text = _probe_python()
+    assert '"names"' in text
+
+
+def test_mv_initialization_precondition_is_not_student_fail():
+    from grader.final_runtime import _mv_requires_initialization
+    assert _mv_requires_initialization({
+        "status": 500,
+        "ok": False,
+        "body": {"detail": {"message": "Materialized Views are not initialized. Run --bootstrap first."}},
+    }) is True
+    assert _mv_requires_initialization({
+        "status": 200,
+        "ok": True,
+        "body": {"status": "success"},
+    }) is False
+
+
+def test_dynamic_query_metadata_can_supply_params_not_declared_in_openapi():
+    from grader.final_runtime import _probe_python
+    text = _probe_python()
+    assert "for pname in sorted(selected)" in text
+    assert "params[pname] = sample_value(pname, {})" in text
