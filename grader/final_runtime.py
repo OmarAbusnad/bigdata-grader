@@ -140,11 +140,28 @@ def _fixture_docs() -> list[dict[str, Any]]:
     ]
     docs = []
     for order_id, city, status, customer_id, order_date, payment_method, total in rows:
+        items = [
+            {
+                "sku": "SKU-001",
+                "product_id": "P-001",
+                "name": "Test Product",
+                "product_name": "Test Product",
+                "quantity": 2,
+                "qty": 2,
+                "unit_price": total / 2,
+                "price": total / 2,
+                "line_total": total,
+                "total": total,
+            }
+        ]
         clean = {
             "order_id": order_id, "city": city, "status": status,
             "customer_id": customer_id, "order_date": order_date,
             "payment_method": payment_method, "total_amount": total,
             "payment_amount": total, "currency": "YER", "delivery_type": "standard",
+            "items": items,
+            "items_json": json.dumps(items, ensure_ascii=False),
+            "processed_at": order_date,
         }
         docs.append({
             **clean,
@@ -193,6 +210,39 @@ def request(method, path, body=None, timeout=180):
     except Exception as e:
         return {"status": None, "ok": False, "error": f"{type(e).__name__}: {e}", "is_json": False}
 
+def request_form(path, fields, timeout=180):
+    boundary = "----graderboundary"
+    chunks = []
+    for key, value in fields.items():
+        chunks.append("--" + boundary + "\r\n")
+        chunks.append('Content-Disposition: form-data; name="' + str(key) + '"\r\n\r\n')
+        chunks.append(str(value) + "\r\n")
+    chunks.append("--" + boundary + "--\r\n")
+    data = "".join(chunks).encode("utf-8")
+    req = urllib.request.Request(
+        BASE + path,
+        data=data,
+        headers={"Content-Type": "multipart/form-data; boundary=" + boundary},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            raw = r.read().decode("utf-8", errors="replace")
+            try:
+                parsed = json.loads(raw); is_json = True
+            except Exception:
+                parsed = raw[:5000]; is_json = False
+            return {"status": r.status, "ok": 200 <= r.status < 300, "body": parsed, "is_json": is_json}
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode("utf-8", errors="replace")
+        try:
+            parsed = json.loads(raw); is_json = True
+        except Exception:
+            parsed = raw[:5000]; is_json = False
+        return {"status": e.code, "ok": False, "body": parsed, "is_json": is_json}
+    except Exception as e:
+        return {"status": None, "ok": False, "error": f"{type(e).__name__}: {e}", "is_json": False}
+
 def resolve_schema(openapi, schema):
     if not isinstance(schema, dict): return {}
     ref = schema.get("$ref")
@@ -200,19 +250,43 @@ def resolve_schema(openapi, schema):
         cur = openapi
         for part in ref[2:].split("/"):
             cur = cur.get(part, {}) if isinstance(cur, dict) else {}
-        return cur if isinstance(cur, dict) else {}
+        return resolve_schema(openapi, cur) if isinstance(cur, dict) else {}
+    for key in ("anyOf", "oneOf"):
+        options = schema.get(key)
+        if isinstance(options, list):
+            for option in options:
+                resolved = resolve_schema(openapi, option)
+                if resolved and resolved.get("type") != "null":
+                    return resolved
+    if isinstance(schema.get("allOf"), list):
+        merged = {}
+        for option in schema["allOf"]:
+            merged.update(resolve_schema(openapi, option))
+        return merged
     return schema
 
 def sample_value(name, schema=None):
     n = name.lower()
     schema = resolve_schema(openapi, schema or {})
-    typ = schema.get("type")
-    if typ == "integer": return 10
-    if typ == "number": return 10.0
-    if typ == "boolean": return True
-    if typ == "array": return []
+    if "example" in schema: return schema["example"]
+    if "default" in schema: return schema["default"]
     enum = schema.get("enum")
     if isinstance(enum, list) and enum: return enum[0]
+    typ = schema.get("type")
+    if typ == "integer":
+        minimum = schema.get("minimum")
+        exclusive = schema.get("exclusiveMinimum")
+        if isinstance(minimum, (int, float)): return int(max(minimum, 1))
+        if isinstance(exclusive, (int, float)): return int(exclusive) + 1
+        return 100 if "batch" in n else 10
+    if typ == "number":
+        minimum = schema.get("minimum")
+        exclusive = schema.get("exclusiveMinimum")
+        if isinstance(minimum, (int, float)): return float(max(minimum, 1))
+        if isinstance(exclusive, (int, float)): return float(exclusive) + 1.0
+        return 10.0
+    if typ == "boolean": return False
+    if typ == "array": return []
     if "city" in n: return "Sanaa"
     if "status" in n: return "Delivered"
     if "customer" in n: return "CUST-001"
@@ -253,26 +327,67 @@ def names_from(value, preferred):
             if isinstance(item, str):
                 out.append(item)
             elif isinstance(item, dict):
-                val = item.get("name") or item.get("id") or item.get("key") or item.get("job")
+                val = item.get("name") or item.get("id") or item.get("key") or item.get("job") or item.get("job_name") or item.get("query_name") or item.get("report_name")
                 if val is not None: out.append(str(val))
         return out
     return []
 
-def build_ingest_body(openapi):
+def build_ingest_attempts(openapi):
     post = ((openapi.get("paths") or {}).get("/ingest") or {}).get("post") or {}
-    schema = (((post.get("requestBody") or {}).get("content") or {}).get("application/json") or {}).get("schema") or {}
-    schema = resolve_schema(openapi, schema)
-    props = schema.get("properties") or {}
-    if props:
-        body = {}
+    attempts = []
+
+    # Query-parameter style /ingest.
+    qparams = {}
+    for p in post.get("parameters") or []:
+        if p.get("in") != "query":
+            continue
+        name = p.get("name")
+        if not name:
+            continue
+        n = name.lower()
+        if any(x in n for x in ["path", "file", "input", "csv"]):
+            qparams[name] = DATASET
+        elif p.get("required"):
+            qparams[name] = sample_value(name, p.get("schema") or {})
+    if qparams:
+        attempts.append({"kind": "query", "params": qparams})
+
+    content = ((post.get("requestBody") or {}).get("content") or {})
+    for media_type, media in content.items():
+        schema = resolve_schema(openapi, (media or {}).get("schema") or {})
+        props = schema.get("properties") or {}
+        required = set(schema.get("required") or [])
+        fields = {}
         for name, prop_schema in props.items():
             n = name.lower()
-            body[name] = DATASET if any(x in n for x in ["path", "file", "input"]) else sample_value(name, prop_schema)
-        return [body]
-    return [
-        {"input_path": DATASET}, {"file_path": DATASET}, {"path": DATASET},
-        {"file": DATASET}, {"input": DATASET},
-    ]
+            is_path = any(x in n for x in ["path", "input_path", "file_path", "csv_path"])
+            if is_path:
+                fields[name] = DATASET
+            elif name in required:
+                fields[name] = sample_value(name, prop_schema)
+        if not fields and props:
+            # Prefer the first semantically path-like field; otherwise rely on endpoint defaults.
+            for name, prop_schema in props.items():
+                n = name.lower()
+                if any(x in n for x in ["path", "csv"]):
+                    fields[name] = DATASET
+                    break
+        if media_type == "application/json":
+            attempts.append({"kind": "json", "body": fields})
+        elif media_type in ("multipart/form-data", "application/x-www-form-urlencoded"):
+            # UploadFile fields are intentionally omitted when a documented path
+            # field exists; this lets the API consume the mounted hidden dataset.
+            form_fields = {k: v for k, v in fields.items() if "file" not in k.lower() or "path" in k.lower()}
+            if form_fields:
+                attempts.append({"kind": "form", "fields": form_fields})
+
+    if not attempts:
+        for body in [
+            {"input_path": DATASET}, {"file_path": DATASET}, {"path": DATASET},
+            {"csv_path": DATASET}, {"file": DATASET}, {"input": DATASET},
+        ]:
+            attempts.append({"kind": "json", "body": body})
+    return attempts
 
 result = {"server_ready": False}
 openapi = None
@@ -295,17 +410,33 @@ result["docs"] = request("GET", "/docs", timeout=10)
 result["health"] = request("GET", "/health", timeout=15)
 
 ingest_attempts = []
-for body in build_ingest_body(openapi):
-    r = request("POST", "/ingest", body, timeout=240)
-    ingest_attempts.append({"body_keys": sorted(body.keys()), "response": r})
-    if r.get("ok") or r.get("status") not in (400, 404, 422):
+for attempt in build_ingest_attempts(openapi):
+    kind = attempt.get("kind")
+    if kind == "query":
+        params = attempt.get("params") or {}
+        suffix = "?" + urllib.parse.urlencode(params) if params else ""
+        r = request("POST", "/ingest" + suffix, None, timeout=240)
+        keys = sorted(params.keys())
+    elif kind == "form":
+        fields = attempt.get("fields") or {}
+        r = request_form("/ingest", fields, timeout=240)
+        keys = sorted(fields.keys())
+    else:
+        body = attempt.get("body") or {}
+        r = request("POST", "/ingest", body, timeout=240)
+        keys = sorted(body.keys())
+    ingest_attempts.append({"kind": kind, "body_keys": keys, "response": r})
+    if r.get("ok"):
+        break
+    # Continue across contract-validation failures and alternate media styles.
+    if r.get("status") not in (400, 404, 405, 415, 422):
         break
 result["ingest_attempts"] = ingest_attempts
 result["indexes"] = request("POST", "/indexes", {}, timeout=60)
 
 q = request("GET", "/queries", timeout=30)
 result["queries"] = q
-qnames = names_from(q.get("body"), ["queries", "items", "data", "results"])
+qnames = names_from(q.get("body"), ["queries", "available_queries", "items", "data", "results"])
 result["query_names"] = qnames[:30]
 qcalls = []
 qspec = ((openapi.get("paths") or {}).get("/queries/{name}") or {}).get("get") or {}
@@ -326,7 +457,7 @@ result["query_calls"] = qcalls
 
 a = request("GET", "/aggregations", timeout=30)
 result["aggregations"] = a
-anames = names_from(a.get("body"), ["aggregations", "items", "data", "results", "reports", "aggregation_reports", "available_reports"])
+anames = names_from(a.get("body"), ["aggregations", "available_aggregations", "items", "data", "results", "reports", "aggregation_reports", "available_reports"])
 result["aggregation_names"] = anames[:30]
 result["aggregation_calls"] = [
     {"name": name, "response": request("GET", "/aggregations/" + urllib.parse.quote(name, safe=""), timeout=90)}
@@ -338,7 +469,7 @@ result["refresh_mv_second"] = request("POST", "/refresh-mv", {}, timeout=120)
 
 j = request("GET", "/jobs", timeout=30)
 result["jobs"] = j
-jnames = names_from(j.get("body"), ["jobs", "items", "data", "results", "scheduled_jobs", "tasks", "registered_jobs"])
+jnames = names_from(j.get("body"), ["jobs", "available_jobs", "configured_jobs", "items", "data", "results", "scheduled_jobs", "tasks", "registered_jobs"])
 result["job_names"] = jnames[:30]
 result["job_calls"] = [
     {"name": name, "response": request("POST", "/jobs/" + urllib.parse.quote(name, safe="") + "/run", {}, timeout=120)}
