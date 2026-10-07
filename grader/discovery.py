@@ -357,9 +357,9 @@ def _parse_settings(text: str) -> dict:
         r"MONGO_DATABASE\s*=\s*[\"']([^\"']+)",
         r"MONGO_DB_NAME\s*=\s*[\"']([^\"']+)",
         r"MONGODB_DATABASE\s*=\s*[\"']([^\"']+)",
-        r"(?m)^\s*MONGODB_DATABASE\s*=\s*([^\s#]+)",
-        r"(?m)^\s*MONGO_DATABASE\s*=\s*([^\s#]+)",
-        r"(?m)^\s*MONGO_DB_NAME\s*=\s*([^\s#]+)",
+        r"(?m)^\s*MONGODB_DATABASE\s*=\s*[\"']?([A-Za-z0-9_-]+)[\"']?\s*(?:#.*)?$",
+        r"(?m)^\s*MONGO_DATABASE\s*=\s*[\"']?([A-Za-z0-9_-]+)[\"']?\s*(?:#.*)?$",
+        r"(?m)^\s*MONGO_DB_NAME\s*=\s*[\"']?([A-Za-z0-9_-]+)[\"']?\s*(?:#.*)?$",
     ], text)
     out["db_env"] = bool(re.search(
         r"(?:MONGO_(?:DB_NAME|DATABASE)|MONGODB_DATABASE)\s*=\s*(?:os\.)?getenv",
@@ -370,8 +370,8 @@ def _parse_settings(text: str) -> dict:
         r"MONGODB_URI\s*=\s*os\.getenv\([^,]+,\s*[\"']([^\"']+)",
         r"MONGO_URI\s*=\s*[\"']([^\"']+)",
         r"MONGODB_URI\s*=\s*[\"']([^\"']+)",
-        r"(?m)^\s*MONGODB_URI\s*=\s*([^\s#]+)",
-        r"(?m)^\s*MONGO_URI\s*=\s*([^\s#]+)",
+        r"(?m)^\s*MONGODB_URI\s*=\s*[\"']?((?:mongodb(?:\+srv)?://)[^\s#\"']+)[\"']?\s*(?:#.*)?$",
+        r"(?m)^\s*MONGO_URI\s*=\s*[\"']?((?:mongodb(?:\+srv)?://)[^\s#\"']+)[\"']?\s*(?:#.*)?$",
     ], text)
     out["uri_env"] = bool(re.search(
         r"(?:MONGO_URI|MONGODB_URI)\s*=\s*(?:os\.)?getenv",
