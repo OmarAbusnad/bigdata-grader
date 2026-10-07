@@ -33,6 +33,11 @@ class SandboxError(RuntimeError):
     pass
 
 
+def _normalize_python_launcher(command: str) -> str:
+    """Map the Windows 'py' launcher to the active sandbox Python on Linux."""
+    return re.sub(r"^\s*py(?=\s)", "python", str(command), count=1, flags=re.I)
+
+
 def _as_text(value: Any) -> str:
     if value is None:
         return ""
@@ -403,6 +408,7 @@ class DockerSandbox:
         /grader-tests is a read-only mount containing input datasets only. Teacher oracle files
         should live outside hidden_dir or be excluded by caller.
         """
+        command = _normalize_python_launcher(command)
         cmd = "set -eu; (socat TCP-LISTEN:27017,fork,reuseaddr TCP:mongo:27017 >/tmp/socat.log 2>&1 &) ; exec " + command
         args = [
             "docker", "run", "--rm",
