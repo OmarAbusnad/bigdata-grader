@@ -283,6 +283,9 @@ def _command_from_entry(repo: Path, entrypoint: str | None) -> tuple[str | None,
     )
     if file_flag:
         cmd = f"{base_cmd}{run_prefix} {file_flag} {{file}}"
+    elif re.search(r"add_argument\(\s*[\"'][A-Za-z_]\w*[\"']", text):
+        # Positional CLI input, e.g. add_argument("csv_path").
+        cmd = f"{base_cmd}{run_prefix} {{file}}"
     elif "argparse" in text or "add_argument" in text:
         cmd = None
     else:
@@ -297,6 +300,13 @@ def _command_from_entry(repo: Path, entrypoint: str | None) -> tuple[str | None,
         cmd += f" {threshold_flag} {{threshold_mb}}"
     if cmd and db_name_flag:
         cmd += f" {db_name_flag} {{db_name}}"
+
+    # Long-lived web servers must not turn a completed grading pipeline into a timeout.
+    # Use only flags explicitly declared by the student's CLI.
+    if cmd and "--no-server" in flags and "--no-server" not in cmd:
+        cmd += " --no-server"
+    if cmd and "--no-browser" in flags and "--no-browser" not in cmd:
+        cmd += " --no-browser"
 
     reset_cmd = None
     if cmd:
