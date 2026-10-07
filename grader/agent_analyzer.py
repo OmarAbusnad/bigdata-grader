@@ -147,10 +147,20 @@ def collect_targeted_files(
     return out
 
 
-def _command_references_exist(repo: Path, cmd: str) -> bool:
-    """Reject hallucinated README/tree commands before execution."""
+def _command_references_exist(repo: Path, cmd: str, working_directory: str = ".") -> bool:
+    """Reject hallucinated commands and resolve modules relative to a safe repository subdirectory."""
     if any(ch in cmd for ch in ("│", "├", "└", "─")) or "|--" in cmd or "+--" in cmd:
         return False
+    base = repo
+    rel = str(working_directory or ".").strip().replace("\\", "/").strip("/")
+    if rel and rel != "." and ".." not in Path(rel).parts:
+        candidate = (repo / rel).resolve()
+        try:
+            candidate.relative_to(repo.resolve())
+            if candidate.is_dir():
+                base = candidate
+        except Exception:
+            pass
     m = re.match(r"^(?:python(?:3)?|py)\s+(?:-m\s+)?([^\s]+)", cmd, re.I)
     if not m:
         return True
@@ -158,10 +168,17 @@ def _command_references_exist(repo: Path, cmd: str) -> bool:
     if target.startswith("{"):
         return True
     if target.endswith(".py") or "/" in target or "\\" in target:
-        return (repo / target.replace("\\", "/")).is_file()
-    # python -m package.module
+        normalized = target.replace("\\", "/")
+        return (base / normalized).is_file() or (repo / normalized).is_file()
     if " -m " in f" {cmd} ":
-        return (repo / (target.replace(".", "/") + ".py")).is_file() or (repo / target.replace(".", "/") / "__init__.py").is_file()
+        module_file = target.replace(".", "/") + ".py"
+        package_init = target.replace(".", "/") + "/__init__.py"
+        return (
+            (base / module_file).is_file()
+            or (base / package_init).is_file()
+            or (repo / module_file).is_file()
+            or (repo / package_init).is_file()
+        )
     return True
 
 
@@ -597,7 +614,8 @@ def analyze_execution_repair_with_llm(
                     if not isinstance(item, dict):
                         continue
                     cmd = _sanitize_command(item.get("command"))
-                    if not cmd or not _command_references_exist(repo, cmd):
+                    working_directory = _sanitize_working_directory(repo, item.get("working_directory"))
+                    if not cmd or not _command_references_exist(repo, cmd, working_directory):
                         continue
                     confidence = min(max(float(item.get("confidence", 0.0) or 0.0), 0.0), 1.0)
                     evidence = item.get("evidence") if isinstance(item.get("evidence"), list) else []
@@ -606,7 +624,7 @@ def analyze_execution_repair_with_llm(
                     commands.append({
                         "stage": str(item.get("stage") or "before_phase2_retry"),
                         "command": cmd,
-                        "working_directory": _sanitize_working_directory(repo, item.get("working_directory")),
+                        "working_directory": working_directory,
                         "confidence": confidence,
                         "evidence": [str(x) for x in evidence[:6]],
                         "reason": str(item.get("reason") or ""),
