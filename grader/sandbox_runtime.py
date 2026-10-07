@@ -59,6 +59,12 @@ def _classify_midterm_start_failure(repo: Path, runtime_log: dict[str, Any] | No
             "evidence": ["interactive CLI requires structured stdin; execution plan did not provide it"],
         }
 
+    if re.search(r"unrecognized arguments?:", text, re.I) or re.search(r"error:\s+argument\s+.+invalid choice", text, re.I):
+        return {
+            "code": "GRADER_DISCOVERY_FAILURE",
+            "evidence": ["selected CLI arguments were rejected by the project's own argparse contract"],
+        }
+
     m = re.search(r"ModuleNotFoundError:\s*No module named ['\"]([^'\"]+)['\"]", text)
     if m:
         module = m.group(1)
