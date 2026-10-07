@@ -402,6 +402,7 @@ class DockerSandbox:
         env: dict[str, str] | None = None,
         timeout: int | None = None,
         stdin_text: str | None = None,
+        working_directory: str | None = None,
     ) -> dict[str, Any]:
         """Run one student command in an ephemeral restricted container.
 
@@ -429,6 +430,10 @@ class DockerSandbox:
         if env:
             for k, v in env.items():
                 args += ["-e", f"{k}={v}"]
+        if working_directory:
+            rel = str(working_directory).strip().replace("\\", "/").strip("/")
+            if rel and rel != "." and ".." not in Path(rel).parts:
+                args += ["-w", f"/workspace/{rel}"]
         # Do not use a login shell here. `bash -l` may rebuild PATH from
         # /etc/profile and hide /opt/student-venv/bin, which makes declared
         # student dependencies appear missing at runtime. Preserve the image
