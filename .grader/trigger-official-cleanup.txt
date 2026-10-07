@@ -1,1 +1,1 @@
-targeted fail-safe rerun for P03 P08 P12 after probe-shape, dynamic-parameter, Mongo parsing, and MV-precondition fixes; freeze 37390623044
+gemini execution repair validation for P03 P08 P12 on freeze 37390623044
