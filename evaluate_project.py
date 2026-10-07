@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from datasets.prepare_hidden_tests import ensure_prepared
-from grader.agent_analyzer import analyze_final_repository_with_llm
+from grader.agent_analyzer import analyze_final_repository_with_llm, analyze_execution_repair_with_llm
 from grader.final_discovery import discover_final_plan
 from grader.final_runtime import run_final_suite
 from grader.oracle import HiddenOracle
@@ -188,6 +188,7 @@ def main() -> int:
     final_runtime: dict[str, Any] | None = None
     midterm_recovery: dict[str, Any] | None = None
     final_recovery: dict[str, Any] | None = None
+    final_command_repair: dict[str, Any] | None = None
 
     ok, detail = docker_available()
     if not ok:
@@ -312,6 +313,46 @@ def main() -> int:
                                 shared_sandbox=sb,
                                 manage_sandbox=False,
                             )
+
+                    # Gemini command repair runs after deterministic execution has produced
+                    # concrete FAIL/INCONCLUSIVE evidence. It returns grounded existing-project
+                    # commands only; successful commands are executed in the same isolated DB,
+                    # then Phase 2 is retried without re-ingesting the hidden dataset.
+                    if not args.no_ai and (final_runtime or {}).get("probe", {}).get("server_ready"):
+                        unresolved = [
+                            a for a in ((final_runtime or {}).get("assertions") or [])
+                            if isinstance(a, dict) and a.get("verdict") in {"FAIL", "INCONCLUSIVE", "ERROR"}
+                            and str(a.get("key") or "") != "final.discussion"
+                        ]
+                        if unresolved:
+                            final_command_repair = analyze_execution_repair_with_llm(
+                                repo,
+                                runtime=final_runtime or {},
+                                final_plan=final_plan,
+                                max_commands=3,
+                            )
+                            repair_commands = final_command_repair.get("commands") or []
+                            if repair_commands:
+                                final_runtime_before_command_repair = final_runtime
+                                final_runtime = run_final_suite(
+                                    base=base,
+                                    project_id=project_id,
+                                    repo=repo,
+                                    hidden_dir=shared_mount,
+                                    execution_plan=plan,
+                                    final_plan=final_plan,
+                                    sandbox_config=sandbox_cfg,
+                                    timeout=args.timeout,
+                                    keep_sandbox=True,
+                                    shared_sandbox=sb,
+                                    manage_sandbox=False,
+                                    recovery_commands=repair_commands,
+                                )
+                                final_command_repair["retry_performed"] = True
+                                final_command_repair["before_counts"] = _counts(final_runtime_before_command_repair)
+                                final_command_repair["after_counts"] = _counts(final_runtime)
+                            elif final_command_repair is not None:
+                                final_command_repair["retry_performed"] = False
         except Exception as exc:
             environment["status"] = "INFRA_OR_ORCHESTRATION_ERROR"
             environment["error"] = f"{type(exc).__name__}: {exc}"
@@ -368,7 +409,9 @@ def main() -> int:
             "execution_plan": plan.to_dict(),
             "final_plan": final_plan,
             "final_plan_resolution": final_resolution,
+            "final_command_repair": final_command_repair,
             "final_execution_recovery": final_recovery,
+            "final_command_repair": final_command_repair,
             "rubric": FINAL_RUBRIC,
             "runtime": final_runtime,
             "shared_environment": environment,
