@@ -639,3 +639,38 @@ def test_targeted_context_includes_nearest_nested_readme(tmp_path: Path):
     files = collect_targeted_files(tmp_path, plan)
     paths = {x["path"] for x in files}
     assert "final_extension/README.md" in paths
+
+
+def test_readme_repair_fallback_extracts_exact_commands(tmp_path: Path):
+    from grader.agent_analyzer import _grounded_readme_repair_commands
+
+    (tmp_path / "final_extension" / "final").mkdir(parents=True)
+    (tmp_path / "final_extension" / "final" / "__init__.py").write_text("", encoding="utf-8")
+    (tmp_path / "final_extension" / "final" / "cli.py").write_text("", encoding="utf-8")
+    content = """
+python -m final.cli indexes
+python -m final.cli explain
+python -m final.cli refresh-full
+"""
+    files = [{"path": "final_extension/README.md", "content": content}]
+    failure_context = {
+        "assertions": [
+            {"key": "final.indexes.count", "verdict": "FAIL"},
+            {"key": "final.indexes.explain", "verdict": "FAIL"},
+            {"key": "final.mv.refresh", "verdict": "INCONCLUSIVE"},
+        ]
+    }
+    cmds = _grounded_readme_repair_commands(tmp_path, files, failure_context, max_commands=3)
+    assert [x["command"] for x in cmds] == [
+        "python -m final.cli indexes",
+        "python -m final.cli explain",
+        "python -m final.cli refresh-full",
+    ]
+    assert all(x["working_directory"] == "final_extension" for x in cmds)
+
+
+def test_final_probe_retries_jobs_from_available_names_error():
+    from grader.final_runtime import _probe_python
+    text = _probe_python()
+    assert "job_names_from_error" in text
+    assert "Available:" in text
