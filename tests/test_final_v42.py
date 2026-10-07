@@ -463,3 +463,23 @@ python src/main.py data/orders.csv
 def test_timeout_bytes_are_normalized_to_text():
     from grader.sandbox import _as_text
     assert _as_text(b"Spark timeout \xff") == "Spark timeout �"
+
+
+def test_windows_py_launcher_uses_sandbox_python():
+    from grader.sandbox import _normalize_python_launcher
+    assert _normalize_python_launcher("py -m src.main --input x.csv") == "python -m src.main --input x.csv"
+    assert _normalize_python_launcher("python -m src.main") == "python -m src.main"
+
+
+def test_pipeline_success_marker_overrides_server_timeout():
+    from grader.sandbox_runtime import _pipeline_completed_before_timeout
+    assert _pipeline_completed_before_timeout({
+        "timed_out": True,
+        "stdout_tail": "ALL PHASE 1 & PHASE 2 PIPELINE STAGES COMPLETED SUCCESSFULLY\nINFO: Uvicorn running",
+        "stderr_tail": "",
+    }) is True
+    assert _pipeline_completed_before_timeout({
+        "timed_out": True,
+        "stdout_tail": "starting pipeline",
+        "stderr_tail": "",
+    }) is False
