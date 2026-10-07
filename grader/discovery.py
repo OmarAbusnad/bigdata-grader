@@ -435,6 +435,8 @@ def discover_execution_plan(repo_path: str | Path) -> ExecutionPlan:
     req_exists = (repo / "requirements.txt").exists()
     settings_paths = [repo / "config/settings.py", repo / "settings.py", repo / "src/settings.py"]
     settings_text = "\n".join(_read(p) for p in settings_paths if p.exists())
+    env_paths = [repo / ".env.example", repo / "env.example", repo / "example.env"]
+    env_text = "\n".join(_read(p) for p in env_paths if p.exists())
     repo_text = _all_text(repo)
 
     documented_cmd, documented_entrypoint = _documented_ingest_command(repo, readme)
@@ -444,7 +446,7 @@ def discover_execution_plan(repo_path: str | Path) -> ExecutionPlan:
         ingest_cmd = documented_cmd
         threshold_flag = any(x in documented_cmd for x in ("--threshold", "--threshold-mb", " -t "))
         db_flag = any(x in documented_cmd for x in ("--database", "--db-name"))
-    settings = _parse_settings(settings_text + "\n" + repo_text)
+    settings = _parse_settings(settings_text + "\n" + env_text + "\n" + repo_text)
     setup_cmd = _detect_setup_command(repo, readme)
 
     collections = {
