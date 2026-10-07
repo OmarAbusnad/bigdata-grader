@@ -716,3 +716,10 @@ def test_readme_fallback_can_survive_gemini_outage():
     source = inspect.getsource(analyze_execution_repair_with_llm)
     assert "ERROR_WITH_README_FALLBACK" in source
     assert "_grounded_readme_repair_commands" in source
+
+
+def test_probe_names_from_supports_flat_id_description_map():
+    from grader.final_runtime import _probe_python
+    text = _probe_python()
+    assert "scalar_keys" in text
+    assert '"registered"' in text
