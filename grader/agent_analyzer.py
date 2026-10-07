@@ -486,6 +486,71 @@ def _sanitize_working_directory(repo: Path, value: Any) -> str:
     return rel if target.is_dir() else "."
 
 
+def _grounded_readme_repair_commands(
+    repo: Path,
+    files: list[dict[str, str]],
+    failure_context: dict[str, Any],
+    *,
+    max_commands: int = 3,
+) -> list[dict[str, Any]]:
+    """Use exact documented CLI commands if Gemini returns no executable command."""
+    unresolved_keys = {
+        str(a.get("key") or "")
+        for a in (failure_context.get("assertions") or [])
+        if isinstance(a, dict) and a.get("verdict") in {"FAIL", "INCONCLUSIVE", "ERROR"}
+    }
+    wanted: list[tuple[str, tuple[str, ...]]] = []
+    if any(k.startswith("final.indexes.") for k in unresolved_keys):
+        wanted.append(("indexes", (" indexes", " indexes ")))
+    if "final.indexes.explain" in unresolved_keys:
+        wanted.append(("explain", (" explain", " explain ")))
+    if any(k.startswith("final.mv.") for k in unresolved_keys):
+        wanted.append(("mv_init", ("refresh-full", "full-refresh", "--bootstrap", " bootstrap")))
+    if any(k.startswith("final.jobs.") for k in unresolved_keys):
+        wanted.append(("jobs", (" job", " jobs", " run-job")))
+
+    candidates: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for file in files:
+        path = str(file.get("path") or "")
+        if "readme" not in Path(path).name.lower():
+            continue
+        content = str(file.get("content") or "")
+        cwd = str(Path(path).parent).replace("\\", "/")
+        if cwd in {"", "."}:
+            cwd = "."
+        for raw in content.splitlines():
+            line = raw.strip().strip("`").strip()
+            line = re.sub(r"^\$\s*", "", line)
+            if not line or line.startswith("#"):
+                continue
+            cmd = _sanitize_command(line)
+            if not cmd:
+                continue
+            low = f" {cmd.lower()} "
+            stage = None
+            for label, tokens in wanted:
+                if any(token in low for token in tokens):
+                    stage = label
+                    break
+            if not stage or cmd in seen:
+                continue
+            if not _command_references_exist(repo, cmd, cwd):
+                continue
+            seen.add(cmd)
+            candidates.append({
+                "stage": "before_phase2_retry",
+                "command": cmd,
+                "working_directory": cwd,
+                "confidence": 1.0,
+                "evidence": [f"{path}: exact documented command: {cmd}"],
+                "reason": f"Exact README command for unresolved {stage} capability.",
+                "source": "readme_exact_fallback",
+            })
+            if len(candidates) >= max_commands:
+                return candidates
+    return candidates
+
 def analyze_execution_repair_with_llm(
     repo: Path,
     *,
@@ -644,6 +709,16 @@ def analyze_execution_repair_with_llm(
                         "reason": str(item.get("reason") or ""),
                     })
 
+                fallback_commands = []
+                if not commands:
+                    fallback_commands = _grounded_readme_repair_commands(
+                        repo,
+                        files,
+                        failure_context,
+                        max_commands=max_commands,
+                    )
+                    commands = fallback_commands
+
                 return {
                     "status": "OK",
                     "provider": "gemini",
@@ -652,6 +727,7 @@ def analyze_execution_repair_with_llm(
                     "fallback_used": model != primary_model,
                     "attempts": attempts,
                     "commands": commands,
+                    "command_source": "readme_exact_fallback" if fallback_commands else "gemini",
                     "reasoning_summary": str(data.get("reasoning_summary") or ""),
                     "files_sent": [x["path"] for x in files],
                 }
