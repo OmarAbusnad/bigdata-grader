@@ -622,3 +622,20 @@ def test_command_reference_validation_supports_working_directory(tmp_path: Path)
         "python -m final.cli refresh-full",
         ".",
     ) is False
+
+
+def test_targeted_context_includes_nearest_nested_readme(tmp_path: Path):
+    from grader.agent_analyzer import collect_targeted_files
+    from grader.models import ExecutionPlan
+
+    nested = tmp_path / "final_extension" / "src" / "final"
+    nested.mkdir(parents=True)
+    (tmp_path / "final_extension" / "README.md").write_text(
+        "python -m final.cli refresh-full\n",
+        encoding="utf-8",
+    )
+    (nested / "api.py").write_text("print('api')\n", encoding="utf-8")
+    plan = ExecutionPlan(repo_path=str(tmp_path), entrypoint="final_extension/src/final/api.py")
+    files = collect_targeted_files(tmp_path, plan)
+    paths = {x["path"] for x in files}
+    assert "final_extension/README.md" in paths
