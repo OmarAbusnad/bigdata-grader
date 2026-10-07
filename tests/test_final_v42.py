@@ -674,3 +674,45 @@ def test_final_probe_retries_jobs_from_available_names_error():
     text = _probe_python()
     assert "job_names_from_error" in text
     assert "Available:" in text
+
+
+def test_api_listing_prefers_executable_id_over_display_name():
+    from grader.final_runtime import _probe_python
+    text = _probe_python()
+    assert 'item.get("id") or item.get("query_name")' in text
+    assert 'own_name = value.get("id") or value.get("query_name")' in text
+
+
+def test_command_from_entry_recognizes_csv_flag(tmp_path: Path):
+    from grader.discovery import _command_from_entry
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.py").write_text(
+        'import argparse\np=argparse.ArgumentParser()\np.add_argument("--csv")\n',
+        encoding="utf-8",
+    )
+    cmd, _, _, _ = _command_from_entry(tmp_path, "src/main.py")
+    assert cmd == "python src/main.py --csv {file}"
+
+
+def test_midterm_rejected_cli_flag_is_grader_discovery_failure(tmp_path: Path):
+    from grader.sandbox_runtime import _classify_midterm_start_failure
+
+    result = _classify_midterm_start_failure(
+        tmp_path,
+        {
+            "stderr_tail": "usage: main.py [-h] [--csv CSV]\nmain.py: error: unrecognized arguments: --file x.csv",
+            "stdout_tail": "",
+            "timed_out": False,
+        },
+    )
+    assert result["code"] == "GRADER_DISCOVERY_FAILURE"
+
+
+def test_readme_fallback_can_survive_gemini_outage():
+    import inspect
+    from grader.agent_analyzer import analyze_execution_repair_with_llm
+
+    source = inspect.getsource(analyze_execution_repair_with_llm)
+    assert "ERROR_WITH_README_FALLBACK" in source
+    assert "_grounded_readme_repair_commands" in source
