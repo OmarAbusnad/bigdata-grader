@@ -1,1 +1,1 @@
-targeted cleanup regression for P03, P06 and P08 on freeze 37390623044 after nested-dependency/env/query fixes
+deep cleanup regression for suspicious completed projects after generic README/OpenAPI/runtime fixes; freeze 37390623044
