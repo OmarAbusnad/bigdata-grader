@@ -117,6 +117,18 @@ def collect_targeted_files(
         p = repo / str(plan.entrypoint)
         if p.is_file():
             wanted.add(p)
+            # Include documentation nearest to a nested entrypoint, e.g.
+            # final_extension/README.md for final_extension/src/final/api.py.
+            current = p.parent
+            repo_resolved = repo.resolve()
+            for _ in range(4):
+                for readme_name in ("README.md", "readme.md", "README.MD"):
+                    candidate = current / readme_name
+                    if candidate.is_file():
+                        wanted.add(candidate)
+                if current.resolve() == repo_resolved or repo_resolved not in current.resolve().parents:
+                    break
+                current = current.parent
 
     # Let the failure itself nominate likely source/config files, without scanning
     # the whole repository through the model.
@@ -531,7 +543,9 @@ def analyze_execution_repair_with_llm(
         "Every proposed command MUST be directly supported by README, argparse/CLI source, FastAPI/OpenAPI source, or an explicit runtime error. "
         "Use commands only to initialize/bootstrap/setup/run existing project capabilities that the grader failed to invoke correctly. "
         "Never install undeclared packages, never modify files, never use network/download commands, and never use shell metacharacters. "
-        "Allowed command prefixes are python, python3, py, spark-submit, or python -m variants. "
+        "Allowed commands must invoke an existing repository script/module directly with python/python3/py/spark-submit. "
+        "Do NOT use python -c, requests/curl/wget, inline code, package installation, or ad-hoc HTTP calls. "
+        "Prefer exact CLI commands documented in README, especially bootstrap/full-refresh/setup commands. "
         "Return at most three commands, ordered by confidence. Return JSON only."
     )
     user = {
