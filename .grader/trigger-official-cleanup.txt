@@ -1,1 +1,1 @@
-rerun P08 after README exact-command fallback and adaptive job-name retry; freeze 37390623044
+sample never-before-tested projects P30 P34 P40 P48 P56 P64 on freeze 37390623044
