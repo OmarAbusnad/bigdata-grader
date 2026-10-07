@@ -1,1 +1,1 @@
-rerun P08 with nested README grounded Gemini CLI repair; freeze 37390623044
+rerun P08 after README exact-command fallback and adaptive job-name retry; freeze 37390623044
