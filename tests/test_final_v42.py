@@ -603,3 +603,22 @@ def test_execution_repair_has_retry_and_model_fallback():
     assert "transient_statuses" in source
     assert "attempt_no in range(1, 3)" in source
     assert "fallback_used" in source
+
+
+def test_command_reference_validation_supports_working_directory(tmp_path: Path):
+    from grader.agent_analyzer import _command_references_exist
+
+    (tmp_path / "final_extension" / "final").mkdir(parents=True)
+    (tmp_path / "final_extension" / "final" / "__init__.py").write_text("", encoding="utf-8")
+    (tmp_path / "final_extension" / "final" / "cli.py").write_text("", encoding="utf-8")
+
+    assert _command_references_exist(
+        tmp_path,
+        "python -m final.cli refresh-full",
+        "final_extension",
+    ) is True
+    assert _command_references_exist(
+        tmp_path,
+        "python -m final.cli refresh-full",
+        ".",
+    ) is False
