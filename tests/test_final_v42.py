@@ -407,3 +407,59 @@ def test_runtime_requirements_profile_keeps_declared_bigdata_dependencies_only(t
     assert "deepface" not in text
     assert "pywin32" not in text
     assert meta["selected_count"] == 3
+
+
+def test_documented_ingest_command_preserves_required_readme_flags(tmp_path: Path):
+    from grader.discovery import _documented_ingest_command
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.py").write_text(
+        """
+import argparse
+p=argparse.ArgumentParser()
+p.add_argument("--input", required=True)
+p.add_argument("--action", choices=["run", "route"], default="run")
+p.add_argument("--write", action="store_true")
+""",
+        encoding="utf-8",
+    )
+    readme = 'python src/main.py --input "data/orders.csv" --action run --write'
+    cmd, entry = _documented_ingest_command(tmp_path, readme)
+    assert entry == "src/main.py"
+    assert cmd == "python src/main.py --input {file} --action run --write"
+
+
+def test_documented_ingest_command_prefers_module_entrypoint(tmp_path: Path):
+    from grader.discovery import _documented_ingest_command
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "pipeline_entry.py").write_text(
+        'import argparse\np=argparse.ArgumentParser()\np.add_argument("--input", required=True)\n',
+        encoding="utf-8",
+    )
+    readme = 'python -m src.pipeline_entry --input "<CSV_PATH>"'
+    cmd, entry = _documented_ingest_command(tmp_path, readme)
+    assert entry == "src/pipeline_entry.py"
+    assert cmd == "python -m src.pipeline_entry --input {file}"
+
+
+def test_documented_ingest_rejects_stale_flag_and_uses_valid_positional(tmp_path: Path):
+    from grader.discovery import _documented_ingest_command
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.py").write_text(
+        'import argparse\np=argparse.ArgumentParser()\np.add_argument("csv_path")\n',
+        encoding="utf-8",
+    )
+    readme = """
+python src/main.py --csv data/orders.csv
+python src/main.py data/orders.csv
+"""
+    cmd, entry = _documented_ingest_command(tmp_path, readme)
+    assert entry == "src/main.py"
+    assert cmd == "python src/main.py {file}"
+
+
+def test_timeout_bytes_are_normalized_to_text():
+    from grader.sandbox import _as_text
+    assert _as_text(b"Spark timeout \xff") == "Spark timeout �"
