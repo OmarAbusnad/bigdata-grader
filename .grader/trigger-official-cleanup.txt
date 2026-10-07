@@ -1,1 +1,1 @@
-verify working-directory-aware Gemini execution repair for P08; freeze 37390623044
+rerun P08 with nested README grounded Gemini CLI repair; freeze 37390623044
