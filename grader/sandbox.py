@@ -33,6 +33,14 @@ class SandboxError(RuntimeError):
     pass
 
 
+def _as_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
+
+
 PLATFORM_ONLY_PACKAGES = {
     "pywin32", "pypiwin32", "pywinpty", "pywin32-ctypes",
     "windows-curses", "wincertstore", "win32-setctime", "tensorflow-intel",
@@ -426,7 +434,13 @@ class DockerSandbox:
             result = {"returncode": p.returncode, "stdout": p.stdout, "stderr": p.stderr, "elapsed_seconds": round(time.time()-t, 3), "timed_out": False}
         except subprocess.TimeoutExpired as exc:
             self._run(["docker", "rm", "-f", self.runner_name], timeout=20)
-            result = {"returncode": 124, "stdout": exc.stdout or "", "stderr": exc.stderr or "", "elapsed_seconds": round(time.time()-t, 3), "timed_out": True}
+            result = {
+                "returncode": 124,
+                "stdout": _as_text(exc.stdout),
+                "stderr": _as_text(exc.stderr),
+                "elapsed_seconds": round(time.time()-t, 3),
+                "timed_out": True,
+            }
         return result
 
     def mongo_eval(self, js: str, *, db_name: str) -> tuple[int, str, str]:
