@@ -346,7 +346,7 @@ def query_param_names_from_listing(value, target_name):
     if isinstance(value, dict):
         own_name = value.get("name") or value.get("id") or value.get("key") or value.get("query_name")
         if own_name is not None and str(own_name) == target:
-            for key in ("parameters", "params", "filters", "query_params", "supported_parameters"):
+            for key in ("required_parameters", "parameters", "params", "filters", "query_params", "supported_parameters"):
                 raw = value.get(key)
                 if isinstance(raw, list):
                     out = []
