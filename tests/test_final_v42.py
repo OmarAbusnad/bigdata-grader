@@ -555,3 +555,38 @@ def test_dynamic_query_metadata_can_supply_params_not_declared_in_openapi():
     text = _probe_python()
     assert "for pname in sorted(selected)" in text
     assert "params[pname] = sample_value(pname, {})" in text
+
+
+def test_execution_repair_agent_sanitizes_commands_and_workdir(tmp_path: Path):
+    from grader.agent_analyzer import _sanitize_command, _sanitize_working_directory
+
+    (tmp_path / "final_extension").mkdir()
+    assert _sanitize_command("python -m src.phase2.materialized_views --bootstrap") == "python -m src.phase2.materialized_views --bootstrap"
+    assert _sanitize_command("python x.py && rm -rf /") is None
+    assert _sanitize_working_directory(tmp_path, "final_extension") == "final_extension"
+    assert _sanitize_working_directory(tmp_path, "../outside") == "."
+
+
+def test_final_suite_accepts_recovery_commands_parameter():
+    import inspect
+    from grader.final_runtime import run_final_suite
+
+    params = inspect.signature(run_final_suite).parameters
+    assert "recovery_commands" in params
+
+
+def test_sandbox_run_student_accepts_working_directory():
+    import inspect
+    from grader.sandbox import DockerSandbox
+
+    params = inspect.signature(DockerSandbox.run_student).parameters
+    assert "working_directory" in params
+
+
+def test_unified_evaluator_invokes_execution_repair_agent():
+    import inspect
+    import evaluate_project
+
+    source = inspect.getsource(evaluate_project.main)
+    assert "analyze_execution_repair_with_llm" in source
+    assert "recovery_commands=repair_commands" in source
