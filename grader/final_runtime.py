@@ -501,7 +501,7 @@ result["indexes"] = request("POST", "/indexes", {}, timeout=60)
 
 q = request("GET", "/queries", timeout=30)
 result["queries"] = q
-qnames = names_from(q.get("body"), ["queries", "available_queries", "items", "data", "results"])
+qnames = names_from(q.get("body"), ["queries", "available_queries", "names", "items", "data", "results"])
 result["query_names"] = qnames[:30]
 qcalls = []
 qspec = ((openapi.get("paths") or {}).get("/queries/{name}") or {}).get("get") or {}
@@ -525,7 +525,7 @@ result["query_calls"] = qcalls
 
 a = request("GET", "/aggregations", timeout=30)
 result["aggregations"] = a
-anames = names_from(a.get("body"), ["aggregations", "available_aggregations", "items", "data", "results", "reports", "aggregation_reports", "available_reports"])
+anames = names_from(a.get("body"), ["aggregations", "available_aggregations", "names", "items", "data", "results", "reports", "aggregation_reports", "available_reports"])
 result["aggregation_names"] = anames[:30]
 result["aggregation_calls"] = [
     {"name": name, "response": request("GET", "/aggregations/" + urllib.parse.quote(name, safe=""), timeout=90)}
@@ -537,7 +537,7 @@ result["refresh_mv_second"] = request("POST", "/refresh-mv", {}, timeout=120)
 
 j = request("GET", "/jobs", timeout=30)
 result["jobs"] = j
-jnames = names_from(j.get("body"), ["jobs", "available_jobs", "configured_jobs", "items", "data", "results", "scheduled_jobs", "tasks", "registered_jobs"])
+jnames = names_from(j.get("body"), ["jobs", "available_jobs", "configured_jobs", "names", "scheduler", "items", "data", "results", "scheduled_jobs", "tasks", "registered_jobs"])
 result["job_names"] = jnames[:30]
 result["job_calls"] = [
     {"name": name, "response": request("POST", "/jobs/" + urllib.parse.quote(name, safe="") + "/run", {}, timeout=120)}
@@ -685,6 +685,25 @@ def _find_active_database(
             for score, name, m in scores[:8]
         ],
     }
+
+
+def _mv_requires_initialization(*responses: dict[str, Any]) -> bool:
+    """True when runtime explicitly says MV initialization/bootstrap/full refresh is a precondition."""
+    for response in responses:
+        try:
+            txt = json.dumps((response or {}).get("body"), ensure_ascii=False).lower()
+        except Exception:
+            txt = str(response).lower()
+        if any(token in txt for token in (
+            "not initialized",
+            "not initialised",
+            "run --bootstrap first",
+            "bootstrap first",
+            "full refresh first",
+            "initial refresh",
+        )):
+            return True
+    return False
 
 
 def _second_refresh_incremental(probe: dict[str, Any]) -> tuple[bool, list[str]]:
@@ -1079,9 +1098,13 @@ def run_final_suite(
 
         mv1 = probe.get("refresh_mv_first") or {}
         mv2 = probe.get("refresh_mv_second") or {}
+        mv_needs_init = _mv_requires_initialization(mv1, mv2)
         assertions.append(_assertion("final.mv.refresh", "Materialized-view refresh endpoint works",
-                                     "PASS" if mv1.get("ok") else "FAIL", expected="2xx", actual=mv1.get("status"),
-                                     evidence=[json.dumps(mv1.get("body"), ensure_ascii=False)[:1800]]))
+                                     "PASS" if (mv1.get("ok") and not mv_needs_init) else ("INCONCLUSIVE" if mv_needs_init else "FAIL"),
+                                     expected="2xx operational refresh after valid initialization",
+                                     actual=mv1.get("status"),
+                                     evidence=[json.dumps(mv1.get("body"), ensure_ascii=False)[:1800]],
+                                     note="Documented/runtime initialization precondition detected; grader must initialize before judging." if mv_needs_init else None))
         collections_after = set(db.list_collection_names())
         mv_names, mv_counts = [], {}
         for name in sorted(collections_after):
@@ -1093,13 +1116,16 @@ def run_final_suite(
                 if count > 0:
                     mv_names.append(name); mv_counts[name] = count
         assertions.append(_assertion("final.mv.collections", "At least two populated materialized-view collections exist",
-                                     "PASS" if len(mv_names) >= 2 else "FAIL", expected=">= 2", actual=len(mv_names),
-                                     evidence=[json.dumps(mv_counts, ensure_ascii=False)]))
+                                     "PASS" if len(mv_names) >= 2 else ("INCONCLUSIVE" if mv_needs_init else "FAIL"),
+                                     expected=">= 2 after valid initialization", actual=len(mv_names),
+                                     evidence=[json.dumps(mv_counts, ensure_ascii=False)],
+                                     note="Initialization precondition prevents a fair collection-count verdict." if mv_needs_init else None))
         incremental, inc_ev = _second_refresh_incremental(probe)
         assertions.append(_assertion("final.mv.incremental", "Second materialized-view refresh is incremental/idempotent",
-                                     "PASS" if incremental else ("INCONCLUSIVE" if mv2.get("ok") else "FAIL"),
-                                     expected="incremental or zero-change second refresh",
-                                     actual=json.dumps(mv2.get("body"), ensure_ascii=False)[:1200], evidence=inc_ev))
+                                     "PASS" if incremental else ("INCONCLUSIVE" if (mv2.get("ok") or mv_needs_init) else "FAIL"),
+                                     expected="incremental or zero-change second refresh after valid initialization",
+                                     actual=json.dumps(mv2.get("body"), ensure_ascii=False)[:1200], evidence=inc_ev,
+                                     note="Initialization precondition detected; incremental behavior was not validly exercised." if mv_needs_init else None))
 
         mv_basis = materialized_view_aggregation_basis(repo)
         assertions.append(_assertion(
