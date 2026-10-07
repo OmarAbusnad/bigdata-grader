@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -543,63 +544,113 @@ def analyze_execution_repair_with_llm(
     }
 
     base = os.getenv("GRADER_GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta").rstrip("/")
-    model = os.getenv("GRADER_LLM_MODEL", "gemini-3.1-pro-preview").strip()
-    model_path = model if model.startswith("models/") else f"models/{model}"
+    primary_model = os.getenv("GRADER_LLM_MODEL", "gemini-3.1-pro-preview").strip()
+    fallback_raw = os.getenv(
+        "GRADER_LLM_FALLBACK_MODELS",
+        "gemini-2.5-pro,gemini-2.5-flash",
+    )
+    model_candidates = []
+    for candidate in [primary_model, *[x.strip() for x in fallback_raw.split(",")]]:
+        if candidate and candidate not in model_candidates:
+            model_candidates.append(candidate)
+
     req = {
         "systemInstruction": {"parts": [{"text": system}]},
         "contents": [{"role": "user", "parts": [{"text": json.dumps(user, ensure_ascii=False)}]}],
         "generationConfig": {"responseMimeType": "application/json", "temperature": 0.0},
     }
-    try:
-        r = requests.post(
-            f"{base}/{model_path}:generateContent",
-            headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
-            json=req,
-            timeout=timeout,
-        )
-        r.raise_for_status()
-        parts: list[str] = []
-        for candidate in r.json().get("candidates", []):
-            for part in (candidate.get("content") or {}).get("parts", []):
-                if isinstance(part.get("text"), str):
-                    parts.append(part["text"])
-        data = json.loads("".join(parts).strip() or "{}")
-        if not isinstance(data, dict):
-            raise ValueError("Gemini repair response must be a JSON object")
 
-        commands: list[dict[str, Any]] = []
-        for item in (data.get("commands") or [])[:max_commands]:
-            if not isinstance(item, dict):
-                continue
-            cmd = _sanitize_command(item.get("command"))
-            if not cmd or not _command_references_exist(repo, cmd):
-                continue
-            confidence = min(max(float(item.get("confidence", 0.0) or 0.0), 0.0), 1.0)
-            evidence = item.get("evidence") if isinstance(item.get("evidence"), list) else []
-            if confidence < 0.70 or not evidence:
-                continue
-            commands.append({
-                "stage": str(item.get("stage") or "before_phase2_retry"),
-                "command": cmd,
-                "working_directory": _sanitize_working_directory(repo, item.get("working_directory")),
-                "confidence": confidence,
-                "evidence": [str(x) for x in evidence[:6]],
-                "reason": str(item.get("reason") or ""),
-            })
+    attempts: list[dict[str, Any]] = []
+    last_error = ""
+    transient_statuses = {429, 500, 502, 503, 504}
+    for model in model_candidates:
+        model_path = model if model.startswith("models/") else f"models/{model}"
+        for attempt_no in range(1, 3):
+            try:
+                r = requests.post(
+                    f"{base}/{model_path}:generateContent",
+                    headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+                    json=req,
+                    timeout=timeout,
+                )
+                status = r.status_code
+                attempts.append({"model": model, "attempt": attempt_no, "status": status})
+                if status >= 400:
+                    body_preview = (r.text or "")[:800]
+                    last_error = f"HTTP {status}: {body_preview}"
+                    if status in transient_statuses and attempt_no < 2:
+                        time.sleep(2 * attempt_no)
+                        continue
+                    break
 
-        return {
-            "status": "OK",
-            "provider": "gemini",
-            "model": model,
-            "commands": commands,
-            "reasoning_summary": str(data.get("reasoning_summary") or ""),
-            "files_sent": [x["path"] for x in files],
-        }
-    except Exception as exc:
-        return {
-            "status": "ERROR",
-            "provider": "gemini",
-            "model": model,
-            "reason": f"{type(exc).__name__}: {exc}",
-            "commands": [],
-        }
+                parts: list[str] = []
+                for candidate in r.json().get("candidates", []):
+                    for part in (candidate.get("content") or {}).get("parts", []):
+                        if isinstance(part.get("text"), str):
+                            parts.append(part["text"])
+                data = json.loads("".join(parts).strip() or "{}")
+                if not isinstance(data, dict):
+                    raise ValueError("Gemini repair response must be a JSON object")
+
+                commands: list[dict[str, Any]] = []
+                for item in (data.get("commands") or [])[:max_commands]:
+                    if not isinstance(item, dict):
+                        continue
+                    cmd = _sanitize_command(item.get("command"))
+                    if not cmd or not _command_references_exist(repo, cmd):
+                        continue
+                    confidence = min(max(float(item.get("confidence", 0.0) or 0.0), 0.0), 1.0)
+                    evidence = item.get("evidence") if isinstance(item.get("evidence"), list) else []
+                    if confidence < 0.70 or not evidence:
+                        continue
+                    commands.append({
+                        "stage": str(item.get("stage") or "before_phase2_retry"),
+                        "command": cmd,
+                        "working_directory": _sanitize_working_directory(repo, item.get("working_directory")),
+                        "confidence": confidence,
+                        "evidence": [str(x) for x in evidence[:6]],
+                        "reason": str(item.get("reason") or ""),
+                    })
+
+                return {
+                    "status": "OK",
+                    "provider": "gemini",
+                    "model": model,
+                    "primary_model": primary_model,
+                    "fallback_used": model != primary_model,
+                    "attempts": attempts,
+                    "commands": commands,
+                    "reasoning_summary": str(data.get("reasoning_summary") or ""),
+                    "files_sent": [x["path"] for x in files],
+                }
+            except (requests.Timeout, requests.ConnectionError) as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
+                attempts.append({
+                    "model": model,
+                    "attempt": attempt_no,
+                    "status": None,
+                    "error": last_error,
+                })
+                if attempt_no < 2:
+                    time.sleep(2 * attempt_no)
+                    continue
+                break
+            except Exception as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
+                attempts.append({
+                    "model": model,
+                    "attempt": attempt_no,
+                    "status": None,
+                    "error": last_error,
+                })
+                break
+
+    return {
+        "status": "ERROR",
+        "provider": "gemini",
+        "model": primary_model,
+        "models_tried": model_candidates,
+        "attempts": attempts,
+        "reason": last_error or "All Gemini repair models failed",
+        "commands": [],
+    }
