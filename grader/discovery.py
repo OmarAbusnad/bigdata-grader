@@ -356,21 +356,41 @@ def _parse_settings(text: str) -> dict:
     out["db"] = _first_match([
         r"MONGO_DB_NAME\s*=\s*os\.getenv\([^,]+,\s*[\"']([^\"']+)",
         r"MONGO_DATABASE\s*=\s*os\.getenv\([^,]+,\s*[\"']([^\"']+)",
+        r"MONGODB_DATABASE\s*=\s*os\.getenv\([^,]+,\s*[\"']([^\"']+)",
         r"MONGO_DATABASE\s*=\s*[\"']([^\"']+)",
         r"MONGO_DB_NAME\s*=\s*[\"']([^\"']+)",
+        r"MONGODB_DATABASE\s*=\s*[\"']([^\"']+)",
+        r"(?m)^\s*MONGODB_DATABASE\s*=\s*([^\s#]+)",
+        r"(?m)^\s*MONGO_DATABASE\s*=\s*([^\s#]+)",
+        r"(?m)^\s*MONGO_DB_NAME\s*=\s*([^\s#]+)",
     ], text)
-    out["db_env"] = bool(re.search(r"MONGO_(?:DB_NAME|DATABASE)\s*=\s*(?:os\.)?getenv", text, re.I))
+    out["db_env"] = bool(re.search(
+        r"(?:MONGO_(?:DB_NAME|DATABASE)|MONGODB_DATABASE)\s*=\s*(?:os\.)?getenv",
+        text, re.I,
+    )) or bool(re.search(r"(?m)^\s*MONGODB_DATABASE\s*=", text))
+
     out["uri"] = _first_match([
         r"MONGO_URI\s*=\s*os\.getenv\([^,]+,\s*[\"']([^\"']+)",
+        r"MONGODB_URI\s*=\s*os\.getenv\([^,]+,\s*[\"']([^\"']+)",
         r"MONGO_URI\s*=\s*[\"']([^\"']+)",
+        r"MONGODB_URI\s*=\s*[\"']([^\"']+)",
+        r"(?m)^\s*MONGODB_URI\s*=\s*([^\s#]+)",
+        r"(?m)^\s*MONGO_URI\s*=\s*([^\s#]+)",
     ], text)
-    out["uri_env"] = bool(re.search(r"MONGO_URI\s*=\s*(?:os\.)?getenv", text, re.I))
+    out["uri_env"] = bool(re.search(
+        r"(?:MONGO_URI|MONGODB_URI)\s*=\s*(?:os\.)?getenv",
+        text, re.I,
+    )) or bool(re.search(r"(?m)^\s*MONGODB_URI\s*=", text))
+
     threshold = _first_match([
         r"SMALL_FILE_THRESHOLD_MB\s*=\s*float\(os\.getenv\([^,]+,\s*[\"']?([0-9.]+)",
         r"(?:SMALL_FILE_THRESHOLD_MB|FILE_SIZE_THRESHOLD_MB|THRESHOLD_MB)\s*=\s*([0-9.]+)",
     ], text)
     out["threshold"] = float(threshold) if threshold else None
-    out["threshold_env"] = bool(re.search(r"(?:SMALL_FILE_THRESHOLD_MB|FILE_SIZE_THRESHOLD_MB|THRESHOLD_MB).*getenv", text, re.I))
+    out["threshold_env"] = bool(re.search(
+        r"(?:SMALL_FILE_THRESHOLD_MB|FILE_SIZE_THRESHOLD_MB|THRESHOLD_MB).*getenv",
+        text, re.I,
+    ))
     out["spark_master"] = _first_match([
         r"SPARK_MASTER_URL\s*=\s*os\.getenv\([^,]+,\s*[\"']([^\"']+)",
         r"SPARK_MASTER\s*=\s*os\.getenv\([^,]+,\s*[\"']([^\"']+)",
