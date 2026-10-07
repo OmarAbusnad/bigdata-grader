@@ -328,6 +328,21 @@ def names_from(value, preferred):
             and not str(k).lower().endswith("_count")
         ]
         if len(object_keys) >= 2: return object_keys
+
+        # Flat mapping APIs commonly expose executable IDs as keys and
+        # human-readable descriptions as scalar values:
+        # {"q1": "description", "q2": "description", ...}
+        scalar_keys = [
+            str(k) for k, v in value.items()
+            if isinstance(v, (str, int, float, bool)) or v is None
+            if str(k).lower() not in {
+                "count", "total", "status", "message", "detail", "description",
+                "service", "version", "mode", "ok", "success"
+            }
+            and not str(k).lower().endswith("_count")
+        ]
+        if len(scalar_keys) >= 2:
+            return scalar_keys
         return []
     if isinstance(value, list):
         out = []
@@ -537,7 +552,7 @@ result["refresh_mv_second"] = request("POST", "/refresh-mv", {}, timeout=120)
 
 j = request("GET", "/jobs", timeout=30)
 result["jobs"] = j
-jnames = names_from(j.get("body"), ["jobs", "available_jobs", "configured_jobs", "names", "scheduler", "items", "data", "results", "scheduled_jobs", "tasks", "registered_jobs"])
+jnames = names_from(j.get("body"), ["jobs", "available_jobs", "configured_jobs", "registered", "names", "scheduler", "items", "data", "results", "scheduled_jobs", "tasks", "registered_jobs"])
 result["job_names"] = jnames[:30]
 result["job_calls"] = [
     {"name": name, "response": request("POST", "/jobs/" + urllib.parse.quote(name, safe="") + "/run", {}, timeout=120)}
