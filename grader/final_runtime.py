@@ -739,6 +739,7 @@ def run_final_suite(
     timeout: int = 1200, keep_sandbox: bool = False,
     shared_sandbox: DockerSandbox | None = None,
     manage_sandbox: bool = True,
+    recovery_commands: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     assertions = []
     api_target = str(final_plan.get("api_target") or "")
@@ -866,6 +867,74 @@ def run_final_suite(
             db = client[db_name]
             validated = db[validated_name]
         host_evidence["active_database_resolution"] = active_db_meta
+
+        if recovery_commands:
+            recovery_runs = []
+            for item in recovery_commands[:3]:
+                if not isinstance(item, dict):
+                    continue
+                command = str(item.get("command") or "").strip()
+                if not command:
+                    continue
+                run = sb.run_student(
+                    command,
+                    env={
+                        "MONGO_DATABASE": db_name,
+                        "MONGODB_DATABASE": db_name,
+                        "MONGO_DB_NAME": db_name,
+                        "DB_NAME": db_name,
+                    },
+                    timeout=min(timeout, 300),
+                    working_directory=str(item.get("working_directory") or "."),
+                )
+                recovery_runs.append({
+                    "command": command,
+                    "working_directory": str(item.get("working_directory") or "."),
+                    "confidence": item.get("confidence"),
+                    "evidence": item.get("evidence") or [],
+                    "run": {
+                        "returncode": run.get("returncode"),
+                        "timed_out": run.get("timed_out"),
+                        "stdout_tail": str(run.get("stdout") or "")[-4000:],
+                        "stderr_tail": str(run.get("stderr") or "")[-4000:],
+                    },
+                })
+            host_evidence["execution_repair_commands"] = recovery_runs
+
+            if recovery_runs and any((x.get("run") or {}).get("returncode") == 0 for x in recovery_runs):
+                repaired_run = sb.run_student(
+                    "bash /grader-tests/run_final_api.sh",
+                    env={
+                        "FINAL_API_TARGET": api_target,
+                        "MONGO_DATABASE": db_name,
+                        "MONGODB_DATABASE": db_name,
+                        "MONGO_DB_NAME": db_name,
+                        "DB_NAME": db_name,
+                        "GRADER_SKIP_INGEST": "1",
+                    },
+                    timeout=max(timeout, 600),
+                )
+                repaired_probe = _extract_probe(str(repaired_run.get("stdout") or ""))
+                if repaired_probe.get("server_ready"):
+                    preserved = {
+                        "ingest_attempts": probe.get("ingest_attempts"),
+                        "health": probe.get("health"),
+                        "docs": probe.get("docs"),
+                        "openapi": probe.get("openapi"),
+                    }
+                    probe = repaired_probe
+                    probe.update({k: v for k, v in preserved.items() if v is not None})
+                    probe["semantic_normalization"] = normalize_probe(probe)
+                    host_evidence["execution_repair_retry"] = {
+                        "server_ready": True,
+                        "returncode": repaired_run.get("returncode"),
+                    }
+                else:
+                    host_evidence["execution_repair_retry"] = {
+                        "server_ready": False,
+                        "returncode": repaired_run.get("returncode"),
+                        "stderr_tail": str(repaired_run.get("stderr") or "")[-3000:],
+                    }
 
         ingest_attempts_first = probe.get("ingest_attempts") or []
         ingest_ok_first = any((x.get("response") or {}).get("ok") for x in ingest_attempts_first)
