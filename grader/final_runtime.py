@@ -175,7 +175,7 @@ def _fixture_docs() -> list[dict[str, Any]]:
 
 
 def _probe_python() -> str:
-    return r'''import json, os, shutil, time, urllib.parse, urllib.request, urllib.error
+    return r'''import json, os, re, shutil, time, urllib.parse, urllib.request, urllib.error
 
 BASE = "http://127.0.0.1:8000"
 DATASET_SOURCE = "/grader-tests/test_01_small_batch_pipeline.csv"
@@ -543,6 +543,26 @@ result["job_calls"] = [
     {"name": name, "response": request("POST", "/jobs/" + urllib.parse.quote(name, safe="") + "/run", {}, timeout=120)}
     for name in jnames[:2]
 ]
+
+# Adaptive retry: some APIs expose scheduler internals from GET /jobs while
+# POST /jobs/{name}/run returns the authoritative public names in its error.
+available_job_names = []
+for call in result["job_calls"]:
+    body = (call.get("response") or {}).get("body")
+    text_body = json.dumps(body, ensure_ascii=False) if not isinstance(body, str) else body
+    m = re.search(r"Available:\s*\[([^\]]+)\]", text_body)
+    if m:
+        for quoted in re.findall(r"['\"]([^'\"]+)['\"]", m.group(1)):
+            if quoted not in available_job_names:
+                available_job_names.append(quoted)
+if available_job_names:
+    result["job_names_from_error"] = available_job_names
+    result["job_calls"] = [
+        {"name": name, "response": request("POST", "/jobs/" + urllib.parse.quote(name, safe="") + "/run", {}, timeout=120)}
+        for name in available_job_names[:2]
+    ]
+    result["job_names"] = available_job_names
+
 result["jobs_after_runs"] = request("GET", "/jobs", timeout=30)
 
 print("FINAL_PROBE_JSON=" + json.dumps(result, ensure_ascii=False))
