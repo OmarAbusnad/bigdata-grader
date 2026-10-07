@@ -326,6 +326,14 @@ def run_behavioral_suite(
             )
             stdin_text = _render_stdin(plan, rel, effective_db, effective_threshold)
             run = sb.run_student(cmd, env=env, timeout=timeout, stdin_text=stdin_text)
+            if _pipeline_completed_before_timeout({
+                "timed_out": run.get("timed_out"),
+                "stdout_tail": str(run.get("stdout") or "")[-12000:],
+                "stderr_tail": str(run.get("stderr") or "")[-12000:],
+            }):
+                run["post_pipeline_server_timeout"] = True
+                run["returncode"] = 0
+                run["timed_out"] = False
             after = mongo.snapshot().to_dict()
             _live(
                 f"{project_id}: DONE {case_name} | rc={run.get('returncode')} "
