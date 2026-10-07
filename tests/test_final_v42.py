@@ -516,3 +516,15 @@ def test_discovery_appends_no_server_only_when_cli_declares_it(tmp_path: Path):
     (tmp_path / "requirements.txt").write_text("pymongo\n", encoding="utf-8")
     plan = discover_execution_plan(tmp_path)
     assert plan.ingest_command == "python src/main.py --input {file} --no-server"
+
+
+def test_mongo_env_parser_rejects_getenv_expression_as_literal():
+    from grader.discovery import _parse_settings
+
+    result = _parse_settings(
+        'MONGO_DATABASE = os.getenv("MONGO_DATABASE", "ecommerce_store")\n'
+        'MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")\n'
+    )
+    assert result["db"] == "ecommerce_store"
+    assert result["uri"] == "mongodb://localhost:27017"
+    assert "." not in result["db"]
