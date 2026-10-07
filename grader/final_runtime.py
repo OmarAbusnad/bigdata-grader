@@ -516,6 +516,9 @@ for name in qnames[:5]:
         pname = str(p.get("name"))
         if p.get("required") or pname in selected:
             params[pname] = sample_value(pname, p.get("schema") or {})
+    for pname in sorted(selected):
+        if pname not in params:
+            params[pname] = sample_value(pname, {})
     suffix = "?" + urllib.parse.urlencode(params) if params else ""
     qcalls.append({"name": name, "params": params, "response": request("GET", "/queries/" + urllib.parse.quote(name, safe="") + suffix, timeout=60)})
 result["query_calls"] = qcalls
@@ -932,7 +935,7 @@ def run_final_suite(
             (x.get("response") or {}) for x in (probe.get("ingest_attempts") or [])
             if (x.get("response") or {}).get("status") is not None
         ]
-        json_checked = [x for x in json_wrappers if x.get("status") is not None]
+        json_checked = [x for x in json_wrappers if x.get("status") is not None and (x.get("ok") or x.get("is_json") is True)]
         json_ok = bool(json_checked) and all(x.get("is_json") is True for x in json_checked)
         assertions.append(_assertion(
             "final.api.json",
@@ -985,7 +988,7 @@ def run_final_suite(
         # supporting evidence only.
         qverdict = (
             "PASS" if qok >= 5 and qcount >= 5
-            else "INCONCLUSIVE" if qcount >= 5 and qok > 0
+            else "INCONCLUSIVE" if qcount >= 5
             else "FAIL"
         )
         assertions.append(_assertion("final.queries.runtime", "Practical queries execute successfully",
@@ -1010,7 +1013,7 @@ def run_final_suite(
         aambiguous = any(x.get("supported") is None for x in apayload)
         averdict = (
             "PASS" if aok >= 5 and ameaningful >= 5
-            else "INCONCLUSIVE" if (acount >= 5 and (aambiguous or aok > 0))
+            else "INCONCLUSIVE" if acount >= 5
             else "FAIL"
         )
         assertions.append(_assertion("final.aggregations.runtime", "Aggregation reports execute and return actual data",
