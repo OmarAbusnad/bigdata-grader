@@ -753,12 +753,19 @@ def analyze_execution_repair_with_llm(
                 })
                 break
 
+    fallback_commands = _grounded_readme_repair_commands(
+        repo,
+        files,
+        failure_context,
+        max_commands=max_commands,
+    )
     return {
-        "status": "ERROR",
+        "status": "ERROR_WITH_README_FALLBACK" if fallback_commands else "ERROR",
         "provider": "gemini",
         "model": primary_model,
         "models_tried": model_candidates,
         "attempts": attempts,
         "reason": last_error or "All Gemini repair models failed",
-        "commands": [],
+        "commands": fallback_commands,
+        "command_source": "readme_exact_fallback" if fallback_commands else None,
     }
