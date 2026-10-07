@@ -590,3 +590,16 @@ def test_unified_evaluator_invokes_execution_repair_agent():
     source = inspect.getsource(evaluate_project.main)
     assert "analyze_execution_repair_with_llm" in source
     assert "recovery_commands=repair_commands" in source
+
+
+def test_execution_repair_has_retry_and_model_fallback():
+    import inspect
+    from grader.agent_analyzer import analyze_execution_repair_with_llm
+
+    source = inspect.getsource(analyze_execution_repair_with_llm)
+    assert "GRADER_LLM_FALLBACK_MODELS" in source
+    assert "gemini-2.5-pro" in source
+    assert "gemini-2.5-flash" in source
+    assert "transient_statuses" in source
+    assert "attempt_no in range(1, 3)" in source
+    assert "fallback_used" in source
