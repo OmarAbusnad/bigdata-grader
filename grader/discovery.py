@@ -109,6 +109,121 @@ def _looks_like_wrapper(repo: Path, candidate: str) -> str | None:
     return None
 
 
+def _read_readme_case_insensitive(repo: Path) -> str:
+    for path in sorted(repo.iterdir(), key=lambda p: p.name.lower()):
+        if path.is_file() and path.name.lower() == "readme.md":
+            return _read(path)
+    return ""
+
+
+def _documented_ingest_command(repo: Path, readme: str) -> tuple[str | None, str | None]:
+    """Extract a runnable data-pipeline command from README without inventing flags.
+
+    Commands are validated against the referenced Python file/module. Unsupported
+    documented flags are rejected, allowing a later valid README example to win.
+    """
+    import shlex
+
+    candidates: list[tuple[int, str, str | None]] = []
+    for raw_line in readme.splitlines():
+        line = raw_line.strip().strip("`").strip()
+        if not line or any(x in line for x in ["│", "├", "└", "─", "|--", "+--"]):
+            continue
+        line = re.sub(r"^\$\s*", "", line)
+        if not re.match(r"^(?:python(?:3)?|py)\s+", line, re.I):
+            continue
+        if re.search(r"\b(?:pip|venv|pytest|unittest|compileall)\b", line, re.I):
+            continue
+        if re.search(r"\buvicorn\b", line, re.I):
+            continue
+        try:
+            toks = shlex.split(line, posix=False)
+        except Exception:
+            continue
+        if len(toks) < 2:
+            continue
+
+        target_file: Path | None = None
+        entrypoint: str | None = None
+        arg_start = 2
+        if len(toks) >= 3 and toks[1] == "-m":
+            module = toks[2].strip("\"'")
+            target_file = repo / (module.replace(".", "/") + ".py")
+            if not target_file.is_file():
+                package_main = repo / module.replace(".", "/") / "__main__.py"
+                if package_main.is_file():
+                    target_file = package_main
+                else:
+                    continue
+            entrypoint = str(target_file.relative_to(repo)).replace("\\", "/")
+            arg_start = 3
+        else:
+            target = toks[1].strip("\"'").replace("\\", "/")
+            if not target.endswith(".py"):
+                continue
+            target_file = repo / target
+            if not target_file.is_file():
+                continue
+            entrypoint = target
+
+        code = _read(target_file)
+        supported_flags = _argument_flags(code)
+        command_flags = [t for t in toks[arg_start:] if t.startswith("-")]
+        unsupported = [f for f in command_flags if f not in supported_flags]
+        if unsupported:
+            continue
+
+        normalized = list(toks)
+        replaced_file = False
+        file_flags = {"--input", "--file", "--file-path", "--file_path", "--csv", "-f", "-i"}
+        for i in range(arg_start, len(normalized)):
+            tok = normalized[i].strip("\"'")
+            if tok in file_flags and i + 1 < len(normalized):
+                normalized[i + 1] = "{file}"
+                replaced_file = True
+            elif (
+                "<csv" in tok.lower()
+                or "csv_path" in tok.lower()
+                or tok.lower().endswith(".csv")
+                or tok.lower().endswith(".jsonl")
+            ):
+                normalized[i] = "{file}"
+                replaced_file = True
+
+        positional_args = re.findall(r"add_argument\(\s*[\"']([A-Za-z_]\w*)[\"']", code)
+        if not replaced_file and positional_args:
+            normalized.append("{file}")
+            replaced_file = True
+
+        if not replaced_file:
+            continue
+
+        for i, tok in enumerate(normalized[:-1]):
+            clean = tok.strip("\"'")
+            if clean in {"--threshold", "--threshold-mb", "-t"}:
+                normalized[i + 1] = "{threshold_mb}"
+            if clean in {"--database", "--db-name"}:
+                normalized[i + 1] = "{db_name}"
+
+        cmd = " ".join(normalized)
+        score = 0
+        low = cmd.lower()
+        if "main" in low or "pipeline_entry" in low:
+            score += 4
+        if "--action run" in low or " run " in low:
+            score += 2
+        if "--write" in low:
+            score += 2
+        if "{file}" in cmd:
+            score += 3
+        candidates.append((score, cmd, entrypoint))
+
+    if not candidates:
+        return None, None
+    candidates.sort(key=lambda x: -x[0])
+    return candidates[0][1], candidates[0][2]
+
+
 def _detect_entrypoint(repo: Path, readme: str) -> str | None:
     commands = re.findall(r"(?:python|py)\s+(?:-m\s+)?([\w./\\-]*main\.py)", readme, re.I)
     for raw in commands:
@@ -286,14 +401,19 @@ def discover_execution_plan(repo_path: str | Path) -> ExecutionPlan:
     # Student repositories are evaluated as submitted.
     # No grader-specific file is required or trusted from inside the student repository.
 
-    readme = _read(repo / "README.md")
+    readme = _read_readme_case_insensitive(repo)
     req_exists = (repo / "requirements.txt").exists()
     settings_paths = [repo / "config/settings.py", repo / "settings.py", repo / "src/settings.py"]
     settings_text = "\n".join(_read(p) for p in settings_paths if p.exists())
     repo_text = _all_text(repo)
 
-    entrypoint = _detect_entrypoint(repo, readme)
+    documented_cmd, documented_entrypoint = _documented_ingest_command(repo, readme)
+    entrypoint = documented_entrypoint or _detect_entrypoint(repo, readme)
     ingest_cmd, reset_cmd, threshold_flag, db_flag = _command_from_entry(repo, entrypoint)
+    if documented_cmd:
+        ingest_cmd = documented_cmd
+        threshold_flag = any(x in documented_cmd for x in ("--threshold", "--threshold-mb", " -t "))
+        db_flag = any(x in documented_cmd for x in ("--database", "--db-name"))
     settings = _parse_settings(settings_text + "\n" + repo_text)
     setup_cmd = _detect_setup_command(repo, readme)
 
@@ -309,6 +429,8 @@ def discover_execution_plan(repo_path: str | Path) -> ExecutionPlan:
         score += 0.25
     if ingest_cmd:
         evidence.append(f"Ingest command: {ingest_cmd}")
+        if documented_cmd:
+            evidence.append("Ingest command source: validated README command")
         score += 0.25
     if setup_cmd:
         evidence.append(f"Setup command: {setup_cmd}")
