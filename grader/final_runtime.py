@@ -175,10 +175,18 @@ def _fixture_docs() -> list[dict[str, Any]]:
 
 
 def _probe_python() -> str:
-    return r'''import json, time, urllib.parse, urllib.request, urllib.error
+    return r'''import json, os, shutil, time, urllib.parse, urllib.request, urllib.error
 
 BASE = "http://127.0.0.1:8000"
-DATASET = "/grader-tests/test_01_small_batch_pipeline.csv"
+DATASET_SOURCE = "/grader-tests/test_01_small_batch_pipeline.csv"
+DATASET_PROJECT = "/workspace/data/grader_hidden_input.csv"
+try:
+    os.makedirs("/workspace/data", exist_ok=True)
+    shutil.copyfile(DATASET_SOURCE, DATASET_PROJECT)
+    DATASET = DATASET_PROJECT
+except Exception:
+    DATASET = DATASET_SOURCE
+SKIP_INGEST = os.getenv("GRADER_SKIP_INGEST", "").strip() == "1"
 
 def request(method, path, body=None, timeout=180):
     url = BASE + path
@@ -332,6 +340,60 @@ def names_from(value, preferred):
         return out
     return []
 
+def query_param_names_from_listing(value, target_name):
+    """Extract parameters declared for one named query from heterogeneous list responses."""
+    target = str(target_name)
+    if isinstance(value, dict):
+        own_name = value.get("name") or value.get("id") or value.get("key") or value.get("query_name")
+        if own_name is not None and str(own_name) == target:
+            for key in ("parameters", "params", "filters", "query_params", "supported_parameters"):
+                raw = value.get(key)
+                if isinstance(raw, list):
+                    out = []
+                    for item in raw:
+                        if isinstance(item, str):
+                            out.append(item)
+                        elif isinstance(item, dict):
+                            n = item.get("name") or item.get("key") or item.get("id")
+                            if n is not None: out.append(str(n))
+                    if out: return out
+                if isinstance(raw, dict):
+                    return [str(k) for k in raw.keys()]
+        if target in value and isinstance(value[target], dict):
+            nested = query_param_names_from_listing({"name": target, **value[target]}, target)
+            if nested: return nested
+        for child in value.values():
+            got = query_param_names_from_listing(child, target)
+            if got: return got
+    elif isinstance(value, list):
+        for child in value:
+            got = query_param_names_from_listing(child, target)
+            if got: return got
+    return []
+
+
+def semantic_query_param_names(name, available):
+    """Conservative fallback when list metadata does not expose per-query params."""
+    n = str(name).lower()
+    out = set()
+    def add_if(token, *params):
+        if token in n:
+            for p in params:
+                if p in available: out.add(p)
+    add_if("city", "city")
+    add_if("status", "status", "payment_status")
+    add_if("customer", "customer_id")
+    add_if("phone", "phone", "customer_phone")
+    add_if("product", "sku", "product_id", "item_name", "product_name")
+    add_if("sku", "sku")
+    add_if("payment", "payment_method", "payment_status", "min_amount")
+    add_if("high_value", "min_total", "min_amount", "start_date", "end_date")
+    add_if("range", "start_date", "end_date", "min_total", "max_total")
+    add_if("date", "start_date", "end_date")
+    if "limit" in available: out.add("limit")
+    return out
+
+
 def build_ingest_attempts(openapi):
     post = ((openapi.get("paths") or {}).get("/ingest") or {}).get("post") or {}
     attempts = []
@@ -410,27 +472,27 @@ result["docs"] = request("GET", "/docs", timeout=10)
 result["health"] = request("GET", "/health", timeout=15)
 
 ingest_attempts = []
-for attempt in build_ingest_attempts(openapi):
-    kind = attempt.get("kind")
-    if kind == "query":
-        params = attempt.get("params") or {}
-        suffix = "?" + urllib.parse.urlencode(params) if params else ""
-        r = request("POST", "/ingest" + suffix, None, timeout=240)
-        keys = sorted(params.keys())
-    elif kind == "form":
-        fields = attempt.get("fields") or {}
-        r = request_form("/ingest", fields, timeout=240)
-        keys = sorted(fields.keys())
-    else:
-        body = attempt.get("body") or {}
-        r = request("POST", "/ingest", body, timeout=240)
-        keys = sorted(body.keys())
-    ingest_attempts.append({"kind": kind, "body_keys": keys, "response": r})
-    if r.get("ok"):
-        break
-    # Continue across contract-validation failures and alternate media styles.
-    if r.get("status") not in (400, 404, 405, 415, 422):
-        break
+if not SKIP_INGEST:
+    for attempt in build_ingest_attempts(openapi):
+        kind = attempt.get("kind")
+        if kind == "query":
+            params = attempt.get("params") or {}
+            suffix = "?" + urllib.parse.urlencode(params) if params else ""
+            r = request("POST", "/ingest" + suffix, None, timeout=240)
+            keys = sorted(params.keys())
+        elif kind == "form":
+            fields = attempt.get("fields") or {}
+            r = request_form("/ingest", fields, timeout=240)
+            keys = sorted(fields.keys())
+        else:
+            body = attempt.get("body") or {}
+            r = request("POST", "/ingest", body, timeout=240)
+            keys = sorted(body.keys())
+        ingest_attempts.append({"kind": kind, "body_keys": keys, "response": r})
+        if r.get("ok"):
+            break
+        if r.get("status") not in (400, 404, 405, 415, 422):
+            break
 result["ingest_attempts"] = ingest_attempts
 result["indexes"] = request("POST", "/indexes", {}, timeout=60)
 
@@ -442,14 +504,14 @@ qcalls = []
 qspec = ((openapi.get("paths") or {}).get("/queries/{name}") or {}).get("get") or {}
 for name in qnames[:5]:
     params = {}
-    for p in qspec.get("parameters") or []:
-        if p.get("in") != "query": continue
-        pname = p.get("name")
-        if pname:
-            # Optional FastAPI parameters are often semantically required only
-            # for specific named queries (the endpoint returns 400 when absent).
-            # Supplying schema-valid samples for every documented query parameter
-            # is safer than treating optional-in-OpenAPI as unnecessary.
+    qparams = [p for p in (qspec.get("parameters") or []) if p.get("in") == "query" and p.get("name")]
+    available = {str(p.get("name")) for p in qparams}
+    selected = set(query_param_names_from_listing(q.get("body"), name))
+    if not selected:
+        selected = semantic_query_param_names(name, available)
+    for p in qparams:
+        pname = str(p.get("name"))
+        if p.get("required") or pname in selected:
             params[pname] = sample_value(pname, p.get("schema") or {})
     suffix = "?" + urllib.parse.urlencode(params) if params else ""
     qcalls.append({"name": name, "params": params, "response": request("GET", "/queries/" + urllib.parse.quote(name, safe="") + suffix, timeout=60)})
@@ -714,11 +776,10 @@ def run_final_suite(
         client = MongoClient(sb.mongo_host_uri, serverSelectionTimeoutMS=10000)
         db = client[db_name]
         validated = db[validated_name]
-        try:
-            validated.insert_many(_fixture_docs(), ordered=False, bypass_document_validation=True)
-        except Exception as exc:
-            host_evidence["fixture_warning"] = f"{type(exc).__name__}: {exc}"
 
+        # First pass must test /ingest against a clean database. Grader fixtures
+        # are never inserted before ingestion because that can invalidate student
+        # consistency checks (e.g. expected 17000 vs. 17012).
         indexes_before = validated.index_information()
         collections_before = set(db.list_collection_names())
 
@@ -780,6 +841,53 @@ def run_final_suite(
             db = client[db_name]
             validated = db[validated_name]
         host_evidence["active_database_resolution"] = active_db_meta
+
+        ingest_attempts_first = probe.get("ingest_attempts") or []
+        ingest_ok_first = any((x.get("response") or {}).get("ok") for x in ingest_attempts_first)
+        if not ingest_ok_first:
+            # Keep /ingest result from the clean first pass, but independently
+            # test Phase-2 analytics on neutral grader data so one ingest failure
+            # does not cascade into queries/MVs/jobs.
+            try:
+                db[validated_name].delete_many({})
+                db[validated_name].insert_many(_fixture_docs(), ordered=False, bypass_document_validation=True)
+                host_evidence["analytics_fixture_fallback"] = {
+                    "used": True,
+                    "database": db_name,
+                    "validated_collection": validated_name,
+                    "rows": len(_fixture_docs()),
+                    "reason": "POST /ingest did not succeed on clean first pass",
+                }
+                second_run = sb.run_student(
+                    "bash /grader-tests/run_final_api.sh",
+                    env={
+                        "FINAL_API_TARGET": api_target,
+                        "MONGO_DATABASE": db_name,
+                        "MONGO_DB_NAME": db_name,
+                        "DB_NAME": db_name,
+                        "GRADER_SKIP_INGEST": "1",
+                    },
+                    timeout=max(timeout, 600),
+                )
+                second_probe = _extract_probe(str(second_run.get("stdout") or ""))
+                if second_probe.get("server_ready"):
+                    preserved = {
+                        "ingest_attempts": ingest_attempts_first,
+                        "health": probe.get("health"),
+                        "docs": probe.get("docs"),
+                        "openapi": probe.get("openapi"),
+                    }
+                    probe = second_probe
+                    probe.update({k: v for k, v in preserved.items() if v is not None})
+                    probe["semantic_normalization"] = normalize_probe(probe)
+                    host_evidence["analytics_fixture_fallback"]["second_pass_ready"] = True
+                else:
+                    host_evidence["analytics_fixture_fallback"]["second_pass_ready"] = False
+            except Exception as exc:
+                host_evidence["analytics_fixture_fallback"] = {
+                    "used": False,
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
 
         openapi_paths = ((probe.get("openapi") or {}).get("paths") or {})
         assertions.append(_assertion("final.api.discovered", "FastAPI application discovered", "PASS",
