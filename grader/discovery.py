@@ -278,7 +278,7 @@ def _command_from_entry(repo: Path, entrypoint: str | None) -> tuple[str | None,
         run_prefix = " run"
 
     file_flag = next(
-        (flag for flag in ("--input", "--file", "--file-path", "--file_path", "-f", "-i") if flag in flags),
+        (flag for flag in ("--input", "--file", "--csv", "--file-path", "--file_path", "-f", "-i") if flag in flags),
         None,
     )
     if file_flag:
