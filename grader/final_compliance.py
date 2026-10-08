@@ -45,6 +45,11 @@ def _read_readme(repo: Path) -> tuple[str, str | None]:
 
 
 def _gemini_json(system: str, payload: dict[str, Any], *, timeout: int = 45) -> dict[str, Any] | None:
+    # Free-tier Gemini quota is intentionally reserved for the execution-repair
+    # agent. Semantic normalization is deterministic by default and may be
+    # enabled explicitly for exceptional/manual runs.
+    if os.getenv("GRADER_GEMINI_SEMANTIC_FALLBACK", "0").strip() not in {"1", "true", "yes"}:
+        return None
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         return None
