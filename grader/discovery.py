@@ -174,6 +174,9 @@ def _documented_ingest_command(repo: Path, readme: str) -> tuple[str | None, str
             continue
 
         normalized = list(toks)
+        # The Windows `py` launcher is unavailable in Linux grading containers.
+        if normalized[0].lower() == "py":
+            normalized[0] = "python"
         # README examples may use Windows separators even though grading runs on Linux.
         # Use the validated repository-relative path in the executable command too.
         if toks[1] != "-m" and entrypoint is not None:
