@@ -212,8 +212,7 @@ def _documented_ingest_command(repo: Path, readme: str) -> tuple[str | None, str
             if clean in {"--database", "--db-name"}:
                 normalized[i + 1] = "{db_name}"
 
-        cmd = " ".join(normalized)
-        score = 0
+        # Destructive README examples are only suitable for an explicit reset phase.\n        # Ingestion is invoked repeatedly for upsert/idempotency/incremental tests.\n        normalized = [t for t in normalized if t not in ("--reset-db", "--reset")]\n        cmd = " ".join(normalized)\n        score = 0
         low = cmd.lower()
         if "main" in low or "pipeline_entry" in low:
             score += 4
