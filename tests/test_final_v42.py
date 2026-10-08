@@ -831,3 +831,20 @@ def test_unified_evaluator_builds_project_execution_contract():
     assert "build_project_execution_contract" in source
     assert "deterministic_repair_commands" in source
     assert "execution_contract" in source
+
+
+def test_execution_contract_strips_inline_readme_comments(tmp_path: Path):
+    from grader.execution_contract import build_project_execution_contract
+    from grader.models import ExecutionPlan
+
+    (tmp_path / "README.md").write_text(
+        "python src/materialized_views.py build    # Full initial build\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "materialized_views.py").write_text("", encoding="utf-8")
+    plan = ExecutionPlan(repo_path=str(tmp_path))
+    contract = build_project_execution_contract(tmp_path, plan, {"api_target": None, "api_file": None})
+    cmds = [x["command"] for x in contract["documented_commands"]]
+    assert "python src/materialized_views.py build" in cmds
+    assert all("#" not in x for x in cmds)
