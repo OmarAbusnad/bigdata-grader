@@ -1,4 +1,3 @@
-Real frozen-student retest: P18 only
-Freeze workflow: 37390623044
-After fix e52e2471 (reset ingestion and indentation).
-Evidence only; no official grades.
+Representative frozen audit: P32,P34,P40,P48,P56,P64
+Freeze: 37390623044
+Diagnostic-only; no grades, no student modifications.
