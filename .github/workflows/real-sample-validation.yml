@@ -1,6 +1,9 @@
 name: Frozen Real Student Sample Validation
 
 on:
+  push:
+    paths:
+      - '.grader/trigger-real-sample.txt'
   workflow_dispatch:
     inputs:
       freeze_run_id:
@@ -29,7 +32,7 @@ jobs:
         id: validate
         shell: python
         env:
-          PROJECT_IDS: ${{ inputs.project_ids }}
+          PROJECT_IDS: ${{ github.event_name == 'push' && 'P05,P18' || inputs.project_ids }}
         run: |
           import json, os
           allowed = {'P05', 'P18'}
@@ -70,19 +73,19 @@ jobs:
       - name: Download frozen manifest
         uses: actions/download-artifact@v4
         with:
-          name: frozen-manifest-${{ inputs.freeze_run_id }}
+          name: frozen-manifest-${{ github.event_name == 'push' && '37390623044' || inputs.freeze_run_id }}
           path: freeze_manifest
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
-          run-id: ${{ inputs.freeze_run_id }}
+          run-id: ${{ github.event_name == 'push' && '37390623044' || inputs.freeze_run_id }}
       - name: Download frozen real student project
         uses: actions/download-artifact@v4
         with:
-          name: frozen-${{ matrix.project_id }}-${{ inputs.freeze_run_id }}
+          name: frozen-${{ matrix.project_id }}-${{ github.event_name == 'push' && '37390623044' || inputs.freeze_run_id }}
           path: frozen_project
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
-          run-id: ${{ inputs.freeze_run_id }}
+          run-id: ${{ github.event_name == 'push' && '37390623044' || inputs.freeze_run_id }}
       - name: Restore immutable frozen project
         shell: bash
         run: |
