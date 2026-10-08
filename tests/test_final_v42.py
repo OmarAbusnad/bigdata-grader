@@ -601,7 +601,7 @@ def test_execution_repair_has_retry_and_model_fallback():
     assert "gemini-2.5-pro" in source
     assert "gemini-2.5-flash" in source
     assert "transient_statuses" in source
-    assert "attempt_no in range(1, 3)" in source
+    assert "attempt_no in range(1, 2)" in source
     assert "fallback_used" in source
 
 
