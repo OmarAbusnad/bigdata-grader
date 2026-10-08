@@ -27,6 +27,9 @@ def _readmes(repo: Path) -> list[Path]:
 
 def _safe_command(line: str) -> str | None:
     line = re.sub(r"^\$\s*", "", line.strip().strip("`").strip())
+    # README examples often append prose comments; keep only the executable
+    # command portion so the adapter never passes commentary to the shell.
+    line = re.sub(r"\s+#.*$", "", line).strip()
     if not re.match(r"^(?:python(?:3)?|py)\s+", line, re.I):
         return None
     if any(x in line for x in ("&&", "||", ";", "|", "`", "$(")):
