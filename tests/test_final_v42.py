@@ -783,3 +783,51 @@ def test_execution_repair_uses_one_attempt_per_model_on_free_quota():
     from grader.agent_analyzer import analyze_execution_repair_with_llm
     source = inspect.getsource(analyze_execution_repair_with_llm)
     assert "range(1, 2)" in source
+
+
+def test_execution_contract_forbids_dataset_and_endpoint_bypass(tmp_path: Path):
+    from grader.execution_contract import build_project_execution_contract, deterministic_repair_commands
+    from grader.models import ExecutionPlan
+
+    (tmp_path / "README.md").write_text(
+        """
+python src/indexes.py
+python src/materialized_views.py build
+python src/scheduler.py --run refresh_materialized_views
+python src/main.py --file huge
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "src").mkdir()
+    for name in ("indexes.py", "materialized_views.py", "scheduler.py", "main.py"):
+        (tmp_path / "src" / name).write_text("", encoding="utf-8")
+
+    plan = ExecutionPlan(repo_path=str(tmp_path), ingest_command="python src/main.py --file {file}")
+    contract = build_project_execution_contract(
+        tmp_path,
+        plan,
+        {"api_target": "src.api:app", "api_file": "src/api.py"},
+    )
+    assert contract["safety"]["frozen_dataset_only"] is True
+    assert contract["safety"]["allow_endpoint_bypass"] is False
+
+    unresolved = [
+        {"key": "final.indexes.count", "verdict": "FAIL"},
+        {"key": "final.mv.refresh", "verdict": "INCONCLUSIVE"},
+        {"key": "final.jobs.manual_run", "verdict": "FAIL"},
+    ]
+    cmds = deterministic_repair_commands(contract, unresolved, max_commands=5)
+    rendered = [x["command"] for x in cmds]
+    assert "python src/indexes.py" in rendered
+    assert "python src/materialized_views.py build" in rendered
+    assert all("scheduler.py --run" not in x for x in rendered)
+    assert all("--file huge" not in x for x in rendered)
+
+
+def test_unified_evaluator_builds_project_execution_contract():
+    import inspect
+    import evaluate_project
+    source = inspect.getsource(evaluate_project.main)
+    assert "build_project_execution_contract" in source
+    assert "deterministic_repair_commands" in source
+    assert "execution_contract" in source
