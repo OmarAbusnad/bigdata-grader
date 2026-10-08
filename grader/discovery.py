@@ -174,6 +174,10 @@ def _documented_ingest_command(repo: Path, readme: str) -> tuple[str | None, str
             continue
 
         normalized = list(toks)
+        # README examples may use Windows separators even though grading runs on Linux.
+        # Use the validated repository-relative path in the executable command too.
+        if toks[1] != "-m" and entrypoint is not None:
+            normalized[1] = shlex.quote(entrypoint)
         replaced_file = False
         file_flags = {"--input", "--file", "--file-path", "--file_path", "--csv", "-f", "-i"}
         for i in range(arg_start, len(normalized)):

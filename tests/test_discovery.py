@@ -66,6 +66,39 @@ class DiscoveryTests(unittest.TestCase):
             p = discover_execution_plan(repo)
             self.assertIn("--file {file}", p.ingest_command)
 
+    def test_documented_windows_script_paths_are_executable_on_linux(self):
+        import shlex
+        import subprocess
+        import sys
+
+        for documented_path, expected_path in (
+            (r"src\main.py", "src/main.py"),
+            (r".\src\main.py", "./src/main.py"),
+        ):
+            with self.subTest(documented_path=documented_path):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = Path(td)
+                    (repo / "src").mkdir()
+                    (repo / "src" / "main.py").write_text(
+                        "import argparse\np=argparse.ArgumentParser()\n"
+                        "p.add_argument('--input')\np.parse_args()\n",
+                        encoding="utf-8",
+                    )
+                    (repo / "README.md").write_text(
+                        f"python {documented_path} --input data/orders.csv\n",
+                        encoding="utf-8",
+                    )
+                    plan = discover_execution_plan(repo)
+                    self.assertIsNotNone(plan.ingest_command)
+                    self.assertNotIn("\\", plan.ingest_command)
+                    self.assertIn(expected_path, plan.ingest_command)
+                    command = plan.ingest_command.replace("{file}", "dummy.csv")
+                    result = subprocess.run(
+                        [sys.executable, *shlex.split(command)[1:]],
+                        cwd=repo, capture_output=True, text=True, check=False,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_root_wrapper_resolves_src_main(self):
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
