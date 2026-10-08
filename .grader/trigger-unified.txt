@@ -1,1 +1,1 @@
-OFFICIAL first-pass unified grading: all READY projects; freeze 37390623044; plan_b=true; issues only after grader-clean verification.
+OFFICIAL unified grading: all READY projects; freeze 37390623044; execution-contract adapter enabled; plan_b=true; free-tier Gemini budget; no Issues/grades until grader-clean verification.
