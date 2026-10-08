@@ -100,23 +100,24 @@ class DiscoveryTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_documented_windows_py_launcher_uses_linux_python(self):
-        for documented_path in (r"src\\main.py", r".\\src\\main.py"):
+        for documented_path in (r"src\main.py", r".\src\main.py"):
             with self.subTest(documented_path=documented_path):
                 with tempfile.TemporaryDirectory() as td:
                     repo = Path(td)
                     (repo / "src").mkdir()
                     (repo / "src" / "main.py").write_text(
-                        "import argparse\\np=argparse.ArgumentParser()\\n"
-                        "p.add_argument('--input')\\np.parse_args()\\n".replace("\\n", "\n"),
+                        "import argparse\np=argparse.ArgumentParser()\n"
+                        "p.add_argument('--input')\np.parse_args()\n",
                         encoding="utf-8",
                     )
                     (repo / "README.md").write_text(
-                        f"py {documented_path} --input data/orders.csv\\n".replace("\\n", "\n"),
+                        f"py {documented_path} --input data/orders.csv\n",
                         encoding="utf-8",
                     )
                     plan = discover_execution_plan(repo)
                     self.assertTrue(plan.ingest_command.startswith("python "), plan.ingest_command)
-                    self.assertNotIn("\\\\", plan.ingest_command)
+                    self.assertNotIn("\\", plan.ingest_command)
+                    self.assertIn("src/main.py", plan.ingest_command)
                     self.assertIn("--input {file}", plan.ingest_command)
 
     def test_root_wrapper_resolves_src_main(self):
