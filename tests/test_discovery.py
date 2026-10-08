@@ -120,6 +120,23 @@ class DiscoveryTests(unittest.TestCase):
                     self.assertIn("src/main.py", plan.ingest_command)
                     self.assertIn("--input {file}", plan.ingest_command)
 
+    def test_readme_reset_flag_is_not_used_for_repeated_ingest(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            (repo / "src").mkdir()
+            (repo / "src" / "main.py").write_text(
+                "import argparse\np=argparse.ArgumentParser()\n"
+                "p.add_argument('--input')\np.add_argument('--reset-db', action='store_true')\n"
+                "p.parse_args()\n", encoding="utf-8",
+            )
+            (repo / "README.md").write_text(
+                "python src/main.py --input data/sample.csv --reset-db\n",
+                encoding="utf-8",
+            )
+            plan = discover_execution_plan(repo)
+            self.assertEqual(plan.ingest_command, "python src/main.py --input {file}")
+            self.assertIn("--reset-db", plan.reset_command)
+
     def test_root_wrapper_resolves_src_main(self):
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
