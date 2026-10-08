@@ -53,7 +53,7 @@ def _gemini_json(system: str, payload: dict[str, Any], *, timeout: int = 45) -> 
     model_path = model if model.startswith("models/") else f"models/{model}"
     req = {
         "systemInstruction": {"parts": [{"text": system}]},
-        "contents": [{"role": "user", "parts": [{"text": json.dumps(payload, ensure_ascii=False)}]}],
+        "contents": [{"role": "user", "parts": [{"text": json.dumps(payload, ensure_ascii=False, default=str)}]}],
         "generationConfig": {"responseMimeType": "application/json", "temperature": 0.0},
     }
     try:
@@ -227,7 +227,7 @@ def explain_compliance(repo: Path) -> dict[str, Any]:
         (("before" in lower_readme and "after" in lower_readme) or ("قبل" in readme and "بعد" in readme))
         and ("index" in lower_readme or "فهرس" in readme or "فهارس" in readme)
     )
-    rationale = bool(re.search(r"reason|because|impact|effect|سبب|أثر|تأثير|اختيار", readme, re.I))
+    rationale = bool(re.search(r"reason|because|impact|effect|سبب|أثر|تأثير|اختيار", readme + "\n" + corpus, re.I))
 
     deterministic_complete = explain_occurrences >= 3 and has_exec_stats and before_after and rationale
     if deterministic_complete:
