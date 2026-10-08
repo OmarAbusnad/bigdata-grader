@@ -11,6 +11,7 @@ from datasets.prepare_hidden_tests import ensure_prepared
 from grader.agent_analyzer import analyze_final_repository_with_llm, analyze_execution_repair_with_llm
 from grader.final_discovery import discover_final_plan
 from grader.final_runtime import run_final_suite
+from grader.execution_contract import build_project_execution_contract, deterministic_repair_commands
 from grader.oracle import HiddenOracle
 from grader.plan_resolution import resolve_execution_plan, resolve_execution_plan_after_failure
 from grader.report import write_report
@@ -156,6 +157,8 @@ def main() -> int:
             ),
             "files_sent": [],
         }
+
+    execution_contract = build_project_execution_contract(repo, plan, final_plan)
 
     static = static_checks(repo)
     commit_sha = row.get("commit_sha") or current_commit(repo) or ""
@@ -314,26 +317,66 @@ def main() -> int:
                                 manage_sandbox=False,
                             )
 
-                    # Gemini command repair runs after deterministic execution has produced
-                    # concrete FAIL/INCONCLUSIVE evidence. It returns grounded existing-project
-                    # commands only; successful commands are executed in the same isolated DB,
-                    # then Phase 2 is retried without re-ingesting the hidden dataset.
-                    if not args.no_ai and (final_runtime or {}).get("probe", {}).get("server_ready"):
+                    # Project-specific execution adaptation lives in an immutable contract.
+                    # The grader core is not patched for repository-specific shapes.
+                    if (final_runtime or {}).get("probe", {}).get("server_ready"):
                         unresolved = [
                             a for a in ((final_runtime or {}).get("assertions") or [])
-                            if isinstance(a, dict) and a.get("verdict") in {"FAIL", "INCONCLUSIVE", "ERROR"}
+                            if isinstance(a, dict)
+                            and a.get("verdict") in {"FAIL", "INCONCLUSIVE", "ERROR"}
                             and str(a.get("key") or "") != "final.discussion"
                         ]
-                        if unresolved:
-                            final_command_repair = analyze_execution_repair_with_llm(
+
+                        # Tier 1: exact documented preconditions from the project adapter.
+                        adapter_commands = deterministic_repair_commands(
+                            execution_contract,
+                            unresolved,
+                            max_commands=3,
+                        )
+                        if adapter_commands:
+                            before_adapter = final_runtime
+                            final_runtime = run_final_suite(
+                                base=base,
+                                project_id=project_id,
+                                repo=repo,
+                                hidden_dir=shared_mount,
+                                execution_plan=plan,
+                                final_plan=final_plan,
+                                sandbox_config=sandbox_cfg,
+                                timeout=args.timeout,
+                                keep_sandbox=True,
+                                shared_sandbox=sb,
+                                manage_sandbox=False,
+                                recovery_commands=adapter_commands,
+                            )
+                            final_command_repair = {
+                                "status": "ADAPTER_RETRY",
+                                "provider": None,
+                                "command_source": "execution_contract",
+                                "commands": adapter_commands,
+                                "retry_performed": True,
+                                "before_counts": _counts(before_adapter),
+                                "after_counts": _counts(final_runtime),
+                            }
+
+                        # Tier 2: at most one Gemini repair decision per project run,
+                        # only if unresolved checks remain after deterministic adaptation.
+                        unresolved_after_adapter = [
+                            a for a in ((final_runtime or {}).get("assertions") or [])
+                            if isinstance(a, dict)
+                            and a.get("verdict") in {"FAIL", "INCONCLUSIVE", "ERROR"}
+                            and str(a.get("key") or "") != "final.discussion"
+                        ]
+                        if not args.no_ai and unresolved_after_adapter:
+                            gemini_repair = analyze_execution_repair_with_llm(
                                 repo,
                                 runtime=final_runtime or {},
                                 final_plan=final_plan,
                                 max_commands=3,
                             )
-                            repair_commands = final_command_repair.get("commands") or []
+                            repair_commands = gemini_repair.get("commands") or []
                             if repair_commands:
-                                final_runtime_before_command_repair = final_runtime
+                                before_gemini = final_runtime
                                 final_runtime = run_final_suite(
                                     base=base,
                                     project_id=project_id,
@@ -348,11 +391,16 @@ def main() -> int:
                                     manage_sandbox=False,
                                     recovery_commands=repair_commands,
                                 )
-                                final_command_repair["retry_performed"] = True
-                                final_command_repair["before_counts"] = _counts(final_runtime_before_command_repair)
-                                final_command_repair["after_counts"] = _counts(final_runtime)
-                            elif final_command_repair is not None:
-                                final_command_repair["retry_performed"] = False
+                                gemini_repair["retry_performed"] = True
+                                gemini_repair["before_counts"] = _counts(before_gemini)
+                                gemini_repair["after_counts"] = _counts(final_runtime)
+                            else:
+                                gemini_repair["retry_performed"] = False
+
+                            if final_command_repair is None:
+                                final_command_repair = gemini_repair
+                            else:
+                                final_command_repair["gemini_fallback"] = gemini_repair
         except Exception as exc:
             environment["status"] = "INFRA_OR_ORCHESTRATION_ERROR"
             environment["error"] = f"{type(exc).__name__}: {exc}"
@@ -380,6 +428,7 @@ def main() -> int:
             "repository_path": str(repo),
             "plan_resolution": resolution,
             "execution_plan": plan.to_dict(),
+            "execution_contract": execution_contract,
             "execution_recovery": midterm_recovery,
             "static_checks": static,
             "runtime": midterm_runtime,
@@ -407,6 +456,7 @@ def main() -> int:
             "commit_sha": commit_sha,
             "repository_path": str(repo),
             "execution_plan": plan.to_dict(),
+            "execution_contract": execution_contract,
             "final_plan": final_plan,
             "final_plan_resolution": final_resolution,
             "final_command_repair": final_command_repair,
@@ -429,6 +479,7 @@ def main() -> int:
         "repo_url": row.get("repo_url", ""),
         "commit_sha": commit_sha,
         "mode": args.mode,
+        "execution_contract": execution_contract,
         "environment": environment,
         "repository_analysis": {
             "midterm_plan_resolution": resolution,
