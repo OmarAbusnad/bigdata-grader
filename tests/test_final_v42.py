@@ -723,3 +723,40 @@ def test_probe_names_from_supports_flat_id_description_map():
     text = _probe_python()
     assert "scalar_keys" in text
     assert '"registered"' in text
+
+
+def test_flat_mapping_keeps_legitimate_count_suffix_ids():
+    from grader.final_runtime import _probe_python
+    text = _probe_python()
+    assert 'endswith("_count")' not in text[text.index("scalar_keys"):text.index("return scalar_keys")]
+
+
+def test_semantic_fallback_serializes_datetime_evidence():
+    import inspect
+    from grader.final_compliance import _gemini_json
+    source = inspect.getsource(_gemini_json)
+    assert "default=str" in source
+
+
+def test_explain_rationale_can_be_grounded_in_source_code(tmp_path: Path):
+    from grader.final_compliance import explain_compliance
+
+    (tmp_path / "README.md").write_text(
+        "Before indexes and after indexes using executionStats.\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "indexes.py").write_text(
+        '''
+INDEXES = [
+    {"name": "idx_a", "reason": "because this index matches the main filter"},
+]
+def f(c):
+    c.find({}).explain()
+    c.find({}).explain()
+    c.find({}).explain()
+# executionStats
+''',
+        encoding="utf-8",
+    )
+    result = explain_compliance(tmp_path)
+    assert result["rationale"] is True
