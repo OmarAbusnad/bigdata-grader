@@ -339,7 +339,6 @@ def names_from(value, preferred):
                 "count", "total", "status", "message", "detail", "description",
                 "service", "version", "mode", "ok", "success"
             }
-            and not str(k).lower().endswith("_count")
         ]
         if len(scalar_keys) >= 2:
             return scalar_keys
