@@ -760,3 +760,26 @@ def f(c):
     )
     result = explain_compliance(tmp_path)
     assert result["rationale"] is True
+
+
+def test_semantic_gemini_is_opt_in_for_free_tier():
+    import inspect
+    from grader.final_compliance import _gemini_json
+    source = inspect.getsource(_gemini_json)
+    assert "GRADER_GEMINI_SEMANTIC_FALLBACK" in source
+
+
+def test_execution_repair_rejects_alternate_dataset_and_scheduler_bypass():
+    import inspect
+    from grader.agent_analyzer import analyze_execution_repair_with_llm
+    source = inspect.getsource(analyze_execution_repair_with_llm)
+    assert "forbidden_repair" in source
+    assert "scheduler\\.py.*--run" in source
+    assert "huge|sample|demo|example" in source
+
+
+def test_execution_repair_uses_one_attempt_per_model_on_free_quota():
+    import inspect
+    from grader.agent_analyzer import analyze_execution_repair_with_llm
+    source = inspect.getsource(analyze_execution_repair_with_llm)
+    assert "range(1, 2)" in source
