@@ -32,13 +32,13 @@ jobs:
         id: validate
         shell: python
         env:
-          PROJECT_IDS: ${{ github.event_name == 'push' && 'P18' || inputs.project_ids }}
+          PROJECT_IDS: ${{ github.event_name == 'push' && 'P32,P34,P40,P48,P56,P64' || inputs.project_ids }}
         run: |
           import json, os
-          allowed = {'P05', 'P18'}
+          allowed = {'P05', 'P18', 'P32', 'P34', 'P40', 'P48', 'P56', 'P64'}
           requested = [x.strip().upper() for x in os.environ['PROJECT_IDS'].split(',') if x.strip()]
           if not requested or len(requested) != len(set(requested)) or not set(requested) <= allowed:
-              raise SystemExit('Only unique P05 and/or P18 are permitted in this pilot')
+              raise SystemExit('Only unique approved real-student pilot IDs are permitted')
           with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
               out.write('projects=' + json.dumps(requested) + '\n')
 
