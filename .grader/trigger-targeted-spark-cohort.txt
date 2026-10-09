@@ -1,0 +1,1 @@
+After P05 Spark-only success 38003977105: run exactly 13 other originally blocked Spark Test02 cases from frozen repositories and source-declared offline Ivy artifacts. All prior PASS saved, no Batch/Upsert/Final reruns; inconclusive is never auto-fail.
