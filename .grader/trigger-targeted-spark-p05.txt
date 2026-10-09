@@ -1,1 +1,1 @@
-Re-run P05 ONLY originally blocked Spark test02, now with corrected runtime import and prewarmed declared MongoDB connector. CI 38001483474 passed; preserve all previous PASS, no Batch/Final/Upsert repeats.
+P05 only: repeat original blocked Spark test02, with source-declared MongoDB connector prewarmed in Docker build. Corrected Ivy cache ownership so student UID can write metadata. CI 38001844504 passed; all earlier PASS remain untouched.
