@@ -281,6 +281,8 @@ def run_behavioral_suite(
                 "MONGO_DB_NAME": effective_db,
                 "MONGO_DATABASE": effective_db,
                 "DATABASE_NAME": effective_db,
+                "DB_NAME": effective_db,
+                "MONGODB_DATABASE": effective_db,
                 "SMALL_FILE_THRESHOLD_MB": _format_threshold_env(threshold),
                 "FILE_SIZE_THRESHOLD_MB": _format_threshold_env(threshold),
                 "THRESHOLD_MB": _format_threshold_env(threshold),
@@ -302,6 +304,7 @@ def run_behavioral_suite(
             spec_override: dict[str, Any] | None = None,
             threshold_override: float | None = None,
         ) -> tuple[RuntimeCaseResult, dict[str, Any]]:
+            nonlocal effective_db
             if fresh:
                 fresh_database()
             spec = dict(spec_override or oracle.test(test_key))
@@ -320,6 +323,8 @@ def run_behavioral_suite(
                 "MONGO_DB_NAME": effective_db,
                 "MONGO_DATABASE": effective_db,
                 "DATABASE_NAME": effective_db,
+                "DB_NAME": effective_db,
+                "MONGODB_DATABASE": effective_db,
                 "SMALL_FILE_THRESHOLD_MB": _format_threshold_env(effective_threshold),
                 "FILE_SIZE_THRESHOLD_MB": _format_threshold_env(effective_threshold),
                 "THRESHOLD_MB": _format_threshold_env(effective_threshold),
@@ -341,6 +346,30 @@ def run_behavioral_suite(
                 run["returncode"] = 0
                 run["timed_out"] = False
             after = mongo.snapshot().to_dict()
+            if (
+                case_name == "batch_pipeline"
+                and not plan.database_name
+                and not any(int(after.get(k) or 0) for k in ("raw", "validated", "quarantine"))
+                and int(run.get("returncode") or 0) == 0
+                and not run.get("timed_out")
+            ):
+                # Student code may have an immutable default DB name. Search only
+                # this project's isolated MongoDB; never guess between candidates.
+                found_db, candidate_evidence = mongo.locate_active_database()
+                if found_db and found_db != effective_db:
+                    mongo.switch_database(found_db)
+                    effective_db = found_db
+                    report["database"] = found_db
+                    report["database_discovery"] = {
+                        "source": "unique_populated_database_in_isolated_runtime",
+                        "evidence": candidate_evidence,
+                    }
+                    after = mongo.snapshot().to_dict()
+                elif not found_db:
+                    report["database_discovery"] = {
+                        "source": "unresolved",
+                        "evidence": candidate_evidence,
+                    }
             _live(
                 f"{project_id}: DONE {case_name} | rc={run.get('returncode')} "
                 f"| elapsed={float(run.get('elapsed_seconds', 0)):.2f}s "
@@ -394,6 +423,16 @@ def run_behavioral_suite(
         batch, t1 = execute_case("batch_pipeline", "test_01", fresh=True, expected_engine="python_batch")
         s1 = batch.snapshot_after or {}
         batch_run = getattr(batch, "runtime_log", None) or {}
+        if report.get("database_discovery", {}).get("source") == "unresolved":
+            report["status"] = "MANUAL_REVIEW_REQUIRED"
+            report["root_cause"] = "GRADER_DATABASE_DISCOVERY_UNRESOLVED"
+            report["root_cause_evidence"] = report["database_discovery"]["evidence"]
+            report["cases"].append(_case_dict(batch))
+            report["notes"] = [
+                "The ingest command returned successfully but no pipeline data was found",
+                "in a verifiable database. No Mongo assertions were graded as FAIL.",
+            ]
+            return report
         batch_effective_failure = (
             int(batch_run.get("returncode") or 0) != 0
             or bool(batch_run.get("timed_out"))

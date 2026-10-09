@@ -26,6 +26,34 @@ class MongoChecker:
         self.collections = collections
         self.business_key = business_key or 'order_id'
 
+    def locate_active_database(self) -> tuple[str | None, list[str]]:
+        """Find a unique database with actual pipeline data in this isolated Mongo instance.
+
+        Never guess among multiple populated databases or count an empty setup
+        collection as evidence that the pipeline wrote to that database.
+        """
+        candidates = []
+        evidence = []
+        for name in self.client.list_database_names():
+            if name in {"admin", "config", "local"}:
+                continue
+            db = self.client[name]
+            names = set(db.list_collection_names())
+            matches = [coll for coll in self.collections.values() if coll in names]
+            if not matches:
+                continue
+            counts = {coll: db[coll].count_documents({}) for coll in matches}
+            if sum(counts.values()) > 0:
+                candidates.append(name)
+                evidence.append(f"{name}: {counts}")
+        return (candidates[0] if len(candidates) == 1 else None), evidence
+
+    def switch_database(self, name: str) -> None:
+        if not name or name in {"admin", "config", "local"}:
+            raise ValueError("Invalid student database")
+        self.database_name = name
+        self.db = self.client[name]
+
     def close(self):
         try:
             self.client.close()
