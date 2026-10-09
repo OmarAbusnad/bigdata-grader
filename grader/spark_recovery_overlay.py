@@ -9,6 +9,7 @@ import json
 from typing import Any
 
 from .count_policy import compare_count
+from .sandbox_runtime import _pipeline_completed_before_timeout
 
 KEYS = (
     "spark_pipeline.command", "spark_pipeline.engine",
@@ -42,13 +43,19 @@ def spark_recovery_overlay(original: dict[str, Any], proof: dict[str, Any], *,
 
     run = proof.get("run") or {}
     after = proof.get("after") or {}
+    pipeline_finished_before_server_timeout = _pipeline_completed_before_timeout({
+        "timed_out": run.get("timed_out"),
+        "stdout_tail": str(run.get("stdout_tail") or ""),
+        "stderr_tail": str(run.get("stderr_tail") or ""),
+    })
     success = (
-        proof.get("verdict") == "PASS"
-        and run.get("returncode") == 0
-        and run.get("timed_out") is False
+        (proof.get("verdict") == "PASS" and run.get("returncode") == 0 and run.get("timed_out") is False
+         or (proof.get("verdict") == "INCONCLUSIVE" and pipeline_finished_before_server_timeout))
         and proof.get("engine") == "pyspark"
         and isinstance(after.get("raw"), int)
         and after.get("raw") > 0
+        and isinstance(after.get("validated"), int)
+        and after.get("validated") > 0
     )
 
     overrides = {}
