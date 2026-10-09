@@ -1,0 +1,37 @@
+name: Cached Midterm Evidence Regrade (No Student Runs)
+
+on:
+  push:
+    paths:
+      - '.grader/trigger-evidence-regrade.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  evidence-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Retrieve 68 immutable prior official reports (no student code)
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          run-id: '37874152827'
+          pattern: 'unified-P*-37874152827'
+          path: saved_reports
+          github-token: ${{ github.token }}
+      - name: Reevaluate only previously failed count assertions from saved snapshots
+        run: python regrade_saved_evidence.py --input saved_reports --out reports_cached_midterm --source-run-id 37874152827 --expected-projects 68
+      - name: Save non-official evidence overlays (original reports remain immutable)
+        uses: actions/upload-artifact@v4
+        with:
+          name: cached-midterm-overlays-${{ github.run_id }}
+          path: reports_cached_midterm/
+          if-no-files-found: error
