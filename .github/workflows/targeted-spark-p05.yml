@@ -1,0 +1,70 @@
+name: P05 Only Spark Recovery - Offline Maven Cache
+
+on:
+  push:
+    paths:
+      - '.grader/trigger-targeted-spark-p05.txt'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  p05-spark-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Get frozen P05 source
+        uses: actions/download-artifact@v4
+        with:
+          name: frozen-P05-37390623044
+          path: frozen_project
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '37390623044'
+      - name: Get original P05 results without overwriting passes
+        uses: actions/download-artifact@v4
+        with:
+          name: unified-P05-37874152827
+          path: original_grading
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '37874152827'
+      - name: Restore original frozen P05 snapshot
+        run: |
+          mkdir -p workspaces/P05/repo
+          tar -xzf frozen_project/P05.repo.tar.gz -C workspaces/P05
+      - name: Build grader sandbox base
+        run: python build_runtime_image.py
+      - name: Prepare original hidden input once
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "${HIDDEN_SEED:-}" || exit 2
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Recheck P05 failed Spark stage only with controlled Maven prewarm
+        env:
+          GRADER_PREWARM_SPARK: '1'
+        run: |
+          python -u targeted_spark_only.py \
+            --project P05 \
+            --repo workspaces/P05/repo \
+            --hidden datasets/hidden \
+            --original-report original_grading/reports/P05/result.json \
+            --out reports_targeted_spark/P05/spark_only.json
+      - name: Upload isolated evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p05-spark-only-${{ github.run_id }}
+          path: reports_targeted_spark/P05/
+          if-no-files-found: error
