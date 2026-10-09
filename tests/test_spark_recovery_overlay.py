@@ -48,7 +48,7 @@ def test_fail_or_nonmatching_count_never_promoted():
     x=fake_proof()
     x["after"]["validated"]=1000
     overlay=spark_recovery_overlay(fake_original(),x,proof_run_id=1)
-    assert "spark.validated_count" not in overlay["overrides"]
+    assert overlay["overrides"]["spark.validated_count"]["to"] == "FAIL"
     x["run"]["returncode"]=1
     assert not spark_recovery_overlay(fake_original(),x,proof_run_id=1)["overrides"]
 
@@ -66,3 +66,16 @@ def test_unrelated_or_replayed_success_rejected():
     original["runtime"]["assertions"]["spark_pipeline.command"]["verdict"]="PASS"
     with pytest.raises(ValueError):
         spark_recovery_overlay(original,fake_proof(),proof_run_id=1)
+
+def test_clean_spark_input_all_quarantined_is_real_functional_failure():
+    old=fake_original()
+    proof=fake_proof()
+    proof["after"]["validated"]=0
+    proof["after"]["quarantine"]=100000
+    result=spark_recovery_overlay(old,proof,proof_run_id=38004329576)
+    assert result["overrides"]["spark_pipeline.command"]["to"]=="PASS"
+    assert result["overrides"]["spark.raw_count"]["to"]=="PASS"
+    assert result["overrides"]["spark.validated_count"]["to"]=="FAIL"
+    assert result["overrides"]["spark.quarantine_count"]["to"]=="FAIL"
+    assert result["overrides"]["spark.duplicates"]["to"]=="PASS"
+    assert old["runtime"]["assertions"]["spark.validated_count"]["verdict"]=="INCONCLUSIVE"
