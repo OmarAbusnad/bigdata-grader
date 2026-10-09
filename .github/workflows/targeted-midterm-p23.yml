@@ -1,0 +1,113 @@
+name: Targeted Midterm Recovery - Mongo Backend Previously Unexecuted P23
+
+on:
+  push:
+    paths:
+      - '.grader/trigger-targeted-midterm-p23.txt'
+  workflow_dispatch:
+    inputs:
+      freeze_run_id:
+        description: Immutable freeze workflow run ID
+        required: true
+        default: '37390623044'
+        type: string
+      project_ids:
+        description: Only P23, whose midterm was skipped due to low confidence
+        required: true
+        default: 'P23'
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      projects: ${{ steps.validate.outputs.projects }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restrict to approved pilot projects
+        id: validate
+        shell: python
+        env:
+          PROJECT_IDS: ${{ github.event_name == 'push' && 'P23' || inputs.project_ids }}
+        run: |
+          import json, os
+          allowed = {'P23'}
+          requested = [x.strip().upper() for x in os.environ['PROJECT_IDS'].split(',') if x.strip()]
+          if not requested or len(requested) != len(set(requested)) or not set(requested) <= allowed:
+              raise SystemExit('Only previously unexecuted P23 midterm is permitted')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write('projects=' + json.dumps(requested) + '\n')
+
+  sample:
+    needs: matrix
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        project_id: ${{ fromJSON(needs.matrix.outputs.projects) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+      PYTHONUNBUFFERED: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Validate required secrets
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "${HIDDEN_SEED:-}" || exit 2
+          test -n "${GEMINI_API_KEY:-}" || exit 2
+      - name: Download frozen manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: frozen-manifest-${{ github.event_name == 'push' && '37390623044' || inputs.freeze_run_id }}
+          path: freeze_manifest
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event_name == 'push' && '37390623044' || inputs.freeze_run_id }}
+      - name: Download frozen real student project
+        uses: actions/download-artifact@v4
+        with:
+          name: frozen-${{ matrix.project_id }}-${{ github.event_name == 'push' && '37390623044' || inputs.freeze_run_id }}
+          path: frozen_project
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event_name == 'push' && '37390623044' || inputs.freeze_run_id }}
+      - name: Restore immutable frozen project
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "workspaces/${{ matrix.project_id }}/repo"
+          tar -xzf "frozen_project/${{ matrix.project_id }}.repo.tar.gz" -C "workspaces/${{ matrix.project_id }}"
+          cp freeze_manifest/frozen_submissions.csv frozen_submissions.csv
+      - name: Build student runtime image
+        run: python build_runtime_image.py
+      - name: Generate deterministic hidden tests
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Evaluate frozen real student sample (non-official)
+        run: |
+          python -u evaluate_project.py --project "${{ matrix.project_id }}" --submissions frozen_submissions.csv --workspace "workspaces/${{ matrix.project_id }}/repo" --mode midterm --network-profile isolated --plan-b --allow-low-confidence
+      - name: Upload non-official pilot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: targeted-midterm-${{ matrix.project_id }}-${{ github.run_id }}
+          path: |
+            reports/${{ matrix.project_id }}/
+          if-no-files-found: warn
+          retention-days: 30
