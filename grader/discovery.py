@@ -130,6 +130,8 @@ def _documented_ingest_command(repo: Path, readme: str) -> tuple[str | None, str
         if not line or any(x in line for x in ["│", "├", "└", "─", "|--", "+--"]):
             continue
         line = re.sub(r"^\$\s*", "", line)
+        # Documentation comments are not executable command arguments.
+        line = re.sub(r"\s+#.*$", "", line).strip()
         if not re.match(r"^(?:python(?:3)?|py)\s+", line, re.I):
             continue
         if re.search(r"\b(?:pip|venv|pytest|unittest|compileall)\b", line, re.I):
@@ -165,6 +167,12 @@ def _documented_ingest_command(repo: Path, readme: str) -> tuple[str | None, str
             if not target_file.is_file():
                 continue
             entrypoint = target
+
+        # A dataset generator is not an ingestion pipeline, even if its README
+        # advertises an --input flag. Do not attribute empty MongoDB to students.
+        helper_name = target_file.stem.lower()
+        if re.match(r"^(?:create|generate|make|prepare|download|seed|mock)[_-].*(?:sample|data|dataset|fixture|csv)", helper_name):
+            continue
 
         code = _read(target_file)
         supported_flags = _argument_flags(code)
@@ -361,6 +369,8 @@ def _parse_settings(text: str) -> dict:
     out: dict[str, object] = {}
     out["db"] = _first_match([
         r"MONGO_DB_NAME\s*=\s*os\.getenv\([^,]+,\s*[\"']([^\"']+)",
+        r"DB_NAME\s*=\s*os\.getenv\(\s*['\"]DB_NAME['\"],\s*['\"]([^'\"]+)",
+        r"DATABASE_NAME\s*=\s*os\.getenv\(\s*['\"]DATABASE_NAME['\"],\s*['\"]([^'\"]+)",
         r"MONGO_DATABASE\s*=\s*os\.getenv\([^,]+,\s*[\"']([^\"']+)",
         r"MONGODB_DATABASE\s*=\s*os\.getenv\([^,]+,\s*[\"']([^\"']+)",
         r"MONGO_DATABASE\s*=\s*[\"']([^\"']+)",
@@ -370,8 +380,9 @@ def _parse_settings(text: str) -> dict:
         r"(?m)^\s*MONGO_DATABASE\s*=\s*[\"']?([A-Za-z0-9_-]+)[\"']?\s*(?:#.*)?$",
         r"(?m)^\s*MONGO_DB_NAME\s*=\s*[\"']?([A-Za-z0-9_-]+)[\"']?\s*(?:#.*)?$",
     ], text)
+    # An explicit variable without a hard-coded default is still configurable.
     out["db_env"] = bool(re.search(
-        r"(?:MONGO_(?:DB_NAME|DATABASE)|MONGODB_DATABASE)\s*=\s*(?:os\.)?getenv",
+        r"(?:MONGO_(?:DB_NAME|DATABASE)|MONGODB_DATABASE|DB_NAME|DATABASE_NAME)\s*=\s*(?:os\.)?getenv",
         text, re.I,
     )) or bool(re.search(r"(?m)^\s*MONGODB_DATABASE\s*=", text))
     out["uri"] = _first_match([
