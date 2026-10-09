@@ -13,6 +13,8 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any
 
+from .spark_dependency_audit import check_submission
+
 
 @dataclass
 class SandboxConfig:
@@ -301,6 +303,42 @@ class DockerSandbox:
         self._requirements_manifest_meta = manifest_meta
         self._use_runtime_requirements_profile = use_runtime_profile
 
+        # Opt-in, auditable prewarming of EXACTLY the student's declared MongoDB
+        # connector artifact; executed during image build where Maven is reachable.
+        # Student source is never executed; isolated runtime remains offline.
+        spark_prefetch = {"enabled": False, "packages": [], "reason": "not_requested"}
+        if os.environ.get("GRADER_PREWARM_SPARK") == "1":
+            diagnosis = check_submission(self.repo, runtime_error="unresolved dependencies")
+            spark_prefetch = {
+                "enabled": diagnosis["status"] == "GRADER_NETWORK_DEPENDENCY_PRECONDITION",
+                "packages": diagnosis["declared_coordinates"],
+                "reason": diagnosis["status"],
+            }
+            if spark_prefetch["enabled"] and spark_prefetch["packages"]:
+                (self.build_context / ".grader.spark-prefetch.txt").write_text(
+                    ",".join(spark_prefetch["packages"]), encoding="utf-8"
+                )
+                (self.build_context / ".grader.spark-cache-only.py").write_text(
+                    'print("GRADER_SPARK_PACKAGE_CACHE_ONLY")\\n'.replace("\\\\n", "\\n"),
+                    encoding="utf-8",
+                )
+                (self.build_context / ".grader.spark-prewarm.sh").write_text(
+                    "#!/usr/bin/env bash\\n"
+                    "set -u\\n"
+                    "mkdir -p /home/student/.ivy2\\n"
+                    "export HOME=/home/student SPARK_LOCAL_IP=127.0.0.1\\n"
+                    "timeout 240s /opt/student-venv/bin/spark-submit --master 'local[1]' "
+                    "--conf spark.jars.ivy=/home/student/.ivy2 "
+                    "--packages \\"$(cat /workspace/.grader.spark-prefetch.txt)\\" "
+                    "/workspace/.grader.spark-cache-only.py\\n"
+                    "rc=$?\\n"
+                    "echo GRADER_SPARK_PREFETCH_RC=$rc\\n"
+                    "chmod -R a+rX /home/student/.ivy2 || true\\n"
+                    "exit 0\\n",
+                    encoding="utf-8",
+                )
+        self._spark_prefetch = spark_prefetch
+
         install_source = ".grader.requirements.combined.txt" if combined_req.is_file() and manifest_meta.get("line_count") else "requirements.txt"
         install_clause = (
             '/opt/student-venv/bin/pip install --no-cache-dir -r .grader.requirements.runtime.txt '
@@ -311,6 +349,10 @@ class DockerSandbox:
                  '&& /opt/student-venv/bin/pip install --no-cache-dir -r .grader.requirements.compat.txt))'
         )
 
+        prewarm_step = (
+            "RUN bash /workspace/.grader.spark-prewarm.sh"
+            if getattr(self, "_spark_prefetch", {}).get("enabled") else ""
+        )
         dockerfile = textwrap.dedent(f"""
             FROM bigdata-grader/student-runtime:4.1
             WORKDIR /workspace
@@ -322,6 +364,7 @@ class DockerSandbox:
                      {install_clause}; \
                    elif [ -f pyproject.toml ] || [ -f setup.py ]; then /opt/student-venv/bin/pip install --no-cache-dir .; \
                    fi
+            {prewarm_step}
             ENV PATH=/opt/student-venv/bin:$PATH \
                 PYTHONUNBUFFERED=1 \
                 HOME=/tmp/student-home \
@@ -348,6 +391,8 @@ class DockerSandbox:
             "compatibility_fallback_used": fallback_used,
             "runtime_profile_used": runtime_profile_used,
             "runtime_requirements_profile": getattr(self, "_runtime_requirements_profile", {}) if runtime_profile_used else None,
+            "spark_dependency_prewarm": getattr(self, "_spark_prefetch", {}),
+            "spark_prefetch_log_tail": combined[-1200:] if getattr(self, "_spark_prefetch", {}).get("enabled") else None,
             "requirements_manifests": getattr(self, "_requirements_manifest_meta", {}).get("manifests", []),
             "platform_packages_skipped": list(getattr(self, "_compat_requirements_skipped", []) or []) if (fallback_used or runtime_profile_used) else [],
             "stdout_tail": p.stdout[-4000:],
