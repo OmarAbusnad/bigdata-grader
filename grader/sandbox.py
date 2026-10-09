@@ -331,7 +331,8 @@ class DockerSandbox:
                     'timeout 240s /opt/student-venv/bin/spark-submit --master "local[1]" --conf spark.jars.ivy=/home/student/.ivy2 --packages "$packages" /workspace/.grader.spark-cache-only.py',
                     "rc=$?",
                     "echo GRADER_SPARK_PREFETCH_RC=$rc",
-                    "chmod -R a+rX /home/student/.ivy2 || true",
+                    "chown -R student:student /home/student/.ivy2 || true",
+                    "chmod -R u+rwX /home/student/.ivy2 || true",
                     "exit 0",
                 ]
                 (self.build_context / ".grader.spark-prewarm.sh").write_text(
