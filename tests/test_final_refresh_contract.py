@@ -1,11 +1,12 @@
 import ast
+import urllib.parse
 from grader.final_runtime import _probe_python
 from targeted_final_refresh import restricted_probe_source
 
 def test_required_refresh_query_cannot_be_silently_omitted():
     tree=ast.parse(_probe_python())
     fn=next(x for x in tree.body if isinstance(x,ast.FunctionDef) and x.name=='refresh_mv_with_contract')
-    scope={'resolve_schema':lambda _,s:s,'request':lambda method,path,body,timeout: {'status':200,'ok':True,'path':path}}
+    scope={'resolve_schema':lambda _,s:s,'request':lambda method,path,body,timeout: {'status':200,'ok':True,'path':path}, 'urllib':urllib}
     exec(compile(ast.Module(body=[fn],type_ignores=[]),'test','exec'),scope)
     unresolved={'paths':{'/refresh-mv':{'post':{'parameters':[{'in':'query','name':'name','required':True,'schema':{'type':'string'}}]}}}}
     value=scope['refresh_mv_with_contract'](unresolved,True)
