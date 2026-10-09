@@ -1,0 +1,45 @@
+name: Targeted P59 Final Refresh Failure Only
+on:
+  push:
+    paths:
+      - '.grader/trigger-targeted-final-refresh.txt'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  p59-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader
+        run: python -m pip install -r requirements.txt
+      - name: Restore frozen P59 student submission only
+        uses: actions/download-artifact@v4
+        with:
+          name: frozen-P59-37390623044
+          path: frozen_project
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '37390623044'
+      - name: Extract immutable snapshot
+        run: |
+          mkdir -p workspaces/P59/repo
+          tar -xzf frozen_project/P59.repo.tar.gz -C workspaces/P59
+      - name: Build isolated student runtime
+        run: python build_runtime_image.py
+      - name: Repeat ONLY failed P59 refresh tests; no passing assertions
+        run: python -u targeted_final_refresh.py --repo workspaces/P59/repo --out reports_targeted_final/P59/refresh_only.json
+      - name: Archive two focused verdicts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: targeted-final-refresh-P59-${{ github.run_id }}
+          path: reports_targeted_final/P59/
+          if-no-files-found: error
