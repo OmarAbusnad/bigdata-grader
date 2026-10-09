@@ -137,6 +137,56 @@ class DiscoveryTests(unittest.TestCase):
             self.assertEqual(plan.ingest_command, "python src/main.py --input {file}")
             self.assertIn("--reset-db", plan.reset_command)
 
+    def test_readme_inline_comment_is_not_command_argument(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            (repo / "src").mkdir()
+            (repo / "src" / "main.py").write_text(
+                "import argparse\np=argparse.ArgumentParser()\n"
+                "p.add_argument('--file')\np.parse_args()\n", encoding="utf-8",
+            )
+            (repo / "README.md").write_text(
+                "python src/main.py --file data.csv # Full 30M records via PySpark\n",
+                encoding="utf-8",
+            )
+            plan = discover_execution_plan(repo)
+            self.assertEqual(plan.ingest_command, "python src/main.py --file {file}")
+
+    def test_dataset_generator_cannot_be_pipeline_ingest(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            (repo / "src").mkdir()
+            (repo / "create_small_sample.py").write_text(
+                "import argparse\np=argparse.ArgumentParser()\np.add_argument('--input')\n"
+                "p.add_argument('--rows')\np.parse_args()\n", encoding="utf-8",
+            )
+            (repo / "src" / "main.py").write_text(
+                "import argparse\np=argparse.ArgumentParser()\n"
+                "p.add_argument('--input')\np.parse_args()\n", encoding="utf-8",
+            )
+            (repo / "README.md").write_text(
+                "python create_small_sample.py --input data.csv --rows 100000\n"
+                "python src/main.py --input data.csv\n", encoding="utf-8",
+            )
+            plan = discover_execution_plan(repo)
+            self.assertEqual(plan.ingest_command, "python src/main.py --input {file}")
+
+    def test_database_name_env_defaults_are_detected(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            (repo / "src").mkdir()
+            (repo / "src" / "main.py").write_text(
+                "import argparse\np=argparse.ArgumentParser()\np.add_argument('--input')\n",
+                encoding="utf-8",
+            )
+            (repo / "src" / "settings.py").write_text(
+                'import os\nDB_NAME = os.getenv("DB_NAME", "orders_db")\n',
+                encoding="utf-8",
+            )
+            plan = discover_execution_plan(repo)
+            self.assertEqual(plan.database_name, "orders_db")
+            self.assertTrue(plan.database_configurable)
+
     def test_root_wrapper_resolves_src_main(self):
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
