@@ -6,7 +6,7 @@ import shutil
 from pathlib import Path
 from grader.mongo_checker import MongoChecker
 from grader.sandbox import DockerSandbox, SandboxConfig
-from grader.engine_detection import detect_engine
+from grader.runtime_evidence import detect_engine
 
 
 def main():
