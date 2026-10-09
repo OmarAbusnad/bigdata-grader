@@ -1,0 +1,1 @@
+Run read-only root-cause attribution on exactly 19 frozen students blocked by offline Spark Maven; execute zero student programs; preserve all existing PASS and scores.
