@@ -7,6 +7,7 @@ resolution. It never executes untrusted student code or infers grades.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 from pathlib import Path
@@ -27,6 +28,7 @@ def check_submission(repo: Path, *, runtime_error: str = "") -> dict:
     if not repo.is_dir():
         raise ValueError("Repository path not found")
     texts = []
+    source_literals = []
     source_paths = []
     for p in repo.rglob("*.py"):
         if any(part in {".git", ".venv", "venv", "__pycache__"} for part in p.parts):
@@ -38,6 +40,14 @@ def check_submission(repo: Path, *, runtime_error: str = "") -> dict:
                 continue
             content = p.read_text(encoding="utf-8-sig", errors="replace")
             texts.append(content)
+            # AST resolves adjacent string literals split over multiple lines.
+            # No student code is executed.
+            try:
+                tree=ast.parse(content)
+                source_literals.extend(node.value for node in ast.walk(tree)
+                    if isinstance(node,ast.Constant) and isinstance(node.value,str))
+            except SyntaxError:
+                pass
             source_paths.append(str(p.relative_to(repo)))
         except OSError:
             continue
@@ -48,7 +58,7 @@ def check_submission(repo: Path, *, runtime_error: str = "") -> dict:
             requirements.append(p.read_text(encoding="utf-8-sig", errors="replace"))
         except OSError:
             pass
-    declarations = sorted(set(COORD.findall(source)))
+    declarations = sorted(set(COORD.findall(source + "\n" + "\n".join(source_literals))))
     packages = sorted({f"org.mongodb.spark:mongo-spark-connector_{scala}:{version}"
                        for scala, version in declarations})
     pyspark_versions = [
