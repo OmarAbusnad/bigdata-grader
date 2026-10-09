@@ -374,8 +374,8 @@ class DockerSandbox:
         )
 
         spark_runtime_conf = (
-            "SPARK_CONF_DIR=/workspace/.grader.spark-conf"
-            if getattr(self, "_spark_prefetch", {}).get("enabled") else ""
+            "ENV SPARK_CONF_DIR=/workspace/.grader.spark-conf"
+            if getattr(self, "_spark_prefetch", {}).get("enabled") else "# Spark prewarm disabled"
         )
         prewarm_step = (
             "RUN bash /workspace/.grader.spark-prewarm.sh"
@@ -393,11 +393,11 @@ class DockerSandbox:
                    elif [ -f pyproject.toml ] || [ -f setup.py ]; then /opt/student-venv/bin/pip install --no-cache-dir .; \
                    fi
             {prewarm_step}
+            {spark_runtime_conf}
             ENV PATH=/opt/student-venv/bin:$PATH \
                 PYTHONUNBUFFERED=1 \
                 HOME=/tmp/student-home \
-                SPARK_LOCAL_IP=127.0.0.1 \
-                {spark_runtime_conf}
+                SPARK_LOCAL_IP=127.0.0.1
             RUN mkdir -p /tmp/student-home /workspace/reports /workspace/data && chmod -R a+rwx /tmp/student-home /workspace/reports /workspace/data
             USER student
         """).strip() + "\n"
