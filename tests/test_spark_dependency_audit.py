@@ -76,3 +76,17 @@ PACKAGE = "org.mongodb.spark:mongo-spark-connector_2.13:11.1.0"
 df.write.format("mongodb").save()
 """)
     assert check_submission(repo, runtime_error=BLOCKED)["owner"]=="STUDENT_CODE"
+
+
+def test_adjacent_strings_in_spark_constant_are_detected(tmp_path):
+    repo=make_repo(tmp_path,"pyspark==4.2.0",'''
+PACKAGE = (
+    "org.mongodb.spark:"
+    "mongo-spark-connector_2.13:"
+    "11.1.0"
+)
+df.write.format("mongodb").save()
+''')
+    out=check_submission(repo,runtime_error=BLOCKED)
+    assert out["owner"]=="GRADER_ENVIRONMENT"
+    assert out["declared_coordinates"]==["org.mongodb.spark:mongo-spark-connector_2.13:11.1.0"]
