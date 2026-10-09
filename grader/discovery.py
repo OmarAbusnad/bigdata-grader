@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import ast
 import re
 from pathlib import Path
 from typing import Iterable
@@ -282,6 +284,37 @@ def _argument_flags(text: str) -> set[str]:
     return flags
 
 
+def _requires_real_mongo_backend(repo: Path, entrypoint: str | None, readme: str) -> bool:
+    """Choose the README-documented real MongoDB backend over mock in-memory demo.
+
+    Never invent a backend argument: verify actual argparse choices + default
+    from the student's source AND a documented '--backend mongo' command.
+    """
+    if not entrypoint or "--backend mongo" not in readme:
+        return False
+    try:
+        tree=ast.parse(_read(repo / entrypoint))
+    except (OSError, SyntaxError):
+        return False
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr != "add_argument":
+            continue
+        if not node.args or not isinstance(node.args[0], ast.Constant) or node.args[0].value != "--backend":
+            continue
+        kwargs = {kw.arg: kw.value for kw in node.keywords if kw.arg}
+        default = kwargs.get("default")
+        choices = kwargs.get("choices")
+        if not isinstance(default, ast.Constant) or default.value != "memory":
+            continue
+        if isinstance(choices, (ast.Tuple, ast.List)):
+            vals=[x.value for x in choices.elts if isinstance(x, ast.Constant)]
+            if "mongo" in vals:
+                return True
+    return False
+
+
 def _command_from_entry(repo: Path, entrypoint: str | None) -> tuple[str | None, str | None, bool, bool]:
     if not entrypoint:
         return None, None, False, False
@@ -309,7 +342,7 @@ def _command_from_entry(repo: Path, entrypoint: str | None) -> tuple[str | None,
         cmd = f"{base_cmd} {{file}}"
 
     threshold_flag = next((f for f in ("--threshold-mb", "--threshold", "-t") if f in flags), None)
-    db_name_flag = next((f for f in ("--db-name", "--database") if f in flags), None)
+    db_name_flag = next((f for f in ("--db-name", "--database", "--mongo-database") if f in flags), None)
     threshold_configurable = bool(threshold_flag)
     database_configurable = bool(db_name_flag)
 
@@ -466,6 +499,8 @@ def discover_execution_plan(repo_path: str | Path) -> ExecutionPlan:
         ingest_cmd = _python_invocation(repo, entrypoint)
         threshold_flag = False
         db_flag = False
+    if ingest_cmd and "--backend" not in ingest_cmd and _requires_real_mongo_backend(repo, entrypoint, readme):
+        ingest_cmd += " --backend mongo"
     settings = _parse_settings(settings_text + "\n" + env_text + "\n" + repo_text)
     setup_cmd = _detect_setup_command(repo, readme)
 
