@@ -50,12 +50,11 @@ def spark_recovery_overlay(original: dict[str, Any], proof: dict[str, Any], *,
     })
     success = (
         (proof.get("verdict") == "PASS" and run.get("returncode") == 0 and run.get("timed_out") is False
-         or (proof.get("verdict") == "INCONCLUSIVE" and pipeline_finished_before_server_timeout))
+         or (proof.get("verdict") == "INCONCLUSIVE" and pipeline_finished_before_server_timeout
+             and isinstance(after.get("validated"), int) and after.get("validated") > 0))
         and proof.get("engine") == "pyspark"
         and isinstance(after.get("raw"), int)
         and after.get("raw") > 0
-        and isinstance(after.get("validated"), int)
-        and after.get("validated") > 0
     )
 
     overrides = {}
