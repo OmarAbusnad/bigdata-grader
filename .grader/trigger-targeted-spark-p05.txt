@@ -1,0 +1,1 @@
+P05 only. Original frozen Spark test02 was INCONCLUSIVE due network-isolated Maven resolution. Trial exact declared connector prewarming in Docker build, then repeat only Spark test02, preserve every other PASS. CI 38001238339 passed.
