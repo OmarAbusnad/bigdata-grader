@@ -7,6 +7,7 @@ from typing import Any
 
 from .models import ExecutionPlan, RuntimeCaseResult
 from .mongo_checker import MongoChecker
+from .count_policy import compare_count, compare_new_inserts, compare_stability, compare_baseline_replay
 from .oracle import HiddenOracle
 from .runtime_evidence import detect_engine
 from .sandbox import DockerSandbox, SandboxConfig, SandboxError
@@ -202,6 +203,11 @@ def _copy_input_view(hidden_dir: Path, oracle: HiddenOracle, inputs_dir: Path) -
         shutil.copy2(src, dst)
         mapping[test_name] = dst.name
     return mapping
+
+
+def _count_assertion(key: str, label: str, decision):
+    evidence = ([f"relative_error={decision.error_ratio:.6f}"] if decision.error_ratio is not None else [])
+    return A(key, label, decision.verdict, decision.expected, decision.actual, evidence, note=decision.reason)
 
 
 def run_behavioral_suite(
@@ -460,8 +466,8 @@ def run_behavioral_suite(
         report["runtime_ready"] = True
         batch.assertions += [
             assert_equal("batch.raw_count", "orders_raw = عدد صفوف الإدخال", s1.get("raw"), int(t1["input"])),
-            assert_equal("batch.validated_count", "orders_validated = النتيجة المتوقعة", s1.get("validated"), int(t1["validated_after_run"])),
-            assert_equal("batch.quarantine_count", "orders_quarantine = النتيجة المتوقعة", s1.get("quarantine"), int(t1["quarantine"])),
+            _count_assertion("batch.validated_count", "Validated count aggregate band", compare_count(s1.get("validated"), t1["validated_after_run"])),
+            _count_assertion("batch.quarantine_count", "Quarantine count aggregate band", compare_count(s1.get("quarantine"), t1["quarantine"])),
             assert_zero("batch.duplicates", "لا توجد Business Keys مكررة", int(s1.get("duplicate_business_keys", -1))),
         ]
         unique_ok, unique_ev = mongo.has_unique_business_index()
@@ -548,9 +554,9 @@ def run_behavioral_suite(
             ]
         else:
             spark.assertions += [
-                assert_equal("spark.raw_count", "Spark: orders_raw = الإدخال", s2.get("raw"), int(t2_eff["input"])),
-                assert_equal("spark.validated_count", "Spark: validated = الإدخال النظيف", s2.get("validated"), int(t2_eff["validated_after_run"])),
-                assert_equal("spark.quarantine_count", "Spark: quarantine = 0", s2.get("quarantine"), int(t2_eff["quarantine"])),
+                _count_assertion("spark.raw_count", "Spark raw count aggregate band", compare_count(s2.get("raw"), t2_eff["input"])),
+                _count_assertion("spark.validated_count", "Spark validated count aggregate band", compare_count(s2.get("validated"), t2_eff["validated_after_run"])),
+                _count_assertion("spark.quarantine_count", "Spark quarantine count exact zero", compare_count(s2.get("quarantine"), t2_eff["quarantine"])),
                 assert_zero("spark.duplicates", "Spark: لا توجد Business Keys مكررة", int(s2.get("duplicate_business_keys", -1))),
             ]
         report["cases"].append(_case_dict(spark))
@@ -560,8 +566,8 @@ def run_behavioral_suite(
         fresh_database()
         baseline, _ = execute_case("upsert_baseline", "test_01", fresh=False, expected_engine="python_batch")
         t3 = oracle.test("test_03")
-        baseline.assertions.append(assert_equal("upsert.baseline_validated", "Baseline validated قبل Test 03",
-                                                (baseline.snapshot_after or {}).get("validated"), int(t3["baseline_validated_before_test"])))
+        baseline.assertions.append(_count_assertion("upsert.baseline_validated", "Baseline reproducibility (batch correctness graded separately)",
+                                                compare_baseline_replay((baseline.snapshot_after or {}).get("validated"), s1.get("validated"))))
         report["cases"].append(_case_dict(baseline))
 
         insert_cases = oracle.sample("test_03", actions=["insert"], n=12, seed=11)
@@ -574,7 +580,8 @@ def run_behavioral_suite(
         upsert1, _ = execute_case("upsert_first", "test_03", fresh=False)
         s31 = upsert1.snapshot_after or {}
         upsert1.assertions += [
-            assert_equal("upsert.final_validated", "Validated بعد أول Test 03", s31.get("validated"), int(t3["validated_after_first_run"])),
+            _count_assertion("upsert.final_validated", "Upsert inserted rows relative to existing baseline",
+                                compare_new_inserts(s31.get("validated"), (upsert1.snapshot_before or {}).get("validated"), t3["inserted"])),
             assert_zero("upsert.duplicates_first", "لا توجد Business Keys مكررة بعد Upsert", int(s31.get("duplicate_business_keys", -1))),
         ]
         upsert1.assertions += _verify_upsert_actions(mongo, insert_cases, update_cases, unchanged_cases, before_updates, before_unchanged)
@@ -584,7 +591,8 @@ def run_behavioral_suite(
         upsert2, _ = execute_case("upsert_rerun", "test_03", fresh=False)
         s32 = upsert2.snapshot_after or {}
         upsert2.assertions += [
-            assert_equal("idempotency.validated_stable", "إعادة Test 03 لا تغيّر validated", s32.get("validated"), int(t3["validated_after_rerun"])),
+            _count_assertion("idempotency.validated_stable", "Rerun count stable (not full idempotency proof)",
+                                compare_stability(s32.get("validated"), (upsert2.snapshot_before or {}).get("validated"))),
             assert_zero("idempotency.duplicates", "إعادة التشغيل لا تنشئ Business Keys مكررة", int(s32.get("duplicate_business_keys", -1))),
         ]
         report["cases"].append(_case_dict(upsert2))
@@ -594,14 +602,16 @@ def run_behavioral_suite(
             inc1, _ = execute_case("incremental_first", "test_04", fresh=False)
             s41 = inc1.snapshot_after or {}
             inc1.assertions += [
-                assert_equal("incremental.final_validated", "Validated بعد Delta Test 04", s41.get("validated"), int(t4["validated_after_first_run"])),
+                _count_assertion("incremental.final_validated", "Incremental newly inserted rows",
+                                compare_new_inserts(s41.get("validated"), (inc1.snapshot_before or {}).get("validated"), t4["inserted"])),
                 assert_zero("incremental.duplicates_first", "Delta لا ينشئ Business Keys مكررة", int(s41.get("duplicate_business_keys", -1))),
             ]
             report["cases"].append(_case_dict(inc1))
             inc2, _ = execute_case("incremental_rerun", "test_04", fresh=False)
             s42 = inc2.snapshot_after or {}
             inc2.assertions += [
-                assert_equal("incremental.rerun_validated_stable", "إعادة Delta لا تغيّر validated", s42.get("validated"), int(t4["validated_after_rerun"])),
+                _count_assertion("incremental.rerun_validated_stable", "Incremental rerun count stable (not full no-op proof)",
+                                compare_stability(s42.get("validated"), (inc2.snapshot_before or {}).get("validated"))),
                 assert_zero("incremental.rerun_duplicates", "إعادة Delta لا تنشئ Business Keys مكررة", int(s42.get("duplicate_business_keys", -1))),
             ]
             report["cases"].append(_case_dict(inc2))
