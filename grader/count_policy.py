@@ -54,6 +54,9 @@ def compare_new_inserts(actual_after: int | None, actual_before: int | None,
             raise ValueError
     except (TypeError, ValueError, OverflowError):
         return CountDecision("INCONCLUSIVE", None, None, None, "missing_delta_measurement")
+    if after < before:
+        return CountDecision("FAIL", inserts, after - before, None,
+                             "validated_count_decreased_during_insert_delta")
     return compare_count(after - before, inserts)
 
 
