@@ -613,8 +613,29 @@ result["aggregation_calls"] = [
     for name in anames[:5]
 ]
 
-result["refresh_mv_first"] = request("POST", "/refresh-mv", {}, timeout=120)
-result["refresh_mv_second"] = request("POST", "/refresh-mv", {}, timeout=120)
+def refresh_mv_with_contract(openapi, full_refresh=False):
+    post = ((openapi.get("paths") or {}).get("/refresh-mv") or {}).get("post") or {}
+    query_parameters = [p for p in (post.get("parameters") or []) if p.get("in") == "query"]
+    query = {}
+    for param in query_parameters:
+        key = param.get("name") or ""
+        schema = resolve_schema(openapi, param.get("schema") or {})
+        enum = schema.get("enum") or []
+        if key in ("full_refresh", "force_full"):
+            query[key] = str(bool(full_refresh)).lower()
+        elif param.get("required") and "default" in schema:
+            query[key] = schema["default"]
+        elif param.get("required") and enum:
+            query[key] = enum[0]
+        elif param.get("required"):
+            # Do not invent a view name and then punish its absence as student failure.
+            return {"status": None, "ok": False, "probe_blocked": "required_query_parameter_unresolved",
+                    "required_parameter": key, "is_json": False}
+    suffix = "?" + urllib.parse.urlencode(query) if query else ""
+    return request("POST", "/refresh-mv" + suffix, {}, timeout=120)
+
+result["refresh_mv_first"] = refresh_mv_with_contract(openapi, full_refresh=True)
+result["refresh_mv_second"] = refresh_mv_with_contract(openapi, full_refresh=False)
 
 j = request("GET", "/jobs", timeout=30)
 result["jobs"] = j
@@ -1269,8 +1290,9 @@ def run_final_suite(
         mv1 = probe.get("refresh_mv_first") or {}
         mv2 = probe.get("refresh_mv_second") or {}
         mv_needs_init = _mv_requires_initialization(mv1, mv2)
+        mv_probe_blocked = bool(mv1.get("probe_blocked") or mv2.get("probe_blocked"))
         assertions.append(_assertion("final.mv.refresh", "Materialized-view refresh endpoint works",
-                                     "PASS" if (mv1.get("ok") and not mv_needs_init) else ("INCONCLUSIVE" if mv_needs_init else "FAIL"),
+                                     "INCONCLUSIVE" if mv_probe_blocked else ("PASS" if (mv1.get("ok") and not mv_needs_init) else ("INCONCLUSIVE" if mv_needs_init else "FAIL")),
                                      expected="2xx operational refresh after valid initialization",
                                      actual=mv1.get("status"),
                                      evidence=[json.dumps(mv1.get("body"), ensure_ascii=False)[:1800]],
