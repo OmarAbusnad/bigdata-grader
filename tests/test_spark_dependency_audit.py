@@ -58,3 +58,21 @@ def test_undeclared_connector_not_assumed_student_from_maven_error(tmp_path):
 def test_checked_in_jar_needs_path_verification(tmp_path):
     repo=make_repo(tmp_path, "pyspark==3.5.1", "from pyspark.sql import SparkSession", jars=True)
     assert check_submission(repo, runtime_error=BLOCKED)["status"]=="MAVEN_REQUEST_DESPITE_BUNDLED_JAR"
+
+
+def test_connector_11_is_not_published_for_scala_212(tmp_path):
+    repo=make_repo(tmp_path, "pyspark>=3.5.0", """
+PACKAGE = "org.mongodb.spark:mongo-spark-connector_2.12:11.1.0"
+df.write.format("mongodb").save()
+""")
+    result=check_submission(repo, runtime_error=BLOCKED)
+    assert result["owner"]=="STUDENT_CODE"
+    assert any("Scala 2.13" in reason for reason in result["source_errors"])
+
+
+def test_pinned_spark3_rejects_connector11(tmp_path):
+    repo=make_repo(tmp_path, "pyspark==3.5.1", """
+PACKAGE = "org.mongodb.spark:mongo-spark-connector_2.13:11.1.0"
+df.write.format("mongodb").save()
+""")
+    assert check_submission(repo, runtime_error=BLOCKED)["owner"]=="STUDENT_CODE"
