@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Iterable
 
 from .models import ExecutionPlan
+from .interactive_detection import infer_ingest_stdin
 
 PYTHON_ENTRY_CANDIDATES = [
     "main.py", "src/main.py", "pipeline.py", "src/pipeline.py", "run.py", "src/run.py"
@@ -458,6 +459,13 @@ def discover_execution_plan(repo_path: str | Path) -> ExecutionPlan:
         ingest_cmd = documented_cmd
         threshold_flag = any(x in documented_cmd for x in ("--threshold", "--threshold-mb", " -t "))
         db_flag = any(x in documented_cmd for x in ("--database", "--db-name"))
+    # Do not fabricate a positional argument for a proven stdin-only CLI.
+    # The student entrypoint remains unchanged; stdin is supplied by the sandbox.
+    interactive_stdin = infer_ingest_stdin(repo / entrypoint) if entrypoint else None
+    if interactive_stdin:
+        ingest_cmd = _python_invocation(repo, entrypoint)
+        threshold_flag = False
+        db_flag = False
     settings = _parse_settings(settings_text + "\n" + env_text + "\n" + repo_text)
     setup_cmd = _detect_setup_command(repo, readme)
 
@@ -473,6 +481,8 @@ def discover_execution_plan(repo_path: str | Path) -> ExecutionPlan:
         score += 0.25
     if ingest_cmd:
         evidence.append(f"Ingest command: {ingest_cmd}")
+        if interactive_stdin:
+            evidence.append("Safe interactive ingestion path discovered using AST; student code unchanged")
         if documented_cmd:
             evidence.append("Ingest command source: validated README command")
         score += 0.25
@@ -503,6 +513,7 @@ def discover_execution_plan(repo_path: str | Path) -> ExecutionPlan:
         setup_command=setup_cmd,
         entrypoint=entrypoint,
         ingest_command=ingest_cmd,
+        ingest_stdin=interactive_stdin,
         reset_command=reset_cmd,
         database_name=str(settings.get("db")) if settings.get("db") else None,
         database_configurable=db_flag or bool(settings.get("db_env")),
