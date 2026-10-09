@@ -13,6 +13,30 @@ from grader.spark_dependency_audit import check_submission
 from grader.sandbox_runtime import _format_threshold_env
 
 
+def resolve_frozen_project_root(root: Path, saved_plan: dict, project_id: str) -> Path:
+    """Match the exact original evaluated project root inside its frozen tar.
+
+    Some submissions contain one project subdirectory. Never infer or switch
+    to another directory unless the original immutable grader plan proves it.
+    """
+    root = root.resolve()
+    saved = str(saved_plan.get("repo_path") or "")
+    parts = Path(saved).parts
+    marker = ("workspaces", project_id, "repo")
+    indices = [i for i in range(len(parts)-2) if parts[i:i+3] == marker]
+    if len(indices) != 1:
+        return root
+    suffix = parts[indices[0]+3:]
+    if any(p in ("", ".", "..") for p in suffix):
+        raise ValueError("Unsafe original project directory suffix")
+    resolved = root.joinpath(*suffix).resolve()
+    if resolved != root and root not in resolved.parents:
+        raise ValueError("Frozen grading root escapes student's checkout")
+    if not resolved.is_dir():
+        raise ValueError("Original graded source directory is missing from frozen tar")
+    return resolved
+
+
 def main():
     p=argparse.ArgumentParser()
     for k in ("project", "repo", "original-report", "hidden", "out"):
@@ -22,6 +46,7 @@ def main():
     original=json.loads(Path(a.original_report).read_text(encoding="utf-8"))
     if original.get("project_id")!=a.project:
         raise ValueError("Frozen project mismatch")
+    repo = resolve_frozen_project_root(repo, original.get("execution_plan") or {}, a.project)
     runtime=original.get("runtime") or {}
     previous=(runtime.get("assertions") or {}).get("spark_pipeline.command") or {}
     if previous.get("verdict") not in {"INCONCLUSIVE","FAIL"}:
