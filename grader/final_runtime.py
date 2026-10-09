@@ -508,7 +508,12 @@ def build_ingest_attempts(openapi):
             # A FastAPI UploadFile needs actual multipart file bytes, NOT its path.
             # If text/path fields fail, retry only the documented binary file field.
             if media_type == "multipart/form-data":
-                for file_field in binary_fields:
+                # Some FastAPI/OpenAPI generators omit resolved binary properties
+                # even for UploadFile = File(...). Multipart explicitly authorizes
+                # a real file upload; try conventional "file" once, never mark
+                # success unless the actual HTTP/data effect is verified.
+                candidates = binary_fields or (["file"] if not props else [])
+                for file_field in candidates:
                     attempts.append({"kind": "upload", "file_field": file_field,
                                      "fields": form_fields})
 
