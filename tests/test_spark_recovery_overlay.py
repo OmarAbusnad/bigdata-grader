@@ -77,5 +77,5 @@ def test_clean_spark_input_all_quarantined_is_real_functional_failure():
     assert result["overrides"]["spark.raw_count"]["to"]=="PASS"
     assert result["overrides"]["spark.validated_count"]["to"]=="FAIL"
     assert result["overrides"]["spark.quarantine_count"]["to"]=="FAIL"
-    assert result["overrides"]["spark.duplicates"]["to"]=="PASS"
+    assert "spark.duplicates" not in result["overrides"]
     assert old["runtime"]["assertions"]["spark.validated_count"]["verdict"]=="INCONCLUSIVE"
