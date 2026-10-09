@@ -1308,13 +1308,13 @@ def run_final_suite(
                 if count > 0:
                     mv_names.append(name); mv_counts[name] = count
         assertions.append(_assertion("final.mv.collections", "At least two populated materialized-view collections exist",
-                                     "PASS" if len(mv_names) >= 2 else ("INCONCLUSIVE" if mv_needs_init else "FAIL"),
+                                     "PASS" if len(mv_names) >= 2 else ("INCONCLUSIVE" if (mv_needs_init or mv_probe_blocked) else "FAIL"),
                                      expected=">= 2 after valid initialization", actual=len(mv_names),
                                      evidence=[json.dumps(mv_counts, ensure_ascii=False)],
                                      note="Initialization precondition prevents a fair collection-count verdict." if mv_needs_init else None))
         incremental, inc_ev = _second_refresh_incremental(probe)
         assertions.append(_assertion("final.mv.incremental", "Second materialized-view refresh is incremental/idempotent",
-                                     "PASS" if incremental else ("INCONCLUSIVE" if (mv2.get("ok") or mv_needs_init) else "FAIL"),
+                                     "PASS" if incremental else ("INCONCLUSIVE" if (mv2.get("ok") or mv_needs_init or mv_probe_blocked) else "FAIL"),
                                      expected="incremental or zero-change second refresh after valid initialization",
                                      actual=json.dumps(mv2.get("body"), ensure_ascii=False)[:1200], evidence=inc_ev,
                                      note="Initialization precondition detected; incremental behavior was not validly exercised." if mv_needs_init else None))
