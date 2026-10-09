@@ -1,0 +1,3 @@
+Only P62's prior failing Final /ingest with FastAPI UploadFile and frozen input.
+Keep all previously PASS Final assertions from official run 37874152827 unchanged.
+Do not execute any other student's project, no oral/manual grade approvals.
