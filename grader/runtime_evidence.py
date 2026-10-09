@@ -39,11 +39,21 @@ def find_latest_metrics(repo: str | Path) -> tuple[dict[str, Any] | None, str | 
 def normalize_engine(value: Any) -> str | None:
     if value is None:
         return None
-    s = str(value).strip().lower().replace('-', '_').replace(' ', '_')
-    if any(x in s for x in ('pyspark', 'spark_dataframe', 'spark')):
-        return 'pyspark'
-    if any(x in s for x in ('python_batch', 'python_stream', 'batch', 'python')):
-        return 'python_batch'
+    raw = str(value).strip().lower()
+    # Router output may contain a JSON fragment such as
+    # "python_batch", "reason": "... avoids Spark startup". Never search
+    # for "spark" before extracting the actual selected-engine token.
+    token = re.search(
+        r'(?<![\w])(?:python[_\s-]?batch|python[_\s-]?stream|pyspark|spark[_\s-]?dataframe|spark)(?![\w])',
+        raw,
+        re.I,
+    )
+    if token:
+        first = token.group(0).replace("-", "_").replace(" ", "_")
+        return "python_batch" if first.startswith("python") else "pyspark"
+    compact = raw.replace("-", "_").replace(" ", "_")
+    if compact in {"batch", "python"}:
+        return "python_batch"
     return None
 
 
