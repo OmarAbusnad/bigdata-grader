@@ -94,6 +94,18 @@ def main():
         before=mongo.snapshot().to_dict()
         run=sb.run_student(command,env=env,timeout=1100)
         after=mongo.snapshot().to_dict()
+        if not any(int(after.get(k) or 0) for k in ("raw", "validated", "quarantine")) and not plan.get("database_name"):
+            # Mirrors the official grader's unique populated-database discovery;
+            # it never guesses between multiple student databases.
+            discovered, evidence = mongo.locate_active_database()
+            result["database_discovery"] = {
+                "candidate": discovered,
+                "evidence": evidence,
+            }
+            if discovered and discovered != db:
+                mongo.switch_database(discovered)
+                after = mongo.snapshot().to_dict()
+                result["database"] = discovered
         result["run"]={"returncode":run.get("returncode"),"timed_out":run.get("timed_out"),
                        "stdout_tail":str(run.get("stdout") or "")[-1800:],
                        "stderr_tail":str(run.get("stderr") or "")[-2800:]}
