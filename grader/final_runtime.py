@@ -523,6 +523,11 @@ def build_ingest_attempts(openapi):
             {"csv_path": DATASET}, {"file": DATASET}, {"input": DATASET},
         ]:
             attempts.append({"kind": "json", "body": body})
+        # Some implementations omit requestBody from OpenAPI despite a FastAPI
+        # UploadFile parameter. This conservative FINAL fallback is reached
+        # only when no documented request schema exists and tries upload AFTER
+        # the normal JSON variants; successful JSON ingest exits early.
+        attempts.append({"kind": "upload", "file_field": "file", "fields": {}})
     return attempts
 
 result = {"server_ready": False}
