@@ -73,6 +73,10 @@ def check_submission(repo: Path, *, runtime_error: str = "") -> dict:
     network_failure = any(w in runtime_error.lower() for w in MAVEN_NET)
 
     source_errors = []
+    if any(scala == "2.12" and int(v.split(".")[0]) >= 11 for scala, v in declarations):
+        source_errors.append("MongoDB Spark connector 11.x is published for Scala 2.13, not 2.12; the submitted Maven coordinate cannot resolve.")
+    if any(int(v.split(".")[0]) >= 11 for _, v in declarations) and spark3_pinned:
+        source_errors.append("Spark 3.x is pinned, but MongoDB Spark connector 11.x targets Spark 4.x.")
     if spark4_required and modern_connector and any(int(v.split(".")[0]) < 11 for _, v in declarations):
         source_errors.append("Spark 4+ declared but MongoDB Spark connector 10.x targets Spark 3.x; do not silently replace student versions.")
     if legacy_connector and source_uses_mongo_fmt:
