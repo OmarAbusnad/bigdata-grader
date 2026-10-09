@@ -1,0 +1,3 @@
+Offline cumulative midterm regrade ONLY; source run 37874152827.
+Do not reexecute any student project. Preserve PASS evidence, redo only failed count assertions.
+Evidence overlays only; no official grades and no student edits.
