@@ -79,3 +79,33 @@ def test_clean_spark_input_all_quarantined_is_real_functional_failure():
     assert result["overrides"]["spark.quarantine_count"]["to"]=="FAIL"
     assert "spark.duplicates" not in result["overrides"]
     assert old["runtime"]["assertions"]["spark.validated_count"]["verdict"]=="INCONCLUSIVE"
+
+
+def test_pipeline_completed_before_long_lived_web_server_timeout():
+    original=fake_original()
+    proof=fake_proof()
+    proof["verdict"]="INCONCLUSIVE"
+    proof["run"]={
+        "returncode":124,
+        "timed_out":True,
+        "stdout_tail":"ALL PHASE 1 & PHASE 2 PIPELINE STAGES COMPLETED SUCCESSFULLY (100% MATCH)!\\nUvicorn server starting",
+        "stderr_tail":"Uvicorn running on 0.0.0.0:8000",
+    }
+    overlay=spark_recovery_overlay(original,proof,proof_run_id=38004638719)
+    assert overlay["recovery_success"]
+    assert overlay["overrides"]["spark_pipeline.command"]["to"]=="PASS"
+    assert overlay["other_tests_reexecuted"]==0
+
+
+def test_timeout_without_pipeline_marker_never_passes():
+    original=fake_original()
+    proof=fake_proof()
+    proof["verdict"]="INCONCLUSIVE"
+    proof["run"]={
+        "returncode":124,"timed_out":True,
+        "stdout_tail":"Spark started, awaiting server",
+        "stderr_tail":"",
+    }
+    overlay=spark_recovery_overlay(original,proof,proof_run_id=1)
+    assert not overlay["recovery_success"]
+    assert not overlay["overrides"]
