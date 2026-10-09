@@ -251,6 +251,50 @@ def request_form(path, fields, timeout=180):
     except Exception as e:
         return {"status": None, "ok": False, "error": f"{type(e).__name__}: {e}", "is_json": False}
 
+def request_file_upload(path, file_field, fields=None, timeout=240):
+    """POST the actual mounted grading CSV as a multipart UploadFile."""
+    if not os.path.isfile(DATASET):
+        return {"status": None, "ok": False, "error": "Grader input CSV missing", "is_json": False}
+    boundary = "----grader-real-csv-upload"
+    parts = []
+    for key, value in (fields or {}).items():
+        parts.append(("--" + boundary + "\r\n"
+                      + 'Content-Disposition: form-data; name="' + str(key) + '"\r\n\r\n'
+                      + str(value) + "\r\n").encode("utf-8"))
+    parts.append(("--" + boundary + "\r\n"
+                  + 'Content-Disposition: form-data; name="' + str(file_field)
+                  + '"; filename="grader_hidden_input.csv"\r\n'
+                  + "Content-Type: text/csv\r\n\r\n").encode("utf-8"))
+    with open(DATASET, "rb") as handle:
+        parts.append(handle.read())
+    parts.append(("\r\n--" + boundary + "--\r\n").encode("utf-8"))
+    req = urllib.request.Request(
+        BASE + path,
+        data=b"".join(parts),
+        headers={"Content-Type": "multipart/form-data; boundary=" + boundary},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            raw = response.read().decode("utf-8", errors="replace")
+            try:
+                payload = json.loads(raw); is_json = True
+            except Exception:
+                payload = raw[:5000]; is_json = False
+            return {"status": response.status, "ok": 200 <= response.status < 300,
+                    "body": payload, "is_json": is_json}
+    except urllib.error.HTTPError as error:
+        raw = error.read().decode("utf-8", errors="replace")
+        try:
+            payload = json.loads(raw); is_json = True
+        except Exception:
+            payload = raw[:5000]; is_json = False
+        return {"status": error.code, "ok": False, "body": payload, "is_json": is_json}
+    except Exception as error:
+        return {"status": None, "ok": False, "error": f"{type(error).__name__}: {error}",
+                "is_json": False}
+
+
 def resolve_schema(openapi, schema):
     if not isinstance(schema, dict): return {}
     ref = schema.get("$ref")
@@ -454,11 +498,19 @@ def build_ingest_attempts(openapi):
         if media_type == "application/json":
             attempts.append({"kind": "json", "body": fields})
         elif media_type in ("multipart/form-data", "application/x-www-form-urlencoded"):
-            # UploadFile fields are intentionally omitted when a documented path
-            # field exists; this lets the API consume the mounted hidden dataset.
-            form_fields = {k: v for k, v in fields.items() if "file" not in k.lower() or "path" in k.lower()}
+            binary_fields = [
+                name for name, schema_item in props.items()
+                if isinstance(schema_item, dict) and schema_item.get("format") == "binary"
+            ]
+            form_fields = {k: v for k, v in fields.items() if k not in binary_fields}
             if form_fields:
                 attempts.append({"kind": "form", "fields": form_fields})
+            # A FastAPI UploadFile needs actual multipart file bytes, NOT its path.
+            # If text/path fields fail, retry only the documented binary file field.
+            if media_type == "multipart/form-data":
+                for file_field in binary_fields:
+                    attempts.append({"kind": "upload", "file_field": file_field,
+                                     "fields": form_fields})
 
     if not attempts:
         for body in [
@@ -501,6 +553,11 @@ if not SKIP_INGEST:
             fields = attempt.get("fields") or {}
             r = request_form("/ingest", fields, timeout=240)
             keys = sorted(fields.keys())
+        elif kind == "upload":
+            fields = attempt.get("fields") or {}
+            name = attempt.get("file_field") or "file"
+            r = request_file_upload("/ingest", name, fields=fields, timeout=240)
+            keys = sorted(list(fields.keys()) + [name])
         else:
             body = attempt.get("body") or {}
             r = request("POST", "/ingest", body, timeout=240)
