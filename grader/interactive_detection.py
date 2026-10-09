@@ -51,7 +51,20 @@ def infer_ingest_stdin(path: Path) -> str | None:
 
     # A multi-prompt CLI is supported only if the file prompt belongs to a
     # proven menu branch that explicitly selects data ingestion, never an API.
-    menu_present = bool(re.search(r"(?im)2\s*[.)]\s*.*(?:ingest|pipeline|data|رفع|بيانات)", source))
+    menu_present = False
+    for n in ast.walk(main):
+        if not isinstance(n, ast.Call) or not isinstance(n.func, ast.Name) or n.func.id != "print":
+            continue
+        for arg in n.args:
+            if not isinstance(arg, ast.Constant) or not isinstance(arg.value, str):
+                continue
+            label = arg.value.strip()
+            if not re.match(r"^2\s*[.)]\s*", label):
+                continue
+            if re.search(r"\b(?:delete|drop|erase|destroy|reset)\b|حذف|مسح|تصفير", label, re.I):
+                continue
+            if re.search(r"\b(?:ingest|pipeline|load|data)\b|رفع\s*البيانات|معالجة\s*البيانات", label, re.I):
+                menu_present = True
     menu_branch = any(
         isinstance(n, ast.If)
         and any(isinstance(k, ast.Constant) and str(k.value) == "2" for k in ast.walk(n.test))
