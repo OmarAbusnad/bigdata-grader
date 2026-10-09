@@ -1,1 +1,4 @@
-OFFICIAL unified grading: all READY projects; freeze 37390623044; execution-contract adapter enabled; plan_b=true; free-tier Gemini budget; no Issues/grades until grader-clean verification.
+OFFICIAL unified grading on merged verified main 424f6c00d32175aa24e902b35ed55088bc43adea
+Immutable freeze run: 37390623044
+All READY student projects; mode=all; Plan B enabled; isolated network; max_parallel=2
+Evidence and reports only: NO issues, NO grade approval, NO student repository changes.
