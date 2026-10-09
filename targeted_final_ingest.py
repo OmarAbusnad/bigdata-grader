@@ -36,6 +36,15 @@ for _ in range(35):
     time.sleep(1)
 if openapi:
     attempts = [a for a in build_ingest_attempts(openapi) if a.get("kind") == "upload"]
+    post = ((openapi.get("paths") or {}).get("/ingest") or {}).get("post") or {}
+    result["ingest_media_types"] = sorted(((post.get("requestBody") or {}).get("content") or {}).keys())
+    # This targeted-only P62 retry is grounded in the student's frozen source:
+    # src/phase2/api.py declares file: UploadFile = File(...). When OpenAPI's
+    # body schema cannot be resolved, the probe may still submit precisely
+    # that named binary field. No other project or endpoint is affected.
+    if not attempts:
+        attempts = [{"kind": "upload", "file_field": "file", "fields": {}}]
+        result["fallback_source"] = "frozen_P62_source_explicit_UploadFile_File"
     result["upload_variants_found"] = len(attempts)
     for attempt in attempts[:2]:
         field_name = attempt["file_field"]
