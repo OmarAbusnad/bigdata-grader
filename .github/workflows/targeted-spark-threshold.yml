@@ -1,0 +1,82 @@
+name: Spark Recovery - Threshold-Formatting Only P09 P19
+
+on:
+  push:
+    paths:
+      - '.grader/trigger-targeted-spark-threshold.txt'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  spark-only:
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        project_id: [P09, P19]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader runner requirements
+        run: python -m pip install -r requirements.txt
+      - name: Restore immutable original student
+        uses: actions/download-artifact@v4
+        with:
+          name: frozen-${{ matrix.project_id }}-37390623044
+          path: frozen_project
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '37390623044'
+      - name: Retrieve official previously scored report
+        uses: actions/download-artifact@v4
+        with:
+          name: unified-${{ matrix.project_id }}-37874152827
+          path: official_evidence
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '37874152827'
+      - name: Extract only originally frozen project
+        shell: bash
+        run: |
+          set -euo pipefail
+          pid="${{ matrix.project_id }}"
+          mkdir -p "workspaces/$pid/repo"
+          tar -xzf "frozen_project/$pid.repo.tar.gz" -C "workspaces/$pid"
+      - name: Build sandbox once per project
+        run: python build_runtime_image.py
+      - name: Restore deterministic hidden Spark input (no oracle visible to student)
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "${HIDDEN_SEED:-}" || exit 2
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Retry ONLY original incomplete Spark Test02
+        env:
+          GRADER_PREWARM_SPARK: '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pid="${{ matrix.project_id }}"
+          python -u targeted_spark_only.py \
+            --project "$pid" \
+            --repo "workspaces/$pid/repo" \
+            --hidden datasets/hidden \
+            --original-report "official_evidence/reports/$pid/result.json" \
+            --out "reports_spark_recovery/$pid/spark_only.json"
+      - name: Save immutable, test-scoped result; never overwrite any PASS
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: threshold-fixed-spark-only-${{ matrix.project_id }}-${{ github.run_id }}
+          path: reports_spark_recovery/${{ matrix.project_id }}/
+          if-no-files-found: warn
+          retention-days: 90
