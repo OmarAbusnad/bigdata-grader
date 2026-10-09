@@ -1,0 +1,59 @@
+name: Frozen Spark Maven Attribution (No Student Execution)
+
+on:
+  push:
+    paths:
+      - '.grader/trigger-static-spark-audit.txt'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        project_id: [P04, P05, P09, P14, P15, P19, P22, P26, P27, P42, P46, P48, P49, P54, P55, P58, P59, P60, P64]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Retrieve project frozen before grading
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          run-id: '37390623044'
+          name: frozen-${{ matrix.project_id }}-37390623044
+          path: original_frozen
+          github-token: ${{ github.token }}
+      - name: Retrieve original report without changing verdicts
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          run-id: '37874152827'
+          name: unified-${{ matrix.project_id }}-37874152827
+          path: original_grading
+          github-token: ${{ github.token }}
+      - name: Inspect original submission source only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "workspaces/${{ matrix.project_id }}/repo"
+          tar -xzf "original_frozen/${{ matrix.project_id }}.repo.tar.gz" -C "workspaces/${{ matrix.project_id }}"
+          python -u audit_frozen_spark.py \
+            --project "${{ matrix.project_id }}" \
+            --repo "workspaces/${{ matrix.project_id }}/repo" \
+            --original-report "original_grading/reports/${{ matrix.project_id }}/result.json" \
+            --out "reports_spark_audit/${{ matrix.project_id }}/spark_diagnosis.json"
+      - name: Preserve original results and publish read-only diagnosis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spark-static-${{ matrix.project_id }}-${{ github.run_id }}
+          path: reports_spark_audit/${{ matrix.project_id }}/
+          if-no-files-found: warn
