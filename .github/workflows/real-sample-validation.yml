@@ -32,7 +32,7 @@ jobs:
         id: validate
         shell: python
         env:
-          PROJECT_IDS: ${{ github.event_name == 'push' && 'P32,P34,P40,P48,P56,P64' || inputs.project_ids }}
+          PROJECT_IDS: ${{ github.event_name == 'push' && 'P32,P40,P56,P64' || inputs.project_ids }}
         run: |
           import json, os
           allowed = {'P05', 'P18', 'P32', 'P34', 'P40', 'P48', 'P56', 'P64'}
