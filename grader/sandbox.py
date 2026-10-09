@@ -319,23 +319,23 @@ class DockerSandbox:
                     ",".join(spark_prefetch["packages"]), encoding="utf-8"
                 )
                 (self.build_context / ".grader.spark-cache-only.py").write_text(
-                    'print("GRADER_SPARK_PACKAGE_CACHE_ONLY")\\n'.replace("\\\\n", "\\n"),
+                    'print("GRADER_SPARK_PACKAGE_CACHE_ONLY")' + "\n",
                     encoding="utf-8",
                 )
+                prewarm_script = [
+                    "#!/usr/bin/env bash",
+                    "set -u",
+                    "mkdir -p /home/student/.ivy2",
+                    "export HOME=/home/student SPARK_LOCAL_IP=127.0.0.1",
+                    'packages="$(cat /workspace/.grader.spark-prefetch.txt)"',
+                    'timeout 240s /opt/student-venv/bin/spark-submit --master "local[1]" --conf spark.jars.ivy=/home/student/.ivy2 --packages "$packages" /workspace/.grader.spark-cache-only.py',
+                    "rc=$?",
+                    "echo GRADER_SPARK_PREFETCH_RC=$rc",
+                    "chmod -R a+rX /home/student/.ivy2 || true",
+                    "exit 0",
+                ]
                 (self.build_context / ".grader.spark-prewarm.sh").write_text(
-                    "#!/usr/bin/env bash\\n"
-                    "set -u\\n"
-                    "mkdir -p /home/student/.ivy2\\n"
-                    "export HOME=/home/student SPARK_LOCAL_IP=127.0.0.1\\n"
-                    "timeout 240s /opt/student-venv/bin/spark-submit --master 'local[1]' "
-                    "--conf spark.jars.ivy=/home/student/.ivy2 "
-                    "--packages \\"$(cat /workspace/.grader.spark-prefetch.txt)\\" "
-                    "/workspace/.grader.spark-cache-only.py\\n"
-                    "rc=$?\\n"
-                    "echo GRADER_SPARK_PREFETCH_RC=$rc\\n"
-                    "chmod -R a+rX /home/student/.ivy2 || true\\n"
-                    "exit 0\\n",
-                    encoding="utf-8",
+                    "\n".join(prewarm_script) + "\n", encoding="utf-8",
                 )
         self._spark_prefetch = spark_prefetch
 
