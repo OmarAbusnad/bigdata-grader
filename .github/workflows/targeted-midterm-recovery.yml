@@ -1,4 +1,4 @@
-name: Targeted Midterm Recovery - Proven Discovery Errors Only
+name: Targeted Midterm Recovery - Previously Unexecuted P08
 
 on:
   push:
@@ -12,9 +12,9 @@ on:
         default: '37390623044'
         type: string
       project_ids:
-        description: Only P46/P49, which had zero prior successful midterm tests
+        description: Only P08, whose midterm was skipped due to low confidence
         required: true
-        default: 'P46,P49'
+        default: 'P08'
         type: string
 
 permissions:
@@ -32,13 +32,13 @@ jobs:
         id: validate
         shell: python
         env:
-          PROJECT_IDS: ${{ github.event_name == 'push' && 'P46,P49' || inputs.project_ids }}
+          PROJECT_IDS: ${{ github.event_name == 'push' && 'P08' || inputs.project_ids }}
         run: |
           import json, os
-          allowed = {'P46', 'P49'}
+          allowed = {'P08'}
           requested = [x.strip().upper() for x in os.environ['PROJECT_IDS'].split(',') if x.strip()]
           if not requested or len(requested) != len(set(requested)) or not set(requested) <= allowed:
-              raise SystemExit('Only P46/P49 are permitted, no other student reruns')
+              raise SystemExit('Only previously unexecuted P08 midterm is permitted')
           with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
               out.write('projects=' + json.dumps(requested) + '\n')
 
