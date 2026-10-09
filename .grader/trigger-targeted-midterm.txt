@@ -1,0 +1,3 @@
+Targeted MIDTERM ONLY: P46,P49.
+Frozen run 37390623044. Both previously 0 PASS and root cause GRADER_DISCOVERY_FAILURE; all other student projects untouched.
+No official grades or student code edits.
