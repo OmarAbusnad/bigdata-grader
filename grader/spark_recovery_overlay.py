@@ -65,8 +65,13 @@ def spark_recovery_overlay(original: dict[str, Any], proof: dict[str, Any], *,
             expected = (current.get(key) or {}).get("expected")
             observed = after.get(field)
             decision = compare_count(observed, expected)
-            if decision.verdict == "PASS":
-                tests[key] = ("PASS", "MongoDB persisted count matches original frozen oracle under approved count band")
+            if decision.verdict in {"PASS", "FAIL"}:
+                tests[key] = (
+                    decision.verdict,
+                    "MongoDB persisted count matches original frozen oracle under approved count band"
+                    if decision.verdict == "PASS" else
+                    "Executed Spark pipeline completed but validated/original expected count differs from persisted MongoDB evidence",
+                )
         dup_expected = (current.get("spark.duplicates") or {}).get("expected")
         duplicates = after.get("duplicate_business_keys")
         if duplicates == 0 and dup_expected == 0:
