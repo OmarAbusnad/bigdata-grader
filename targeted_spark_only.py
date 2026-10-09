@@ -10,6 +10,7 @@ from grader.sandbox import DockerSandbox, SandboxConfig
 from grader.runtime_evidence import detect_engine
 from grader.spark_probe import ensure_large_clean_probe
 from grader.spark_dependency_audit import check_submission
+from grader.sandbox_runtime import _format_threshold_env
 
 
 def main():
@@ -78,7 +79,7 @@ def main():
                            business_key=plan.get("business_key") or "order_id")
         mongo.ping()
         mongo.drop_database()
-        threshold = float(runtime.get("threshold_mb_used") or 20)
+        threshold = _format_threshold_env(float(runtime.get("threshold_mb_used") or 20))
         env={
             "MONGO_DB_NAME":db,"MONGO_DATABASE":db,"DATABASE_NAME":db,
             "MONGODB_DATABASE":db,"DB_NAME":db,
