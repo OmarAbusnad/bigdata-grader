@@ -22,6 +22,7 @@ def test_prewarm_opt_in_declaration_only(tmp_path,monkeypatch):
     assert "RUN bash /workspace/.grader.spark-prewarm.sh" in image
     assert "--packages \"$packages\"" in script
     assert "GRADER_SPARK_PREFETCH_RC" in script
+    assert "chown -R student:student /home/student/.ivy2" in script
     assert sandbox._spark_prefetch["enabled"] is True
     assert "10.3.0" in (sandbox.build_context/".grader.spark-prefetch.txt").read_text()
     assert (sandbox.build_context/".grader.spark-cache-only.py").read_text().strip()=='print("GRADER_SPARK_PACKAGE_CACHE_ONLY")'
