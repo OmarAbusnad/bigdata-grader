@@ -29,12 +29,12 @@ def main():
     command=(case or {}).get("command") or ""
     if not command.startswith(("python ", "python3 ", "py ")):
         raise ValueError("Only frozen Python Spark-stage commands may be retried")
-    sources = re.findall(r"/grader-tests/([A-Za-z0-9_.-]+\\.csv)", command)
+    sources = re.findall(r"/grader-tests/([A-Za-z0-9_.-]+\.csv)", command)
     if len(sources) != 1:
         raise ValueError("Exactly one documented frozen Spark-stage input is required")
     source_name = sources[0]
     if not (source_name == "test_02_large_spark.csv" or
-            re.fullmatch(r"dynamic_spark_probe_[0-9]+mb\\.csv", source_name)):
+            re.fullmatch(r"dynamic_spark_probe_[0-9]+mb\.csv", source_name)):
         raise ValueError("Refuse any Spark dataset not present in original test02")
     if any(m in command for m in ("&&","||",";","|",">","<",chr(96),"$(")):
         raise ValueError("Shell metacharacters blocked")
@@ -46,7 +46,7 @@ def main():
     if source_name == file.name:
         shutil.copy2(file, visible / file.name)
     else:
-        mb = float(re.fullmatch(r"dynamic_spark_probe_([0-9]+)mb\\.csv", source_name).group(1))
+        mb = float(re.fullmatch(r"dynamic_spark_probe_([0-9]+)mb\.csv", source_name).group(1))
         generated, _, _ = ensure_large_clean_probe(file, visible, mb)
         if generated.name != source_name:
             raise ValueError("Generated original Spark probe filename mismatch")
