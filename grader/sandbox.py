@@ -338,6 +338,29 @@ class DockerSandbox:
                 (self.build_context / ".grader.spark-prewarm.sh").write_text(
                     "\n".join(prewarm_script) + "\n", encoding="utf-8",
                 )
+                # Resolve saved Maven/Ivy metadata using a local filesystem
+                # resolver. Spark must NEVER query Maven Central from a student's
+                # network-isolated runtime; dynamic transitive ranges must be
+                # resolvable against the prewarmed Ivy metadata instead.
+                (self.build_context / ".grader.spark-offline-ivy.xml").write_text(
+                    '<ivysettings>\n'
+                    '  <settings defaultResolver="offline-artifacts"/>\n'
+                    '  <resolvers>\n'
+                    '    <filesystem name="offline-artifacts" local="true">\n'
+                    '      <ivy pattern="/home/student/.ivy2/cache/[organisation]/[module]/ivy-[revision].xml"/>\n'
+                    '      <artifact pattern="/home/student/.ivy2/cache/[organisation]/[module]/[type]s/[artifact]-[revision](-[classifier]).[ext]"/>\n'
+                    '    </filesystem>\n'
+                    '  </resolvers>\n'
+                    '</ivysettings>\n',
+                    encoding="utf-8",
+                )
+                spark_conf = self.build_context / ".grader.spark-conf"
+                spark_conf.mkdir(exist_ok=True)
+                (spark_conf / "spark-defaults.conf").write_text(
+                    "spark.jars.ivySettings file:///workspace/.grader.spark-offline-ivy.xml\n"
+                    "spark.jars.ivy /home/student/.ivy2\n",
+                    encoding="utf-8",
+                )
         self._spark_prefetch = spark_prefetch
 
         install_source = ".grader.requirements.combined.txt" if combined_req.is_file() and manifest_meta.get("line_count") else "requirements.txt"
@@ -350,6 +373,10 @@ class DockerSandbox:
                  '&& /opt/student-venv/bin/pip install --no-cache-dir -r .grader.requirements.compat.txt))'
         )
 
+        spark_runtime_conf = (
+            "SPARK_CONF_DIR=/workspace/.grader.spark-conf"
+            if getattr(self, "_spark_prefetch", {}).get("enabled") else ""
+        )
         prewarm_step = (
             "RUN bash /workspace/.grader.spark-prewarm.sh"
             if getattr(self, "_spark_prefetch", {}).get("enabled") else ""
@@ -369,7 +396,8 @@ class DockerSandbox:
             ENV PATH=/opt/student-venv/bin:$PATH \
                 PYTHONUNBUFFERED=1 \
                 HOME=/tmp/student-home \
-                SPARK_LOCAL_IP=127.0.0.1
+                SPARK_LOCAL_IP=127.0.0.1 \
+                {spark_runtime_conf}
             RUN mkdir -p /tmp/student-home /workspace/reports /workspace/data && chmod -R a+rwx /tmp/student-home /workspace/reports /workspace/data
             USER student
         """).strip() + "\n"
