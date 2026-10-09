@@ -1,3 +1,2 @@
-Targeted MIDTERM ONLY: P46,P49.
-Frozen run 37390623044. Both previously 0 PASS and root cause GRADER_DISCOVERY_FAILURE; all other student projects untouched.
-No official grades or student code edits.
+Only P08 Midterm previously unexecuted due to low confidence / Gemini provider failure.
+Freeze 37390623044; P08 only. No previous PASS may be lost; no Final execution or Issues or grading approval.
