@@ -74,8 +74,8 @@ def spark_recovery_overlay(original: dict[str, Any], proof: dict[str, Any], *,
                 )
         dup_expected = (current.get("spark.duplicates") or {}).get("expected")
         duplicates = after.get("duplicate_business_keys")
-        if duplicates == 0 and dup_expected == 0:
-            tests["spark.duplicates"] = ("PASS", "MongoDB duplicate business keys = 0")
+        if duplicates == 0 and dup_expected == 0 and int(after.get("validated") or 0) > 0:
+            tests["spark.duplicates"] = ("PASS", "Unique business keys verified on non-empty validated dataset")
 
         for key,(verdict,reason) in tests.items():
             current_test = current.get(key) or {}
