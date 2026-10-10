@@ -369,6 +369,65 @@ class Ledger:
                 entry["flags"].append("sha_not_in_proof")
         return n
 
+    @staticmethod
+    def _http_transport_timeout(response: Any) -> bool:
+        """Distinguish no-response timeout from HTTP 4xx/5xx application failure."""
+        if not isinstance(response, dict) or response.get("status") is not None:
+            return False
+        error = str(response.get("error") or "").lower()
+        return ("timeout" in error or "timed out" in error) and response.get("ok") is not True
+
+    def apply_frozen_transport_preconditions(self, *, base_run_id: int) -> dict[str, Any]:
+        """Adjudicate only provably uncompleted HTTP probes in frozen FINAL evidence.
+
+        Never infer an endpoint PASS, never downgrade a real HTTP error, never
+        rewrite a later PASS. No student reruns or human grade approvals.
+        """
+        checked = 0
+        changes = []
+        source = {"type": "frozen_http_timeout_precondition",
+                  "run_id": base_run_id}
+        for pid, proj in sorted(self.projects.items()):
+            checked += 1
+            probe = self._base_probes.get(pid) or {}
+            tests: dict[str, Any] = {
+                "final.mv.refresh": probe.get("refresh_mv_first"),
+                "final.mv.incremental": probe.get("refresh_mv_second"),
+            }
+            attempts = probe.get("ingest_attempts") or []
+            if (isinstance(attempts, list) and attempts
+                    and all(self._http_transport_timeout(a.get("response")) for a in attempts
+                            if isinstance(a, dict))
+                    and all(isinstance(a, dict) for a in attempts)):
+                tests["final.api.ingest"] = attempts[0].get("response")
+            for key, response in tests.items():
+                if not self._http_transport_timeout(response):
+                    continue
+                existing = proj["phases"]["final"]["entries"].get(key)
+                if not existing or existing.get("verdict") != "FAIL":
+                    continue
+                base_entry = self._base_assertions.get(pid, {}).get("final", {}).get(key) or {}
+                if base_entry.get("verdict") != "FAIL":
+                    continue
+                verdict = self.apply_change(
+                    pid, "final", key, "INCONCLUSIVE", source,
+                    allowed_from={"FAIL"}, may_downgrade_fail=True,
+                    detail={
+                        "reason": "Frozen HTTP request timed out without an HTTP status; functionality not proven or disproven",
+                        "observed": {"http_status": None, "transport_error": response.get("error")},
+                        "scope": "original_final_probe_only",
+                    },
+                )
+                if verdict == "replaced":
+                    changes.append({"project_id": pid, "phase": "final",
+                                    "key": key, "from": "FAIL", "to": "INCONCLUSIVE",
+                                    "source_run": base_run_id,
+                                    "evidence": str(response.get("error"))[:200]})
+        stats = {"type": "frozen_http_timeout_precondition", "run_id": base_run_id,
+                 "projects_checked": checked, "changes": len(changes), "cases": changes}
+        self.sources.append(stats)
+        return stats
+
     def apply_rulings(self, rulings: list[dict[str, Any]]) -> int:
         n = 0
         for r in rulings:
