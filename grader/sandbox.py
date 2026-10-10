@@ -395,6 +395,8 @@ class DockerSandbox:
             {prewarm_step}
             {spark_runtime_conf}
             ENV PATH=/opt/student-venv/bin:$PATH \
+                PYSPARK_PYTHON=/opt/student-venv/bin/python \
+                PYSPARK_DRIVER_PYTHON=/opt/student-venv/bin/python \
                 PYTHONUNBUFFERED=1 \
                 HOME=/tmp/student-home \
                 SPARK_LOCAL_IP=127.0.0.1

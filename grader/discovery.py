@@ -128,6 +128,10 @@ def _documented_ingest_command(repo: Path, readme: str) -> tuple[str | None, str
     import shlex
 
     candidates: list[tuple[int, str, str | None]] = []
+    # Documented pipeline commands that take NO input argument because the program reads a fixed
+    # CSV path itself. They are used only when nothing better exists; the sandbox then stages the
+    # test file at the path the program reports as missing (see grader/input_staging.py).
+    fixed_input_candidates: list[tuple[int, str, str | None]] = []
     for raw_line in readme.splitlines():
         line = raw_line.strip().strip("`").strip()
         if not line or any(x in line for x in ["│", "├", "└", "─", "|--", "+--"]):
@@ -214,6 +218,11 @@ def _documented_ingest_command(repo: Path, readme: str) -> tuple[str | None, str
             replaced_file = True
 
         if not replaced_file:
+            stem = target_file.stem.lower()
+            reads_csv = bool(re.search(r"\.csv|read_csv|csv\.(?:reader|DictReader)|spark\.read", code, re.I))
+            if reads_csv and not any(w in stem for w in ("test", "benchmark", "demo", "view", "aggregation", "quer", "index", "job", "api", "server")):
+                fixed_score = 3 if any(w in stem for w in ("main", "run", "pipeline", "elt", "etl", "ingest", "load")) else 1
+                fixed_input_candidates.append((fixed_score, " ".join(normalized), entrypoint))
             continue
 
         for i, tok in enumerate(normalized[:-1]):
@@ -239,6 +248,9 @@ def _documented_ingest_command(repo: Path, readme: str) -> tuple[str | None, str
         candidates.append((score, cmd, entrypoint))
 
     if not candidates:
+        if fixed_input_candidates:
+            fixed_input_candidates.sort(key=lambda x: -x[0])
+            return fixed_input_candidates[0][1], fixed_input_candidates[0][2]
         return None, None
     candidates.sort(key=lambda x: -x[0])
     return candidates[0][1], candidates[0][2]
@@ -520,6 +532,9 @@ def discover_execution_plan(repo_path: str | Path) -> ExecutionPlan:
             evidence.append("Safe interactive ingestion path discovered using AST; student code unchanged")
         if documented_cmd:
             evidence.append("Ingest command source: validated README command")
+            if "{file}" not in documented_cmd and not interactive_stdin:
+                evidence.append("Documented command takes no input argument (fixed CSV path); test file will be staged on demand")
+                score += 0.15
         score += 0.25
     if setup_cmd:
         evidence.append(f"Setup command: {setup_cmd}")

@@ -704,8 +704,24 @@ if [ -z "$FINAL_API_TARGET" ]; then
   echo "FINAL_API_TARGET is required"
   exit 2
 fi
-python -m uvicorn "$FINAL_API_TARGET" --host 127.0.0.1 --port 8000 >/tmp/final-api.log 2>&1 &
-pid=$!
+start_api() {
+  python -m uvicorn "$FINAL_API_TARGET" --host 127.0.0.1 --port 8000 >/tmp/final-api.log 2>&1 &
+  pid=$!
+}
+start_api
+# Documented alternative launch (e.g. `python src/api.py`) puts the module's own directory on
+# sys.path. If uvicorn from the repo root fails on a sibling-module import, retry once with that
+# directory appended (never prepended, so it cannot shadow the standard library).
+sleep 4
+if ! kill -0 "$pid" 2>/dev/null && grep -q "No module named" /tmp/final-api.log 2>/dev/null; then
+  mod_path="${FINAL_API_TARGET%%:*}"
+  mod_dir="$(dirname "${mod_path//./\/}")"
+  if [ -d "/workspace/$mod_dir" ] && [ "$mod_dir" != "." ]; then
+    echo "[grader] retrying API start with module directory on sys.path: /workspace/$mod_dir" >>/tmp/final-api.log
+    export PYTHONPATH="${PYTHONPATH:-}:/workspace/$mod_dir"
+    start_api
+  fi
+fi
 cleanup() {
   kill "$pid" >/dev/null 2>&1 || true
   wait "$pid" >/dev/null 2>&1 || true
@@ -1297,7 +1313,15 @@ def run_final_suite(
 
         static = final_plan.get("static") or {}
         explain_doc = explain_compliance(repo)
-        explain_pass = bool(explain_doc.get("supported") and ixscan_hits >= 1)
+        # The static scanner counts explain() call sites and can miss loops/helpers. Independent
+        # runtime proof (>= 3 distinct IXSCAN queries) plus the documented executionStats,
+        # before/after comparison and rationale satisfies the requirement as well.
+        documented = bool(explain_doc.get("execution_stats") and explain_doc.get("before_after")
+                          and explain_doc.get("rationale"))
+        explain_pass = bool(
+            (explain_doc.get("supported") and ixscan_hits >= 1)
+            or (documented and ixscan_hits >= 3)
+        )
         explain_partial = bool(explain_doc.get("supported") or ixscan_hits >= 1)
         assertions.append(_assertion(
             "final.indexes.explain",

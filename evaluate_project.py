@@ -29,6 +29,13 @@ from evaluate_final import (
 )
 
 
+# 4.4: format-tolerant cleaning comparison, schema-agnostic record reader, fixed-input staging,
+#      documented API start fallback, Spark worker interpreter. Reruns on this version supersede
+#      older non-PASS verdicts of the same frozen commit (a PASS is never replaced).
+GRADER_VERSION = "4.4-unified"
+FINAL_GRADER_VERSION = "final-v1.3-unified"
+
+
 def find_submission(csv_path: Path, project_id: str) -> dict[str, str]:
     with csv_path.open(encoding="utf-8-sig", newline="") as f:
         for row in csv.DictReader(f):
@@ -419,7 +426,7 @@ def main() -> int:
                 "error": environment.get("error"),
             }
         midterm_payload = {
-            "grader_version": "4.3-unified",
+            "grader_version": GRADER_VERSION,
             "project_id": project_id,
             "students": row.get("students", ""),
             "student_nos": row.get("student_nos", ""),
@@ -448,7 +455,7 @@ def main() -> int:
                 "assertions": [],
             }
         final_payload = {
-            "grader_version": "final-v1.2-unified",
+            "grader_version": FINAL_GRADER_VERSION,
             "project_id": project_id,
             "students": row.get("students", ""),
             "student_nos": row.get("student_nos", ""),
@@ -472,7 +479,7 @@ def main() -> int:
         final_md = None
 
     unified = {
-        "grader_version": "4.3-unified",
+        "grader_version": GRADER_VERSION,
         "project_id": project_id,
         "students": row.get("students", ""),
         "student_nos": row.get("student_nos", ""),

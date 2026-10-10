@@ -332,3 +332,86 @@ def test_transport_respects_later_pass_and_mixed_http_results(base,tmp_path):
         "status":None,"error":"TimeoutError: timed out"}}]}
     assert ledger.apply_frozen_transport_preconditions(base_run_id=1)["changes"]==0
     assert entry(ledger,"P05","final","final.api.ingest")["verdict"]=="PASS"
+
+
+def final_report(pid, assertions, version="final-v1.3-unified", sha=SHA):
+    r = fin(pid, assertions, sha=sha)
+    r["grader_version"] = version
+    r["final_plan"] = {}
+    return r
+
+
+def test_authoritative_rerun_may_downgrade_fail_but_never_touch_pass(base, tmp_path):
+    ledger = build(base)
+    ov = tmp_path / "rerun"
+    rep = mid("P05", {"upsert.final_validated": A("INCONCLUSIVE", 600, "590"),
+                      "batch_pipeline.command": A("FAIL")})
+    rep["grader_version"] = "4.4-unified"
+    rep["execution_plan"] = {}
+    write(ov / "regrade-P05-1/reports/P05/result.json", rep)
+    ledger.apply_overlay_dir(ov, run_id=11)
+    assert entry(ledger, "P05", "midterm", "upsert.final_validated")["verdict"] == "INCONCLUSIVE"  # FAIL -> review
+    assert entry(ledger, "P05", "midterm", "batch_pipeline.command")["verdict"] == "PASS"  # PASS untouched
+    assert any(c["reason"] == "would_overwrite_pass" for c in ledger.conflicts)
+
+
+def test_old_grader_rerun_still_cannot_erase_a_fail(base, tmp_path):
+    ledger = build(base)
+    ov = tmp_path / "rerun"
+    rep = mid("P05", {"upsert.final_validated": A("INCONCLUSIVE")})
+    rep["grader_version"] = "4.3-unified"
+    rep["execution_plan"] = {}
+    write(ov / "regrade-P05-1/reports/P05/result.json", rep)
+    ledger.apply_overlay_dir(ov, run_id=11)
+    assert entry(ledger, "P05", "midterm", "upsert.final_validated")["verdict"] == "FAIL"
+
+
+def test_final_full_report_is_applied(base, tmp_path):
+    ledger = build(base)
+    ov = tmp_path / "rerun"
+    write(ov / "regrade-P05-1/reports_final/P05/result.json",
+          final_report("P05", {"final.api.ingest": A("PASS"), "final.api.health": A("PASS")}))
+    stats = ledger.apply_overlay_dir(ov, run_id=12)
+    assert stats["final_reports"] == 1 and stats["ignored_files"] == 0
+    assert entry(ledger, "P05", "final", "final.api.ingest")["verdict"] == "PASS"
+
+
+def test_unified_summary_is_metadata_not_unknown(base, tmp_path):
+    ledger = build(base)
+    ov = tmp_path / "rerun"
+    write(ov / "regrade-P05-1/reports_unified/P05/result.json",
+          {"project_id": "P05", "commit_sha": SHA, "mode": "all", "midterm": {}, "final": {}})
+    write(ov / "regrade-P05-1/reports/P05/result.json",
+          {**mid("P05", {"spark.raw_count": A("PASS")}), "grader_version": "4.4-unified", "execution_plan": {}})
+    stats = ledger.apply_overlay_dir(ov, run_id=13)
+    assert stats["metadata_files"] == 1 and stats["ignored_files"] == 0
+
+
+def test_same_verdict_refreshes_displayed_reason(base, tmp_path):
+    ledger = build(base)
+    ov = tmp_path / "rerun"
+    rep = mid("P05", {"spark.raw_count": A("INCONCLUSIVE", 100000, 0)})
+    rep["runtime"]["assertions"]["spark.raw_count"]["note"] = "Blocked by Spark/Maven dependency resolution"
+    rep["execution_plan"] = {}
+    write(ov / "t/reports/P05/result.json", rep)
+    ledger.apply_overlay_dir(ov, run_id=14)
+    e = entry(ledger, "P05", "midterm", "spark.raw_count")
+    assert "Maven" in e["note"] and e["origin"]["run_id"] == 14
+
+
+def test_final_explain_rule_uses_saved_runtime_evidence_only(base):
+    ledger = build(base)
+    ledger.projects["P05"]["phases"]["final"]["entries"]["final.indexes.explain"] = {
+        "verdict": "INCONCLUSIVE", "expected": None,
+        "actual": json.dumps({"supported": False, "execution_stats": True, "before_after": True,
+                              "rationale": True, "runtime_ixscan_hits": 4}),
+        "note": None, "origin": {"type": "base", "run_id": 1}, "history": [], "flags": []}
+    ledger.projects["P06"]["phases"]["final"]["entries"]["final.indexes.explain"] = {
+        "verdict": "INCONCLUSIVE", "expected": None,
+        "actual": json.dumps({"supported": False, "execution_stats": True, "before_after": True,
+                              "rationale": True, "runtime_ixscan_hits": 1}),
+        "note": None, "origin": {"type": "base", "run_id": 1}, "history": [], "flags": []}
+    stats = ledger.apply_final_explain_rule(base_run_id=1)
+    assert stats["changes"] == 1
+    assert entry(ledger, "P05", "final", "final.indexes.explain")["verdict"] == "PASS"
+    assert entry(ledger, "P06", "final", "final.indexes.explain")["verdict"] == "INCONCLUSIVE"

@@ -21,6 +21,7 @@ Merge rules (deliberately conservative):
 from __future__ import annotations
 
 import json
+import re
 import zipfile
 from pathlib import Path
 from typing import Any, Iterator
@@ -73,6 +74,16 @@ def iter_json(root: Path, *, strict: bool = False) -> Iterator[tuple[str, Any]]:
         except (zipfile.BadZipFile, OSError) as exc:
             if strict:
                 raise ValueError(f"Corrupt evidence ZIP: {archive}: {exc}") from exc
+
+
+def _authoritative(report: dict[str, Any]) -> bool:
+    """Reports produced by the format-tolerant grader (>= 4.4 / final >= 1.3)."""
+    v = str(report.get("grader_version") or "")
+    m = re.match(r"^(?:final-v)?(\d+)\.(\d+)", v)
+    if not m:
+        return False
+    major, minor = int(m.group(1)), int(m.group(2))
+    return (major, minor) >= ((1, 3) if v.startswith("final-v") else (4, 4))
 
 
 def _is_midterm_report(name: str, obj: Any) -> bool:
@@ -197,6 +208,11 @@ class Ledger:
             return "added"
         if cur["verdict"] == to:
             cur["history"].append({**record, "kind": "corroborated"})
+            reason = (detail or {}).get("reason")
+            if reason and reason != cur.get("note") and source.get("type") in {"midterm_full", "final_full", "spark_recovery"}:
+                cur["history"][-1]["previous_note"] = cur.get("note")
+                cur["note"] = _clip(reason)  # latest evidence wins in the review queue
+                cur["origin"] = source
             return "same"
         if allowed_from is not None and cur["verdict"] not in allowed_from:
             self.conflicts.append({"reason": "precondition_mismatch", "current": cur["verdict"],
@@ -232,7 +248,7 @@ class Ledger:
         if not root.is_dir():
             raise ValueError(f"Requested overlay run {run_id} is missing: {root}")
         stats: dict[str, Any] = {
-            "midterm_reports": 0, "evidence_overlays": 0, "spark_proofs": 0,
+            "midterm_reports": 0, "final_reports": 0, "evidence_overlays": 0, "spark_proofs": 0,
             "final_proofs": 0, "metadata_files": 0, "ignored_files": 0,
             "files_seen": 0, "recognized_files": 0, "changes": 0,
             "files": [],
@@ -246,6 +262,10 @@ class Ledger:
                 kind = "midterm_full"
                 stats["midterm_reports"] += 1
                 changed = self._midterm_full(obj, {**source, "type": kind})
+            elif _is_final_report(name, obj):
+                stats["final_reports"] = stats.get("final_reports", 0) + 1
+                changed = self._final_full(obj, {**source, "type": "final_full"})
+                kind = "final_full"
             elif isinstance(obj, dict) and isinstance(obj.get("projects"), dict) \
                     and obj.get("student_tests_reexecuted") == 0:
                 kind = "evidence_overlay"
@@ -260,6 +280,10 @@ class Ledger:
                 kind = "final_proof"
                 stats["final_proofs"] += 1
                 changed = self._final_proof(obj, {**source, "type": kind})
+            elif (isinstance(obj, dict) and "project_id" in obj and "mode" in obj and "runtime" not in obj
+                  and ("midterm" in obj or "final" in obj) and "unified" in name):
+                kind = "unified_summary"  # per-project summary; the graded evidence is in reports/ and reports_final/
+                stats["metadata_files"] += 1
             elif (isinstance(obj, dict) and obj.get("container") in {"rar", "zip"}
                   and obj.get("student_code_executed_during_extraction") is False
                   and obj.get("official_result_modified") is False
@@ -315,8 +339,38 @@ class Ledger:
             if isinstance(a, dict) and a.get("verdict") in VERDICTS:
                 n += self._changed(self.apply_change(
                     pid, "midterm", key, a["verdict"], source, sha=sha,
+                    may_downgrade_fail=_authoritative(report),
                     detail={"expected": a.get("expected"), "observed": a.get("actual"),
                             "reason": a.get("note") or "narrow midterm rerun after grader fix"}))
+        return n
+
+    def _final_full(self, report: dict, source: dict) -> int:
+        pid = report["project_id"]
+        proj = self.projects.get(pid)
+        if proj is None:
+            self._reject("unknown_project", project_id=pid, source=source)
+            return 0
+        sha = report.get("commit_sha")
+        if sha and proj["frozen_sha"] and sha != proj["frozen_sha"]:
+            self._reject("sha_mismatch", project_id=pid, phase="final", source=source,
+                         expected_sha=proj["frozen_sha"], got_sha=sha)
+            return 0
+        runtime = report["runtime"]
+        raw = runtime.get("assertions") or []
+        items = ([(a["key"], a) for a in raw if isinstance(a, dict) and a.get("key")]
+                 if isinstance(raw, list) else list(raw.items()))
+        ph = proj["phases"]["final"]
+        if runtime.get("status") != ph["status"]:
+            ph.setdefault("status_history", []).append({"from": ph["status"], "to": runtime.get("status"), "source": source})
+            ph["status"] = runtime.get("status")
+        n = 0
+        for key, a in items:
+            if isinstance(a, dict) and a.get("verdict") in VERDICTS:
+                n += self._changed(self.apply_change(
+                    pid, "final", key, a["verdict"], source, sha=sha,
+                    may_downgrade_fail=_authoritative(report),
+                    detail={"expected": a.get("expected"), "observed": a.get("actual"),
+                            "reason": a.get("note") or "final rerun after grader fix"}))
         return n
 
     def _evidence_overlay(self, obj: dict, source: dict) -> int:
@@ -432,6 +486,35 @@ class Ledger:
                                     "evidence": str(response.get("error"))[:200]})
         stats = {"type": "frozen_http_timeout_precondition", "run_id": base_run_id,
                  "projects_checked": checked, "changes": len(changes), "cases": changes}
+        self.sources.append(stats)
+        return stats
+
+    def apply_final_explain_rule(self, *, base_run_id: int) -> dict[str, Any]:
+        """Re-adjudicate final.indexes.explain INCONCLUSIVE from saved evidence only.
+
+        The static scanner (`supported`) can under-count explain() call sites. When the saved
+        evidence shows executionStats + before/after + rationale AND >= 3 distinct runtime IXSCAN
+        queries, the requirement is met. Never touches PASS/FAIL, never runs student code.
+        """
+        source = {"type": "evidence_rule_final_explain", "run_id": base_run_id}
+        changes = []
+        for pid, proj in sorted(self.projects.items()):
+            e = proj["phases"]["final"]["entries"].get("final.indexes.explain")
+            if not e or e["verdict"] != "INCONCLUSIVE" or e["origin"].get("type") != "base":
+                continue
+            try:
+                doc = json.loads(e["actual"]) if isinstance(e["actual"], str) else dict(e["actual"] or {})
+            except (TypeError, ValueError):
+                continue
+            if (doc.get("execution_stats") and doc.get("before_after") and doc.get("rationale")
+                    and int(doc.get("runtime_ixscan_hits") or 0) >= 3):
+                r = self.apply_change(
+                    pid, "final", "final.indexes.explain", "PASS", source, allowed_from={"INCONCLUSIVE"},
+                    detail={"reason": "executionStats + before/after + rationale documented and >=3 runtime IXSCAN queries; static call-site count was incomplete",
+                            "observed": {"runtime_ixscan_hits": doc.get("runtime_ixscan_hits")}})
+                if r == "replaced":
+                    changes.append({"project_id": pid, "key": "final.indexes.explain"})
+        stats = {"type": "evidence_rule_final_explain", "run_id": base_run_id, "changes": len(changes), "cases": changes}
         self.sources.append(stats)
         return stats
 

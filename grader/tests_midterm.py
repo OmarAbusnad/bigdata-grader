@@ -7,7 +7,7 @@ from .models import AssertionResult, RuntimeCaseResult
 from .runner import render_command, run_command
 from .mongo_checker import MongoChecker
 from .oracle import HiddenOracle, OracleCase
-from .normalization import compare_clean_record, clean_payload, audit_entries, error_codes, semantic_equal
+from .normalization import compare_clean_record, clean_payload, audit_entries, error_codes, semantic_equal, records_equivalent
 from .runtime_evidence import find_latest_metrics, detect_engine, find_metric_value
 from .spark_probe import ensure_large_clean_probe
 
@@ -71,6 +71,12 @@ def _engine_assertion(name: str, engine: str | None, expected: str, evidence: li
              'تم ضبط حد الاختبار عبر CLI/Environment عندما يدعم المشروع ذلك.')
 
 
+# Cleaning-style sample checks are deliberately tolerant: the assignment does not fix exact canonical
+# spellings, so only a clearly low match rate is a failure and the middle band stays 'review'.
+SAMPLE_PASS_AT = .70
+SAMPLE_FAIL_BELOW = .40
+
+
 def _ratio_assertion(key: str, label: str, passed: int, total: int, pass_at: float = .80, fail_below: float = .50,
                      evidence: list[str] | None = None) -> AssertionResult:
     if total == 0:
@@ -99,8 +105,8 @@ def _verify_clean_samples(mongo: MongoChecker, cases: list[OracleCase]) -> tuple
         elif len(audit_evidence) < 8:
             audit_evidence.append(f'{case.expected_order_id}: no audit entries')
     return (
-        _ratio_assertion('batch.cleaning_samples', 'عينات Cleaning مطابقة للـOracle', good, checked, evidence=evidence),
-        _ratio_assertion('batch.audit_trail', 'Audit Trail موجود للحالات المصححة', audit_good, checked, evidence=audit_evidence),
+        _ratio_assertion('batch.cleaning_samples', 'عينات Cleaning مطابقة للـOracle', good, checked, pass_at=SAMPLE_PASS_AT, fail_below=SAMPLE_FAIL_BELOW, evidence=evidence),
+        _ratio_assertion('batch.audit_trail', 'Audit Trail موجود للحالات المصححة', audit_good, checked, pass_at=SAMPLE_PASS_AT, fail_below=SAMPLE_FAIL_BELOW, evidence=audit_evidence),
     )
 
 
@@ -132,7 +138,7 @@ def _verify_upsert_actions(mongo: MongoChecker, inserts: list[OracleCase], updat
             ins_good += 1
         elif len(ins_ev) < 6:
             ins_ev.append(f'{c.expected_order_id}: {"; ".join(notes) or "not found"}')
-    out.append(_ratio_assertion('upsert.insert_samples', 'عينات Insert الجديدة صحيحة', ins_good, ins_total, evidence=ins_ev))
+    out.append(_ratio_assertion('upsert.insert_samples', 'عينات Insert الجديدة صحيحة', ins_good, ins_total, pass_at=SAMPLE_PASS_AT, fail_below=SAMPLE_FAIL_BELOW, evidence=ins_ev))
 
     upd_good = upd_total = 0
     upd_ev = []
@@ -144,12 +150,12 @@ def _verify_upsert_actions(mongo: MongoChecker, inserts: list[OracleCase], updat
         after_doc = mongo.find_validated(c.expected_order_id)
         after = clean_payload(after_doc)
         matches, notes = compare_clean_record(after_doc, c.expected_clean_record)
-        changed = bool(before) and not semantic_equal(before, after)
+        changed = bool(before) and not records_equivalent(before_updates.get(c.expected_order_id), after_doc)
         if matches and changed:
             upd_good += 1
         elif len(upd_ev) < 6:
             upd_ev.append(f'{c.expected_order_id}: matches={matches}, changed={changed}; {"; ".join(notes)}')
-    out.append(_ratio_assertion('upsert.update_samples', 'عينات Update غيّرت السجل الموجود إلى القيمة المتوقعة', upd_good, upd_total, evidence=upd_ev))
+    out.append(_ratio_assertion('upsert.update_samples', 'عينات Update غيّرت السجل الموجود إلى القيمة المتوقعة', upd_good, upd_total, pass_at=SAMPLE_PASS_AT, fail_below=SAMPLE_FAIL_BELOW, evidence=upd_ev))
 
     same_good = same_total = 0
     same_ev = []
@@ -157,12 +163,12 @@ def _verify_upsert_actions(mongo: MongoChecker, inserts: list[OracleCase], updat
         same_total += 1
         before = clean_payload(before_unchanged.get(c.expected_order_id))
         after = clean_payload(mongo.find_validated(c.expected_order_id))
-        ok = bool(before) and semantic_equal(before, after)
+        ok = bool(before) and records_equivalent(before_unchanged.get(c.expected_order_id), mongo.find_validated(c.expected_order_id))
         if ok:
             same_good += 1
         elif len(same_ev) < 6:
             same_ev.append(f'{c.expected_order_id}: business payload changed or record missing')
-    out.append(_ratio_assertion('upsert.unchanged_samples', 'عينات Unchanged بقيت دون تغيير في بيانات الأعمال', same_good, same_total, evidence=same_ev))
+    out.append(_ratio_assertion('upsert.unchanged_samples', 'عينات Unchanged بقيت دون تغيير في بيانات الأعمال', same_good, same_total, pass_at=SAMPLE_PASS_AT, fail_below=SAMPLE_FAIL_BELOW, evidence=same_ev))
     return out
 
 
