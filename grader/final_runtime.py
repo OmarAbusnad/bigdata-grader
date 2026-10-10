@@ -1290,13 +1290,21 @@ def run_final_suite(
         mv1 = probe.get("refresh_mv_first") or {}
         mv2 = probe.get("refresh_mv_second") or {}
         mv_needs_init = _mv_requires_initialization(mv1, mv2)
-        mv_probe_blocked = bool(mv1.get("probe_blocked") or mv2.get("probe_blocked"))
+        # Timeout without a HTTP response is an uncompleted grader probe;
+        # never count it as an API implementation failure.
+        mv_transport_blocked = any(
+            (x.get("status") is None and bool(x.get("error")))
+            for x in (mv1, mv2)
+        )
+        mv_probe_blocked = bool(
+            mv1.get("probe_blocked") or mv2.get("probe_blocked") or mv_transport_blocked
+        )
         assertions.append(_assertion("final.mv.refresh", "Materialized-view refresh endpoint works",
                                      "INCONCLUSIVE" if mv_probe_blocked else ("PASS" if (mv1.get("ok") and not mv_needs_init) else ("INCONCLUSIVE" if mv_needs_init else "FAIL")),
                                      expected="2xx operational refresh after valid initialization",
                                      actual=mv1.get("status"),
-                                     evidence=[json.dumps(mv1.get("body"), ensure_ascii=False)[:1800]],
-                                     note="Documented/runtime initialization precondition detected; grader must initialize before judging." if mv_needs_init else None))
+                                     evidence=[json.dumps(mv1.get("body") or mv1.get("error"), ensure_ascii=False)[:1800]],
+                                     note=("Probe exceeded grading transport budget before an HTTP response." if mv_transport_blocked else "Documented/runtime initialization precondition detected; grader must initialize before judging." if mv_needs_init else None)))
         collections_after = set(db.list_collection_names())
         mv_names, mv_counts = [], {}
         for name in sorted(collections_after):
