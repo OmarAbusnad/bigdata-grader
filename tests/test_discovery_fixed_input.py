@@ -38,3 +38,12 @@ def test_non_pipeline_modules_are_not_taken(tmp_path):
     })
     plan = discover_execution_plan(tmp_path)
     assert plan.ingest_command is None
+
+
+def test_documented_audit_script_does_not_displace_heuristic_ingest(tmp_path):
+    make(tmp_path, "```\npython scripts/audit_all.py\n```\n", {
+        "scripts/audit_all.py": "import csv\nopen('data/x.csv')\n",
+        "src/main.py": "import argparse\np=argparse.ArgumentParser();p.add_argument('--input')\n",
+    })
+    plan = discover_execution_plan(tmp_path)
+    assert "audit_all" not in (plan.ingest_command or "")

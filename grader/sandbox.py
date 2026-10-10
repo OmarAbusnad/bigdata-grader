@@ -363,14 +363,25 @@ class DockerSandbox:
                 )
         self._spark_prefetch = spark_prefetch
 
+        # Keep an open-ended PySpark requirement binary-compatible with the declared Scala 2.12 connector.
+        constraint_flag = ""
+        try:
+            from .spark_dependency_audit import check_submission as _audit, scala_compat_constraint
+            constraint = scala_compat_constraint(_audit(self.repo))
+            if constraint:
+                (self.build_context / ".grader.constraints.txt").write_text(constraint + "\n", encoding="utf-8")
+                constraint_flag = " -c .grader.constraints.txt"
+        except Exception:
+            constraint_flag = ""
+
         install_source = ".grader.requirements.combined.txt" if combined_req.is_file() and manifest_meta.get("line_count") else "requirements.txt"
         install_clause = (
-            '/opt/student-venv/bin/pip install --no-cache-dir -r .grader.requirements.runtime.txt '
+            f'/opt/student-venv/bin/pip install --no-cache-dir -r .grader.requirements.runtime.txt{constraint_flag} '
             '&& echo "GRADER_REQUIREMENTS_MODE=runtime_profile_large_manifest"'
             if use_runtime_profile
-            else f'(/opt/student-venv/bin/pip install --no-cache-dir -r {install_source} '
+            else f'(/opt/student-venv/bin/pip install --no-cache-dir -r {install_source}{constraint_flag} '
                  '|| (echo "GRADER_REQUIREMENTS_FALLBACK=platform_compat" '
-                 '&& /opt/student-venv/bin/pip install --no-cache-dir -r .grader.requirements.compat.txt))'
+                 f'&& /opt/student-venv/bin/pip install --no-cache-dir -r .grader.requirements.compat.txt{constraint_flag}))'
         )
 
         spark_runtime_conf = (

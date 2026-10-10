@@ -90,3 +90,22 @@ df.write.format("mongodb").save()
     out=check_submission(repo,runtime_error=BLOCKED)
     assert out["owner"]=="GRADER_ENVIRONMENT"
     assert out["declared_coordinates"]==["org.mongodb.spark:mongo-spark-connector_2.13:11.1.0"]
+
+
+from grader.spark_dependency_audit import scala_compat_constraint
+
+
+def test_open_ended_pyspark_with_scala_212_connector_is_capped_below_spark_4():
+    res = {"declared_coordinates": ["org.mongodb.spark:mongo-spark-connector_2.12:10.3.0"],
+           "pyspark_constraints": [{"operator": ">=", "major": 3, "minor": 5, "patch": 0}]}
+    assert scala_compat_constraint(res) == "pyspark<4"
+
+
+def test_pinned_pyspark_or_scala_213_connector_is_never_overridden():
+    pinned = {"declared_coordinates": ["org.mongodb.spark:mongo-spark-connector_2.12:10.3.0"],
+              "pyspark_constraints": [{"operator": "==", "major": 3, "minor": 5, "patch": 1}]}
+    assert scala_compat_constraint(pinned) is None
+    s213 = {"declared_coordinates": ["org.mongodb.spark:mongo-spark-connector_2.13:11.1.0"],
+            "pyspark_constraints": [{"operator": ">=", "major": 3, "minor": 5, "patch": 0}]}
+    assert scala_compat_constraint(s213) is None
+    assert scala_compat_constraint({"declared_coordinates": [], "pyspark_constraints": []}) is None
