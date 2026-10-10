@@ -66,6 +66,7 @@ jobs:
           [ -f ledger_rulings.json ] && rulings=(--rulings ledger_rulings.json)
           python build_ledger.py --base evidence/base --base-run 37874152827 \
             "${args[@]}" "${rulings[@]}" --out ledger_out \
+            --final-explain-rule \
             --frozen-http-preconditions \
             --expected-projects "${{ inputs.expected_projects }}"
       - name: Upload ledger

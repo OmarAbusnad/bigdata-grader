@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .input_staging import missing_csv_path, staged_command
 from .models import ExecutionPlan, RuntimeCaseResult
 from .mongo_checker import MongoChecker
 from .count_policy import compare_count, compare_new_inserts, compare_stability, compare_baseline_replay
@@ -343,6 +344,18 @@ def run_behavioral_suite(
             )
             stdin_text = _render_stdin(plan, rel, effective_db, effective_threshold)
             run = sb.run_student(cmd, env=env, timeout=timeout, stdin_text=stdin_text)
+            input_staging: dict[str, Any] | None = None
+            if int(run.get("returncode") or 0) != 0 and not run.get("timed_out"):
+                target = missing_csv_path(f"{run.get('stderr') or ''}\n{run.get('stdout') or ''}")
+                snap = mongo.snapshot().to_dict()
+                wrote_nothing = not any(int(snap.get(k) or 0) for k in ("raw", "validated", "quarantine"))
+                if target and wrote_nothing:
+                    first_rc = run.get("returncode")
+                    cmd = staged_command(cmd, target, rel)
+                    _live(f"{project_id}: {case_name} read a fixed input path ({target}); staging the test file there and retrying once")
+                    run = sb.run_student(cmd, env=env, timeout=timeout, stdin_text=stdin_text)
+                    input_staging = {"target": target, "source": rel, "first_attempt_returncode": first_rc,
+                                     "reason": "student program reads a fixed CSV path instead of the supplied argument"}
             if _pipeline_completed_before_timeout({
                 "timed_out": run.get("timed_out"),
                 "stdout_tail": str(run.get("stdout") or "")[-12000:],
@@ -421,6 +434,7 @@ def run_behavioral_suite(
                 "stdout_tail": str(run.get("stdout", ""))[-12000:],
                 "stderr_tail": str(run.get("stderr", ""))[-12000:],
                 "stdin_used": bool(stdin_text),
+                "input_staging": input_staging,
             }
             return case, spec
 

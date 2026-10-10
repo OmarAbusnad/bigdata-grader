@@ -133,8 +133,11 @@ def main():
                 after = mongo.snapshot().to_dict()
                 result["database"] = discovered
         result["run"]={"returncode":run.get("returncode"),"timed_out":run.get("timed_out"),
-                       "stdout_tail":str(run.get("stdout") or "")[-1800:],
-                       "stderr_tail":str(run.get("stderr") or "")[-2800:]}
+                       "stdout_tail":str(run.get("stdout") or "")[-6000:],
+                       "stderr_tail":str(run.get("stderr") or "")[-20000:],
+                       # Spark stack traces bury the root cause; keep every "Caused by" line.
+                       "caused_by":[l.strip()[:300] for l in str(run.get("stderr") or "").splitlines()
+                                    if "Caused by" in l or "Error:" in l or "Exception:" in l][-40:]}
         result["before"]=before
         result["after"]=after
         engine,signals=detect_engine(run.get("stdout",""),run.get("stderr",""),None,mongo.distinct_engine_values())

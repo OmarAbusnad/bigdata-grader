@@ -84,6 +84,8 @@ def main() -> int:
     p.add_argument("--rulings", type=Path)
     p.add_argument("--out", type=Path, default=Path("ledger_out"))
     p.add_argument("--expected-projects", type=int)
+    p.add_argument("--final-explain-rule", action="store_true",
+                   help="Re-adjudicate final.indexes.explain INCONCLUSIVE from saved runtime IXSCAN evidence")
     p.add_argument("--frozen-http-preconditions", action="store_true",
                    help="Reclassify frozen Final timeout-without-HTTP FAIL as INCONCLUSIVE (never PASS)")
     a = p.parse_args()
@@ -102,6 +104,9 @@ def main() -> int:
                           "metadata_files": stats["metadata_files"], "ignored_files": stats["ignored_files"],
                           "changes_applied": stats["changes"], "files": stats["files"]},
                          ensure_ascii=False), flush=True)
+    if a.final_explain_rule:
+        stats = ledger.apply_final_explain_rule(base_run_id=a.base_run)
+        print(json.dumps({"final_explain_rule": {"changes": stats["changes"]}}, ensure_ascii=False), flush=True)
     if a.frozen_http_preconditions:
         stats = ledger.apply_frozen_transport_preconditions(base_run_id=a.base_run)
         print(json.dumps({"frozen_http_timeouts": stats}, ensure_ascii=False), flush=True)

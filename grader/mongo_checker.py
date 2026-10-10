@@ -1,4 +1,5 @@
 from __future__ import annotations
+import re
 from dataclasses import dataclass, asdict
 from typing import Any
 
@@ -155,14 +156,29 @@ class MongoChecker:
         return '$jsonSchema' in v or any('$jsonSchema' in (x if isinstance(x, dict) else {}) for x in v.get('$and', []))
 
     def find_validated(self, order_id: str) -> dict[str, Any] | None:
+        """Locate a validated record by business key, tolerating common student schemas."""
         name = self.collections['validated']
         if name not in self.db.list_collection_names():
             return None
-        clauses = []
-        for key in [self.business_key, *BUSINESS_KEY_ALIASES]:
-            if key not in [next(iter(c), None) for c in clauses]:
-                clauses.append({key: order_id})
-        return self.db[name].find_one({'$or': clauses})
+        col = self.db[name]
+        keys = [self.business_key, 'order_id', 'id_order', 'orderId', 'orderid']
+        wrappers = ['', 'record_clean.', 'record.', 'clean_record.', 'cleaned_record.', 'data.', 'payload.',
+                    'document.', 'fields.', 'order.', 'cleaned.', 'clean.', 'normalized.']
+        clauses: list[dict[str, Any]] = []
+        for w in wrappers:
+            for k in dict.fromkeys(keys):
+                clauses.append({f'{w}{k}': order_id})
+        clauses.append({'_id': order_id})
+        doc = col.find_one({'$or': clauses})
+        if doc is not None:
+            return doc
+        # Last resort: a student may have normalised the id prefix (e.g. "ORD-714670" vs "714670").
+        digits = re.sub(r'\D', '', str(order_id))
+        if len(digits) >= 4:
+            pattern = {'$regex': f'(^|[^0-9]){digits}$'}
+            rx = [{f'{w}{k}': pattern} for w in wrappers[:3] for k in dict.fromkeys(keys)]
+            return col.find_one({'$or': rx})
+        return None
 
     def find_raw_by_row(self, data_row_number: int) -> dict[str, Any] | None:
         name = self.collections['raw']
