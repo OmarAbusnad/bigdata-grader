@@ -155,6 +155,33 @@ class MongoChecker:
         v = self.validator('validated') or {}
         return '$jsonSchema' in v or any('$jsonSchema' in (x if isinstance(x, dict) else {}) for x in v.get('$and', []))
 
+    _AUDIT_COLLECTION_HINT = re.compile(r'(audit|correction|change|history|log|trail|fix)', re.I)
+    _AUDIT_KEY_FIELDS = ('order_id', 'id_order', 'orderId', 'business_key', 'record_id', 'entity_id',
+                         'document_id', 'doc_id', 'key', 'record_key', 'original_order_id')
+
+    def external_audit(self, order_id: str) -> bool:
+        """True when a correction/audit collection of this database holds an entry for the order.
+
+        An audit trail kept in its own collection (linked by business key) is as valid as one
+        embedded in the validated document.
+        """
+        try:
+            if not hasattr(self, '_audit_collections'):
+                own = set(self.collections.values())
+                self._audit_collections = [
+                    n for n in self.db.list_collection_names()
+                    if n not in own and not n.startswith('system.') and self._AUDIT_COLLECTION_HINT.search(n)
+                    and not re.search(r'(job|schedul|run_log|execution|metric|result|report)', n, re.I)
+                ]
+            for name in self._audit_collections:
+                clauses = [{k: order_id} for k in self._AUDIT_KEY_FIELDS]
+                clauses += [{f'record.{k}': order_id} for k in ('order_id', 'id_order')]
+                if self.db[name].find_one({'$or': clauses}, {'_id': 1}) is not None:
+                    return True
+        except Exception:
+            return False
+        return False
+
     def find_validated(self, order_id: str) -> dict[str, Any] | None:
         """Locate a validated record by business key, tolerating common student schemas."""
         name = self.collections['validated']

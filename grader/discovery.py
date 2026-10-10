@@ -243,6 +243,9 @@ def _documented_ingest_command(repo: Path, readme: str) -> tuple[str | None, str
             score += 2
         if "--write" in low:
             score += 2
+        if re.search(r"--(?:execute|apply|commit|load|ingest|full|run)\b", low):
+            # A documented dry-run/check-only form must not outrank the command that really runs the pipeline.
+            score += 2
         if "{file}" in cmd:
             score += 3
         candidates.append((score, cmd, entrypoint))

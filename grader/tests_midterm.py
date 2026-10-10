@@ -100,7 +100,8 @@ def _verify_clean_samples(mongo: MongoChecker, cases: list[OracleCase]) -> tuple
             good += 1
         elif len(evidence) < 8:
             evidence.append(f'{case.expected_order_id}: ' + ('; '.join(notes) if notes else 'not found'))
-        if doc and audit_entries(doc):
+        external_audit = getattr(mongo, 'external_audit', None)
+        if doc and (audit_entries(doc) or (callable(external_audit) and external_audit(case.expected_order_id))):
             audit_good += 1
         elif len(audit_evidence) < 8:
             audit_evidence.append(f'{case.expected_order_id}: no audit entries')

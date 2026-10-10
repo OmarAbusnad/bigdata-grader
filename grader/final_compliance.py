@@ -335,11 +335,15 @@ def job_log_compliance(values: list[Any]) -> dict[str, Any]:
     for value in values:
         keys |= keys_recursive(value)
 
+    def _has(exact: set[str], tokens: tuple[str, ...]) -> bool:
+        # Equivalent spellings are accepted (started_at, start_ts, begin_time, records_processed...).
+        return bool(keys & exact) or any(tok in k for k in keys for tok in tokens)
+
     deterministic = {
-        "start_time": bool(keys & START_KEYS),
-        "end_time": bool(keys & END_KEYS),
-        "status": bool(keys & STATUS_KEYS),
-        "result": bool(keys & RESULT_KEYS),
+        "start_time": _has(START_KEYS, ("start", "begin")),
+        "end_time": _has(END_KEYS, ("finish", "complet", "ended", "end_time", "end_at", "stop")),
+        "status": _has(STATUS_KEYS, ("status", "state", "success", "outcome")),
+        "result": _has(RESULT_KEYS, ("result", "output", "message", "detail", "summary", "record", "process", "affected", "count", "error", "outcome")),
     }
     if all(deterministic.values()):
         return {**deterministic, "supported": True, "source": "deterministic", "confidence": 1.0}
