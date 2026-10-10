@@ -76,14 +76,21 @@ def iter_json(root: Path, *, strict: bool = False) -> Iterator[tuple[str, Any]]:
 
 
 def _is_midterm_report(name: str, obj: Any) -> bool:
-    return (isinstance(obj, dict) and "project_id" in obj and "commit_sha" in obj
-            and isinstance(obj.get("runtime"), dict)
-            and "/reports/" in "/" + name.replace("\\", "/").replace("!", "/"))
+    """A midterm report keeps its path under reports/, or sits at an artifact root
+    (single-path uploads strip the prefix) carrying the midterm plan fields."""
+    if not (isinstance(obj, dict) and "project_id" in obj and "commit_sha" in obj
+            and isinstance(obj.get("runtime"), dict)):
+        return False
+    norm = name.replace("\\", "/").replace("!", "/")
+    if "reports_final/" in norm or "final_plan" in obj:
+        return False
+    return "/reports/" in "/" + norm or "execution_plan" in obj or "plan_resolution" in obj
 
 
 def _is_final_report(name: str, obj: Any) -> bool:
     return (isinstance(obj, dict) and "project_id" in obj and "commit_sha" in obj
-            and isinstance(obj.get("runtime"), dict) and "reports_final/" in name.replace("\\", "/"))
+            and isinstance(obj.get("runtime"), dict)
+            and ("reports_final/" in name.replace("\\", "/") or "final_plan" in obj))
 
 
 class Ledger:

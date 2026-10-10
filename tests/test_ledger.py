@@ -191,6 +191,23 @@ def test_invariant_flags_wrong_project_count(base):
     assert not build(base).verify(expected_projects=68)["ok"]
 
 
+def test_midterm_report_at_artifact_root_is_recognized(base, tmp_path):
+    ledger = build(base)
+    ov = tmp_path / "root_layout"
+    rep = mid("P05", {"spark_pipeline.command": A("PASS")})
+    rep["execution_plan"] = {}
+    write(ov / "targeted-midterm-P05-123/result.json", rep)
+    stats = ledger.apply_overlay_dir(ov, run_id=7)
+    assert stats["midterm_reports"] == 1 and stats["ignored_files"] == 0
+    assert entry(ledger, "P05", "midterm", "spark_pipeline.command")["verdict"] == "PASS"
+
+
+def test_final_report_at_root_is_not_taken_as_midterm(base):
+    rep = fin("P05", {"final.api.health": A("PASS")})
+    rep["final_plan"] = {}
+    from grader.ledger import _is_midterm_report, _is_final_report
+    assert not _is_midterm_report("x/result.json", rep) and _is_final_report("x/result.json", rep)
+
 def test_overlay_unknown_json_causes_hard_failure(base, tmp_path):
     ledger = build(base)
     root = tmp_path / "unknown-run"

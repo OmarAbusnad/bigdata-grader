@@ -8,7 +8,7 @@ on:
     inputs:
       overlay_runs:
         description: 'Comma-separated overlay run ids, applied in this order'
-        default: '38003977105,38004329576,38000458514,37986423624,38016947468,38015912512'
+        default: '37982763274,37983268895,37984555642,37986423624,38000458514,38003977105,38004329576,38004638719,38004806202,38004899802,38005530245,38005533393,38015912512,38016947468'
         required: true
       expected_projects:
         description: 'Expected number of projects'
