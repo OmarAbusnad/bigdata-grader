@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .input_staging import plan_flag_retry, plan_processed_input_retry, plan_staging_retry, staged_command
+from .input_staging import plan_flag_retry, plan_processed_input_retry, plan_staging_retry, processed_csv_path, staged_command
 from .models import ExecutionPlan, RuntimeCaseResult
 from .mongo_checker import MongoChecker
 from .count_policy import compare_count, compare_new_inserts, compare_stability, compare_baseline_replay
@@ -396,6 +396,8 @@ def run_behavioral_suite(
                     input_staging = {"first_command": first_cmd, "retry_command": flag_cmd,
                                      "reason": "program output asked for an explicit execute flag; nothing had been written"}
                 else:
+                    _snap_now = mongo.snapshot().to_dict()
+                    _live(f"{project_id}: {case_name} input probe | fresh={fresh} raw={_snap_now.get('raw')} expected_rows={spec.get('input')} printed_csv={processed_csv_path(run_stdout, rel)}")
                     other_csv = plan_processed_input_retry(
                         run_stdout, mongo.snapshot().to_dict(), expected_rows=int(spec.get("input") or 0),
                         hidden_file_rel=rel, fresh=fresh, already_staged=bool(staged_target["path"]))

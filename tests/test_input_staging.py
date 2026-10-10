@@ -21,8 +21,10 @@ def test_rejects_traversal_system_paths_and_the_hidden_dir():
 
 def test_staged_command_copies_then_runs_and_quotes():
     cmd = staged_command("python src/main.py", "data/orders clean.csv", "test_01_small_batch_pipeline.csv")
-    assert cmd.startswith("mkdir -p data && cp /grader-tests/test_01_small_batch_pipeline.csv 'data/orders clean.csv' && ")
-    assert cmd.endswith("python src/main.py")
+    import shlex
+    parts = shlex.split(cmd)
+    assert parts[:2] == ["bash", "-c"] and len(parts) == 3, "must be a single exec-able program"
+    assert parts[2] == "mkdir -p data && cp /grader-tests/test_01_small_batch_pipeline.csv 'data/orders clean.csv' && python src/main.py"
 
 
 from grader.input_staging import plan_staging_retry
