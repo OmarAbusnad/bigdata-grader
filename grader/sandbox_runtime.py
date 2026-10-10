@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .input_staging import missing_csv_path, staged_command
+from .input_staging import plan_staging_retry, staged_command
 from .models import ExecutionPlan, RuntimeCaseResult
 from .mongo_checker import MongoChecker
 from .count_policy import compare_count, compare_new_inserts, compare_stability, compare_baseline_replay
@@ -301,6 +301,8 @@ def run_behavioral_suite(
             mongo.drop_database()
             run_setup()
 
+        staged_target: dict[str, str | None] = {"path": None}
+
         def execute_case(
             case_name: str,
             test_key: str,
@@ -343,17 +345,25 @@ def run_behavioral_suite(
                 f"| expected_engine={expected_engine or 'n/a'} | threshold={effective_threshold:.1f}MB"
             )
             stdin_text = _render_stdin(plan, rel, effective_db, effective_threshold)
-            run = sb.run_student(cmd, env=env, timeout=timeout, stdin_text=stdin_text)
             input_staging: dict[str, Any] | None = None
+            if staged_target["path"]:
+                # A previous stage already proved this program reads a fixed CSV path.
+                cmd = staged_command(cmd, staged_target["path"], rel)
+                input_staging = {"target": staged_target["path"], "source": rel, "reason": "fixed input path discovered in an earlier stage"}
+            run = sb.run_student(cmd, env=env, timeout=timeout, stdin_text=stdin_text)
             if int(run.get("returncode") or 0) != 0 and not run.get("timed_out"):
-                target = missing_csv_path(f"{run.get('stderr') or ''}\n{run.get('stdout') or ''}")
-                snap = mongo.snapshot().to_dict()
-                wrote_nothing = not any(int(snap.get(k) or 0) for k in ("raw", "validated", "quarantine"))
-                if target and wrote_nothing:
+                decision = plan_staging_retry(
+                    str(run.get("stderr") or ""), str(run.get("stdout") or ""),
+                    mongo.snapshot().to_dict(), fresh=fresh, already_staged=bool(staged_target["path"]))
+                if decision:
+                    target, needs_reset = decision
                     first_rc = run.get("returncode")
+                    if needs_reset:
+                        fresh_database()
                     cmd = staged_command(cmd, target, rel)
                     _live(f"{project_id}: {case_name} read a fixed input path ({target}); staging the test file there and retrying once")
                     run = sb.run_student(cmd, env=env, timeout=timeout, stdin_text=stdin_text)
+                    staged_target["path"] = target
                     input_staging = {"target": target, "source": rel, "first_attempt_returncode": first_rc,
                                      "reason": "student program reads a fixed CSV path instead of the supplied argument"}
             if _pipeline_completed_before_timeout({

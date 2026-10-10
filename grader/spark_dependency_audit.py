@@ -24,6 +24,23 @@ MAVEN_NET = (
 )
 
 
+def scala_compat_constraint(result: dict) -> str | None:
+    """pip constraint that keeps an unbounded PySpark requirement binary-compatible.
+
+    A Scala 2.12 MongoDB connector only works with Spark 3.x. When the student's requirements leave
+    PySpark open-ended (``>=3.5``), pip now resolves Spark 4 (Scala 2.13) and the connector fails with
+    ``NoSuchMethodError`` although it worked when the project was submitted. Never overrides a pin.
+    """
+    coords = result.get("declared_coordinates") or []
+    scalas = {m.group(1) for c in coords for m in [re.search(r"_(2\.1[23])", str(c))] if m}
+    if scalas != {"2.12"}:
+        return None
+    specs = result.get("pyspark_constraints") or []
+    if any(sp.get("operator") in ("==", "===", "<", "<=", "~=") for sp in specs):
+        return None
+    return "pyspark<4"
+
+
 def check_submission(repo: Path, *, runtime_error: str = "") -> dict:
     if not repo.is_dir():
         raise ValueError("Repository path not found")
