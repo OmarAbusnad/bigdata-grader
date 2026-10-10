@@ -1,0 +1,399 @@
+"""Master adjudication ledger: merge the immutable baseline with narrow overlays.
+
+READ-ONLY with respect to students: no student code runs here and no hidden data
+is touched. The ledger is keyed by (project_id, phase, assertion_key) under one
+frozen commit per project.
+
+Merge rules (deliberately conservative):
+  R1  A PASS is never replaced. A contradicting later verdict is logged as a
+      conflict for human review.
+  R2  Every overlay must carry the project's frozen SHA when it states one;
+      a mismatch rejects the whole change.
+  R3  A later run that only yields INCONCLUSIVE/ERROR/SKIP does not erase an
+      existing FAIL (a FAIL was student-attributed evidence). Only the
+      count-policy evidence overlay and explicit rulings may downgrade a FAIL.
+  R4  A later run may turn FAIL/INCONCLUSIVE/ERROR/SKIP/absent into PASS or
+      FAIL (the grader defect that caused the old verdict was fixed).
+  R5  Every change keeps its history (source, run, reason); nothing is lost.
+  R6  Manual rulings are applied last, never overwrite PASS unless the ruling
+      says override_pass explicitly (and then it is listed separately).
+"""
+from __future__ import annotations
+
+import json
+import zipfile
+from pathlib import Path
+from typing import Any, Iterator
+
+from .spark_recovery_overlay import spark_recovery_overlay
+
+VERDICTS = ("PASS", "FAIL", "INCONCLUSIVE", "ERROR", "SKIP")
+WEAK = {"INCONCLUSIVE", "ERROR", "SKIP"}
+_CLIP = 400
+
+
+def _clip(value: Any) -> Any:
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, default=str)
+    return text if len(text) <= _CLIP else text[:_CLIP] + "…"
+
+
+def _entry(raw: dict[str, Any], source: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "verdict": raw.get("verdict"),
+        "expected": _clip(raw.get("expected")),
+        "actual": _clip(raw.get("actual")),
+        "note": _clip(raw.get("note")),
+        "origin": source,
+        "history": [],
+        "flags": [],
+    }
+
+
+def iter_json(root: Path) -> Iterator[tuple[str, Any]]:
+    """Yield (relative_name, parsed_json) from a directory tree and any zips in it."""
+    root = Path(root)
+    for path in sorted(root.rglob("*.json")):
+        try:
+            yield str(path.relative_to(root)), json.loads(path.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            continue
+    for archive in sorted(root.rglob("*.zip")):
+        with zipfile.ZipFile(archive) as z:
+            for name in sorted(z.namelist()):
+                if name.endswith(".json"):
+                    try:
+                        yield f"{archive.name}!{name}", json.loads(z.read(name))
+                    except ValueError:
+                        continue
+
+
+def _is_midterm_report(name: str, obj: Any) -> bool:
+    return (isinstance(obj, dict) and "project_id" in obj and "commit_sha" in obj
+            and isinstance(obj.get("runtime"), dict)
+            and "/reports/" in "/" + name.replace("\\", "/").replace("!", "/"))
+
+
+def _is_final_report(name: str, obj: Any) -> bool:
+    return (isinstance(obj, dict) and "project_id" in obj and "commit_sha" in obj
+            and isinstance(obj.get("runtime"), dict) and "reports_final/" in name.replace("\\", "/"))
+
+
+class Ledger:
+    def __init__(self) -> None:
+        self.projects: dict[str, dict[str, Any]] = {}
+        self.rejected: list[dict[str, Any]] = []
+        self.conflicts: list[dict[str, Any]] = []
+        self.pass_overrides: list[dict[str, Any]] = []
+        self.sources: list[dict[str, Any]] = []
+        self._base_assertions: dict[str, dict[str, dict[str, Any]]] = {}
+        self._base_pass: set[tuple[str, str, str]] = set()
+
+    # ------------------------------------------------------------------ base
+    def load_base(self, root: Path, *, run_id: int) -> None:
+        source = {"type": "base", "run_id": run_id}
+        mids: dict[str, dict] = {}
+        fins: dict[str, dict] = {}
+        for name, obj in iter_json(root):
+            if _is_final_report(name, obj):
+                target = fins
+            elif _is_midterm_report(name, obj):
+                target = mids
+            else:
+                continue
+            pid = obj["project_id"]
+            if pid in target:
+                raise ValueError(f"Duplicate base report for {pid} ({name})")
+            target[pid] = obj
+        if not mids and not fins:
+            raise ValueError(f"No base reports found under {root}")
+        for pid in sorted(set(mids) | set(fins)):
+            shas = {r.get("commit_sha") for r in (mids.get(pid), fins.get(pid)) if r and r.get("commit_sha")}
+            if len(shas) > 1:
+                raise ValueError(f"{pid}: midterm and final base reports disagree on commit: {shas}")
+            proj = {
+                "frozen_sha": next(iter(shas), None),
+                "students": (mids.get(pid) or fins.get(pid) or {}).get("students", ""),
+                "phases": {"midterm": {"status": None, "entries": {}},
+                           "final": {"status": None, "entries": {}}},
+            }
+            self.projects[pid] = proj
+            self._load_phase(pid, "midterm", (mids.get(pid) or {}).get("runtime"), source)
+            self._load_phase(pid, "final", (fins.get(pid) or {}).get("runtime"), source)
+        self.sources.append({**source, "projects": len(self.projects)})
+
+    def _load_phase(self, pid: str, phase: str, runtime: dict | None, source: dict) -> None:
+        ph = self.projects[pid]["phases"][phase]
+        if not isinstance(runtime, dict):
+            ph["status"] = "NOT_PRESENT"
+            return
+        ph["status"] = runtime.get("status")
+        raw = runtime.get("assertions") or {}
+        if isinstance(raw, list):
+            items: list[tuple[str, dict]] = []
+            for a in raw:
+                if isinstance(a, dict) and a.get("key"):
+                    items.append((a["key"], a))
+        elif isinstance(raw, dict):
+            items = [(k, v) for k, v in raw.items() if isinstance(v, dict)]
+        else:
+            items = []
+        for key, a in items:
+            if a.get("verdict") not in VERDICTS:
+                continue
+            if key in ph["entries"]:
+                ph["entries"][key]["flags"].append("duplicate_key_in_source_first_kept")
+                continue
+            ph["entries"][key] = _entry(a, source)
+            if a["verdict"] == "PASS":
+                self._base_pass.add((pid, phase, key))
+        self._base_assertions.setdefault(pid, {})[phase] = {
+            k: {"verdict": e["verdict"], "expected": e["expected"]}
+            for k, e in ph["entries"].items()}
+
+    # --------------------------------------------------------------- changes
+    def _reject(self, reason: str, **ctx: Any) -> None:
+        self.rejected.append({"reason": reason, **ctx})
+
+    def apply_change(self, pid: str, phase: str, key: str, to: str, source: dict[str, Any], *,
+                     sha: str | None = None, allowed_from: set[str] | None = None,
+                     detail: dict[str, Any] | None = None,
+                     may_downgrade_fail: bool = False, override_pass: bool = False) -> str:
+        ctx = {"project_id": pid, "phase": phase, "key": key, "to": to, "source": source}
+        proj = self.projects.get(pid)
+        if proj is None:
+            self._reject("unknown_project", **ctx)
+            return "rejected"
+        if to not in VERDICTS:
+            self._reject("invalid_verdict", **ctx)
+            return "rejected"
+        if sha and proj["frozen_sha"] and sha != proj["frozen_sha"]:
+            self._reject("sha_mismatch", expected_sha=proj["frozen_sha"], got_sha=sha, **ctx)
+            return "rejected"
+        entries = proj["phases"][phase]["entries"]
+        cur = entries.get(key)
+        record = {"from": cur["verdict"] if cur else None, "to": to, "source": source, **(detail or {})}
+        if cur is None:
+            entries[key] = {"verdict": to, "expected": _clip((detail or {}).get("expected")),
+                            "actual": _clip((detail or {}).get("observed")),
+                            "note": _clip((detail or {}).get("reason")), "origin": source,
+                            "history": [], "flags": ["added_by_overlay"]}
+            return "added"
+        if cur["verdict"] == to:
+            cur["history"].append({**record, "kind": "corroborated"})
+            return "same"
+        if allowed_from is not None and cur["verdict"] not in allowed_from:
+            self.conflicts.append({"reason": "precondition_mismatch", "current": cur["verdict"],
+                                   "allowed_from": sorted(allowed_from), **ctx})
+            return "conflict"
+        if cur["verdict"] == "PASS":
+            if override_pass:
+                self.pass_overrides.append({**ctx, "from": "PASS", "detail": detail})
+            else:
+                self.conflicts.append({"reason": "would_overwrite_pass", "current": "PASS", **ctx})
+                return "conflict"
+        elif cur["verdict"] == "FAIL" and to in WEAK and not may_downgrade_fail:
+            cur["flags"].append(f"later_run_{to.lower()}_did_not_override_fail")
+            cur["history"].append({**record, "kind": "ignored_weak_downgrade"})
+            return "kept_fail"
+        cur["history"].append({**record, "kind": "replaced",
+                               "previous_origin": cur["origin"]})
+        cur["verdict"] = to
+        cur["origin"] = source
+        if detail:
+            cur["expected"] = _clip(detail.get("expected", cur["expected"]))
+            cur["actual"] = _clip(detail.get("observed", cur["actual"]))
+            cur["note"] = _clip(detail.get("reason", cur["note"]))
+        return "replaced"
+
+    # -------------------------------------------------------------- overlays
+    def apply_overlay_dir(self, root: Path, *, run_id: int) -> dict[str, int]:
+        stats = {"midterm_reports": 0, "evidence_overlays": 0, "spark_proofs": 0,
+                 "final_proofs": 0, "ignored_files": 0, "changes": 0}
+        for name, obj in iter_json(root):
+            source = {"type": "unknown", "run_id": run_id, "file": name}
+            if _is_midterm_report(name, obj):
+                stats["midterm_reports"] += 1
+                stats["changes"] += self._midterm_full(obj, {**source, "type": "midterm_full"})
+            elif isinstance(obj, dict) and isinstance(obj.get("projects"), dict) \
+                    and obj.get("student_tests_reexecuted") == 0:
+                stats["evidence_overlays"] += 1
+                stats["changes"] += self._evidence_overlay(obj, {**source, "type": "evidence_overlay"})
+            elif isinstance(obj, dict) and obj.get("only_test") == "spark_pipeline.command":
+                stats["spark_proofs"] += 1
+                stats["changes"] += self._spark_proof(obj, {**source, "type": "spark_recovery"}, run_id)
+            elif isinstance(obj, dict) and (obj.get("scope") == "only_final.api.ingest"
+                                            or isinstance(obj.get("scope"), list)):
+                stats["final_proofs"] += 1
+                stats["changes"] += self._final_proof(obj, {**source, "type": "final_proof"})
+            else:
+                stats["ignored_files"] += 1
+        self.sources.append({"type": "overlay_dir", "run_id": run_id, **stats})
+        return stats
+
+    @staticmethod
+    def _changed(result: str) -> int:
+        return 1 if result in {"added", "replaced"} else 0
+
+    def _midterm_full(self, report: dict, source: dict) -> int:
+        pid = report["project_id"]
+        proj = self.projects.get(pid)
+        if proj is None:
+            self._reject("unknown_project", project_id=pid, source=source)
+            return 0
+        runtime = report["runtime"]
+        sha = report.get("commit_sha")
+        if sha and proj["frozen_sha"] and sha != proj["frozen_sha"]:
+            self._reject("sha_mismatch", project_id=pid, phase="midterm", source=source,
+                         expected_sha=proj["frozen_sha"], got_sha=sha)
+            return 0
+        ph = proj["phases"]["midterm"]
+        raw = runtime.get("assertions")
+        if not isinstance(raw, dict) or not raw:
+            return 0
+        if not ph["entries"] and runtime.get("status") != ph["status"]:
+            ph.setdefault("status_history", []).append({"from": ph["status"], "to": runtime.get("status"),
+                                                       "source": source})
+            ph["status"] = runtime.get("status")
+        elif runtime.get("status") != ph["status"]:
+            ph.setdefault("status_history", []).append({"from": ph["status"], "to": runtime.get("status"),
+                                                       "source": source, "informational": True})
+        n = 0
+        for key, a in raw.items():
+            if isinstance(a, dict) and a.get("verdict") in VERDICTS:
+                n += self._changed(self.apply_change(
+                    pid, "midterm", key, a["verdict"], source, sha=sha,
+                    detail={"expected": a.get("expected"), "observed": a.get("actual"),
+                            "reason": a.get("note") or "narrow midterm rerun after grader fix"}))
+        return n
+
+    def _evidence_overlay(self, obj: dict, source: dict) -> int:
+        n = 0
+        for pid, ov in obj["projects"].items():
+            for key, change in (ov.get("overrides") or {}).items():
+                n += self._changed(self.apply_change(
+                    pid, "midterm", key, change["new"], source, sha=ov.get("student_commit"),
+                    allowed_from={change["previous"]}, may_downgrade_fail=True,
+                    detail={"expected": change.get("expected"), "observed": change.get("observed"),
+                            "reason": change.get("reason"), "scope": change.get("scope")}))
+        return n
+
+    def _spark_proof(self, proof: dict, source: dict, run_id: int) -> int:
+        pid = proof.get("project_id")
+        proj = self.projects.get(pid or "")
+        if proj is None:
+            self._reject("unknown_project", project_id=pid, source=source)
+            return 0
+        base = self._base_assertions.get(pid, {}).get("midterm", {})
+        original = {"project_id": pid, "commit_sha": proj["frozen_sha"],
+                    "runtime": {"assertions": base}}
+        try:
+            overlay = spark_recovery_overlay(original, proof, proof_run_id=run_id)
+        except ValueError as exc:
+            self._reject("spark_overlay_refused", project_id=pid, source=source, message=str(exc))
+            return 0
+        n = 0
+        for key, ov in overlay["overrides"].items():
+            n += self._changed(self.apply_change(
+                pid, "midterm", key, ov["to"], source, sha=proof.get("frozen_commit"),
+                allowed_from={ov["from"]},
+                detail={"observed": ov.get("observed"), "reason": ov.get("reason"),
+                        "scope": ov.get("scope")}))
+        return n
+
+    def _final_proof(self, proof: dict, source: dict) -> int:
+        pid = proof.get("project") or proof.get("project_id")
+        pairs: list[tuple[str, str | None]] = []
+        if proof.get("scope") == "only_final.api.ingest":
+            pairs = [("final.api.ingest", proof.get("verdict"))]
+        elif isinstance(proof.get("scope"), list):
+            if "final.mv.refresh" in proof["scope"]:
+                pairs.append(("final.mv.refresh", proof.get("verdict_refresh")))
+            if "final.mv.incremental" in proof["scope"]:
+                pairs.append(("final.mv.incremental", proof.get("verdict_incremental")))
+        n = 0
+        for key, verdict in pairs:
+            if verdict not in VERDICTS:
+                continue
+            n += self._changed(self.apply_change(
+                pid or "", "final", key, verdict, source, sha=None,
+                detail={"reason": proof.get("reason") or "targeted final probe",
+                        "scope": proof.get("scope")}))
+            entry = (self.projects.get(pid or "") or {}).get("phases", {}).get("final", {}).get("entries", {}).get(key)
+            if entry is not None and "sha_not_in_proof" not in entry["flags"]:
+                entry["flags"].append("sha_not_in_proof")
+        return n
+
+    def apply_rulings(self, rulings: list[dict[str, Any]]) -> int:
+        n = 0
+        for r in rulings:
+            for field in ("project_id", "phase", "key", "to", "reason", "decided_by"):
+                if not r.get(field):
+                    self._reject("ruling_missing_field", field=field, ruling=r)
+                    break
+            else:
+                source = {"type": "ruling", "decided_by": r["decided_by"]}
+                n += self._changed(self.apply_change(
+                    r["project_id"], r["phase"], r["key"], r["to"], source,
+                    may_downgrade_fail=True, override_pass=bool(r.get("override_pass")),
+                    detail={"reason": r["reason"], "evidence": r.get("evidence")}))
+        self.sources.append({"type": "rulings", "count": len(rulings), "changes": n})
+        return n
+
+    # ---------------------------------------------------------------- output
+    def counts(self, pid: str, phase: str) -> dict[str, int]:
+        out = {v: 0 for v in VERDICTS}
+        for e in self.projects[pid]["phases"][phase]["entries"].values():
+            out[e["verdict"]] += 1
+        return out
+
+    def verify(self, *, expected_projects: int | None = None) -> dict[str, Any]:
+        problems: list[str] = []
+        if expected_projects is not None and len(self.projects) != expected_projects:
+            problems.append(f"expected {expected_projects} projects, found {len(self.projects)}")
+        overridden = {(o["project_id"], o["phase"], o["key"]) for o in self.pass_overrides}
+        lost = []
+        for pid, phase, key in sorted(self._base_pass - overridden):
+            e = self.projects[pid]["phases"][phase]["entries"].get(key)
+            if not e or e["verdict"] != "PASS":
+                lost.append(f"{pid}/{phase}/{key}")
+        if lost:
+            problems.append(f"{len(lost)} baseline PASS verdicts were lost: {lost[:10]}")
+        total = sum(sum(self.counts(p, ph).values()) for p in self.projects for ph in ("midterm", "final"))
+        listed = sum(len(self.projects[p]["phases"][ph]["entries"]) for p in self.projects for ph in ("midterm", "final"))
+        if total != listed:
+            problems.append("count mismatch between verdict tally and entries")
+        return {"ok": not problems, "problems": problems, "baseline_pass_preserved": len(self._base_pass) - len(lost),
+                "baseline_pass_total": len(self._base_pass), "pass_overrides": len(self.pass_overrides)}
+
+    def to_dict(self, *, expected_projects: int | None = None) -> dict[str, Any]:
+        return {
+            "formal_grade": False,
+            "student_code_executed": False,
+            "sources": self.sources,
+            "invariants": self.verify(expected_projects=expected_projects),
+            "projects": self.projects,
+            "conflicts": self.conflicts,
+            "rejected": self.rejected,
+            "pass_overrides": self.pass_overrides,
+        }
+
+
+_HINTS = (
+    ("timeouterror", "candidate_transport_timeout_no_http_status"),
+    ("timed out", "candidate_transport_timeout_no_http_status"),
+    ("unresolved dependencies", "candidate_dependency_resolution"),
+    ("modulenotfounderror", "candidate_student_missing_dependency"),
+    ("syntaxerror", "candidate_student_syntax_error"),
+)
+
+
+def review_hint(entry: dict[str, Any]) -> str:
+    text = " ".join(str(entry.get(k) or "") for k in ("actual", "note")).lower()
+    for needle, hint in _HINTS:
+        if needle in text:
+            return hint
+    if entry["verdict"] in WEAK:
+        return "needs_cause"
+    return "needs_student_evidence_check"
