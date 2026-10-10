@@ -1,0 +1,1 @@
+Only frozen P32/P42 FINAL api.ingest failed with demonstrably wrong grader JSON: P32 generic dict {} => 400; P42 input_file=test => 404. New code sends actual mounted CSV. No previously passing endpoints executed, no marks approved; CI 38016901988 succeeded.
