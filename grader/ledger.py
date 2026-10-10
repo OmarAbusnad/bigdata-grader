@@ -51,22 +51,28 @@ def _entry(raw: dict[str, Any], source: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def iter_json(root: Path) -> Iterator[tuple[str, Any]]:
-    """Yield (relative_name, parsed_json) from a directory tree and any zips in it."""
+def iter_json(root: Path, *, strict: bool = False) -> Iterator[tuple[str, Any]]:
+    """Yield JSON documents. Strict overlay mode never discards malformed evidence."""
     root = Path(root)
     for path in sorted(root.rglob("*.json")):
         try:
             yield str(path.relative_to(root)), json.loads(path.read_text(encoding="utf-8"))
-        except (ValueError, OSError):
-            continue
+        except (ValueError, OSError) as exc:
+            if strict:
+                raise ValueError(f"Cannot parse overlay evidence: {path}: {exc}") from exc
     for archive in sorted(root.rglob("*.zip")):
-        with zipfile.ZipFile(archive) as z:
-            for name in sorted(z.namelist()):
-                if name.endswith(".json"):
-                    try:
-                        yield f"{archive.name}!{name}", json.loads(z.read(name))
-                    except ValueError:
-                        continue
+        try:
+            with zipfile.ZipFile(archive) as z:
+                for name in sorted(z.namelist()):
+                    if name.endswith(".json"):
+                        try:
+                            yield f"{archive.name}!{name}", json.loads(z.read(name))
+                        except (ValueError, OSError) as exc:
+                            if strict:
+                                raise ValueError(f"Cannot parse zipped evidence: {archive}!{name}: {exc}") from exc
+        except (zipfile.BadZipFile, OSError) as exc:
+            if strict:
+                raise ValueError(f"Corrupt evidence ZIP: {archive}: {exc}") from exc
 
 
 def _is_midterm_report(name: str, obj: Any) -> bool:
@@ -88,6 +94,7 @@ class Ledger:
         self.pass_overrides: list[dict[str, Any]] = []
         self.sources: list[dict[str, Any]] = []
         self._base_assertions: dict[str, dict[str, dict[str, Any]]] = {}
+        self._base_probes: dict[str, dict[str, Any]] = {}
         self._base_pass: set[tuple[str, str, str]] = set()
 
     # ------------------------------------------------------------------ base
@@ -119,6 +126,7 @@ class Ledger:
                            "final": {"status": None, "entries": {}}},
             }
             self.projects[pid] = proj
+            self._base_probes[pid] = ((fins.get(pid) or {}).get("runtime") or {}).get("probe") or {}
             self._load_phase(pid, "midterm", (mids.get(pid) or {}).get("runtime"), source)
             self._load_phase(pid, "final", (fins.get(pid) or {}).get("runtime"), source)
         self.sources.append({**source, "projects": len(self.projects)})
@@ -208,27 +216,63 @@ class Ledger:
         return "replaced"
 
     # -------------------------------------------------------------- overlays
-    def apply_overlay_dir(self, root: Path, *, run_id: int) -> dict[str, int]:
-        stats = {"midterm_reports": 0, "evidence_overlays": 0, "spark_proofs": 0,
-                 "final_proofs": 0, "ignored_files": 0, "changes": 0}
-        for name, obj in iter_json(root):
+    def apply_overlay_dir(self, root: Path, *, run_id: int) -> dict[str, Any]:
+        """Strictly consume a requested run, never silently ignore unknown verdict files.
+
+        Extraction proof is explicitly recognized as metadata, NOT a student grade.
+        """
+        root = Path(root)
+        if not root.is_dir():
+            raise ValueError(f"Requested overlay run {run_id} is missing: {root}")
+        stats: dict[str, Any] = {
+            "midterm_reports": 0, "evidence_overlays": 0, "spark_proofs": 0,
+            "final_proofs": 0, "metadata_files": 0, "ignored_files": 0,
+            "files_seen": 0, "recognized_files": 0, "changes": 0,
+            "files": [],
+        }
+        for name, obj in iter_json(root, strict=True):
+            stats["files_seen"] += 1
             source = {"type": "unknown", "run_id": run_id, "file": name}
+            kind = "unknown"
+            changed = 0
             if _is_midterm_report(name, obj):
+                kind = "midterm_full"
                 stats["midterm_reports"] += 1
-                stats["changes"] += self._midterm_full(obj, {**source, "type": "midterm_full"})
+                changed = self._midterm_full(obj, {**source, "type": kind})
             elif isinstance(obj, dict) and isinstance(obj.get("projects"), dict) \
                     and obj.get("student_tests_reexecuted") == 0:
+                kind = "evidence_overlay"
                 stats["evidence_overlays"] += 1
-                stats["changes"] += self._evidence_overlay(obj, {**source, "type": "evidence_overlay"})
+                changed = self._evidence_overlay(obj, {**source, "type": kind})
             elif isinstance(obj, dict) and obj.get("only_test") == "spark_pipeline.command":
+                kind = "spark_recovery"
                 stats["spark_proofs"] += 1
-                stats["changes"] += self._spark_proof(obj, {**source, "type": "spark_recovery"}, run_id)
+                changed = self._spark_proof(obj, {**source, "type": kind}, run_id)
             elif isinstance(obj, dict) and (obj.get("scope") == "only_final.api.ingest"
                                             or isinstance(obj.get("scope"), list)):
+                kind = "final_proof"
                 stats["final_proofs"] += 1
-                stats["changes"] += self._final_proof(obj, {**source, "type": "final_proof"})
+                changed = self._final_proof(obj, {**source, "type": kind})
+            elif (isinstance(obj, dict) and obj.get("container") in {"rar", "zip"}
+                  and obj.get("student_code_executed_during_extraction") is False
+                  and obj.get("official_result_modified") is False
+                  and obj.get("frozen_archive") and obj.get("source_root")
+                  and "extraction_proof" in name):
+                kind = "safe_extraction_metadata"
+                stats["metadata_files"] += 1
             else:
                 stats["ignored_files"] += 1
+            if kind != "unknown":
+                stats["recognized_files"] += 1
+            stats["changes"] += changed
+            stats["files"].append({"path": name, "kind": kind, "changes": changed})
+        if not stats["files_seen"]:
+            raise ValueError(f"Overlay run {run_id} contains no JSON evidence: {root}")
+        if stats["ignored_files"]:
+            unknown = [x["path"] for x in stats["files"] if x["kind"] == "unknown"]
+            raise ValueError(f"Overlay run {run_id} has {len(unknown)} unrecognized evidence files: {unknown[:10]}")
+        if stats["recognized_files"] == stats["metadata_files"]:
+            raise ValueError(f"Overlay run {run_id} contains only metadata, no grading evidence")
         self.sources.append({"type": "overlay_dir", "run_id": run_id, **stats})
         return stats
 
