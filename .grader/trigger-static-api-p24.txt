@@ -1,1 +1,1 @@
-P24 source-only FINAL API audit from frozen RAR snapshot. No student code is executed, no midterm/final assertions rerun, and no grades are changed. Static audit CI 38016623541 passed.
+Retry P24 frozen RAR STATIC code-only AST verification. Prior run 38016662719 canceled externally due GitHub runner shutdown, before reporting any result. No student tests, no official grade changes.
