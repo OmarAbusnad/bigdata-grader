@@ -175,28 +175,76 @@ def clean_payload(doc: dict[str, Any] | None) -> dict[str, Any]:
     return out
 
 
+_AUDIT_NAMED = ('corrections', 'audit_trail', 'audit', 'changes', 'correction_log', 'fixes')
+_AUDIT_HINT = re.compile(r'(audit|correct|fix|change|clean|modif|transform|histor|adjust|normaliz|repair|log)', re.I)
+_ERROR_NAMED = ('error_codes', 'errors', 'quarantine_codes', 'processing_error_codes', 'error_code',
+                'reasons', 'reason_codes', 'quarantine_reason')
+_ERROR_HINT = re.compile(r'(error|reason|violation|issue|invalid|reject|fail|problem)', re.I)
+
+
+def _audit_value(val: Any) -> list[dict[str, Any]]:
+    if isinstance(val, list):
+        items = [x if isinstance(x, dict) else {'detail': x} for x in val if x not in (None, '', {}, [])]
+        return items
+    if isinstance(val, dict) and val:
+        lowered = {str(k).lower() for k in val}
+        if lowered & {'order_id', 'id_order', 'orderid', 'customer_id', 'total_amount', 'items', 'items_json'}:
+            return []  # a wrapped business record, not a correction history
+        return [val]
+    return []
+
+
 def audit_entries(doc: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Correction records of a validated document.
+
+    Well-known field names first; otherwise any non-empty list/object whose key clearly describes a
+    correction history (the course requirement is the audit itself, not one spelling of its field).
+    """
     if not isinstance(doc, dict):
         return []
-    for cand in _candidate_dicts(doc):
-        for key in ('corrections', 'audit_trail', 'audit', 'changes', 'correction_log', 'fixes'):
+    candidates = _candidate_dicts(doc)
+    for cand in candidates:
+        for key in _AUDIT_NAMED:
             val = cand.get(key)
             if isinstance(val, list):
-                return [x for x in val if isinstance(x, dict)]
+                found = _audit_value(val)
+                if found:
+                    return found
+    for cand in candidates:
+        for key, val in cand.items():
+            if str(key).startswith('_') or not _AUDIT_HINT.search(str(key)):
+                continue
+            if isinstance(val, (list, dict)):
+                found = _audit_value(val)
+                if found:
+                    return found
     return []
 
 
 def error_codes(doc: dict[str, Any] | None) -> list[str]:
     if not isinstance(doc, dict):
         return []
-    for cand in _candidate_dicts(doc):
-        for key in ('error_codes', 'errors', 'quarantine_codes', 'processing_error_codes', 'error_code',
-                    'reasons', 'reason_codes', 'quarantine_reason'):
-            val = cand.get(key)
-            if isinstance(val, list) and val:
-                return [str(x) if not isinstance(x, dict) else str(x.get('code') or x.get('error_code') or x) for x in val]
-            if isinstance(val, str) and val.strip():
-                return [val]
+    candidates = _candidate_dicts(doc)
+
+    def _flatten(val: Any) -> list[str]:
+        if isinstance(val, list) and val:
+            return [str(x) if not isinstance(x, dict) else str(x.get('code') or x.get('error_code') or x.get('reason') or x) for x in val]
+        if isinstance(val, str) and val.strip():
+            return [val]
+        return []
+
+    for cand in candidates:
+        for key in _ERROR_NAMED:
+            got = _flatten(cand.get(key))
+            if got:
+                return got
+    for cand in candidates:
+        for key, val in cand.items():
+            if str(key).startswith('_') or not _ERROR_HINT.search(str(key)):
+                continue
+            got = _flatten(val)
+            if got:
+                return got
     return []
 
 

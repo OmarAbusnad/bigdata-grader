@@ -410,7 +410,9 @@ def names_from(value, preferred):
             if isinstance(item, str):
                 out.append(item)
             elif isinstance(item, dict):
-                val = item.get("id") or item.get("query_name") or item.get("job_name") or item.get("report_name") or item.get("key") or item.get("job") or item.get("name")
+                val = (item.get("id") or item.get("query_name") or item.get("job_name") or item.get("job_id") or item.get("report_name")
+                       or item.get("report_id") or item.get("query_id") or item.get("task_id") or item.get("slug") or item.get("key")
+                       or item.get("job") or item.get("name"))
                 if val is not None: out.append(str(val))
         return out
     return []
@@ -706,6 +708,39 @@ if available_job_names:
         for name in available_job_names[:2]
     ]
     result["job_names"] = available_job_names
+
+def job_run_alternatives(spec, job_name):
+    """Public run endpoints declared in OpenAPI when the conventional /jobs/{name}/run is absent."""
+    found = []
+    for path, ops in (spec.get("paths") or {}).items():
+        post = (ops or {}).get("post")
+        low = str(path).lower()
+        if post is None or "job" not in low or path == "/jobs/{name}/run":
+            continue
+        if not any(w in low for w in ("run", "trigger", "execute", "start")):
+            continue
+        if "{" in path:
+            found.append((re.sub(r"\{[^}]+\}", urllib.parse.quote(job_name, safe=""), path), None))
+            continue
+        qnames = [x.get("name") for x in (post.get("parameters") or []) if x.get("in") == "query" and x.get("name")]
+        if qnames:
+            found.append((path + "?" + urllib.parse.urlencode({qnames[0]: job_name}), None))
+        else:
+            for key in ("job_name", "name", "job_id", "job"):
+                found.append((path, {key: job_name}))
+    return found
+
+if result["job_calls"] and all((c.get("response") or {}).get("status") in (404, 405) for c in result["job_calls"]):
+    alt_calls = []
+    for name in result["job_names"][:2]:
+        for alt_path, alt_body in job_run_alternatives(openapi, name):
+            resp = request("POST", alt_path, alt_body if alt_body is not None else {}, timeout=120)
+            alt_calls.append({"name": name, "response": resp, "path": alt_path})
+            if resp.get("status") not in (404, 405, 422):
+                break
+    if any((c.get("response") or {}).get("ok") for c in alt_calls):
+        result["job_calls_conventional_404"] = result["job_calls"]
+        result["job_calls"] = alt_calls
 
 result["jobs_after_runs"] = request("GET", "/jobs", timeout=30)
 
