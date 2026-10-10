@@ -1,0 +1,1 @@
+P24/P52 only: Original frozen GitHub repos contain only a RAR/ZIP archive, not directly discoverable Python. Extract safely in independent workspace, then grade MIDTERM only; original midterm had zero PASS; no Final or prior successes are rerun. CI 38015865124 success.
