@@ -1,0 +1,103 @@
+name: Targeted Frozen Archive Midterm P24 P52
+
+on:
+  push:
+    paths:
+      - '.grader/trigger-targeted-archives-p24-p52.txt'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  archive-only:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - project_id: P24
+            archive_name: midterm-data-pipeline.rar
+          - project_id: P52
+            archive_name: saad hassan.zip
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader and safe archive tooling
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install 'rarfile>=4.2,<5'
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libarchive-tools
+      - name: Restore frozen project archive only (never student HEAD)
+        uses: actions/download-artifact@v4
+        with:
+          name: frozen-${{ matrix.project_id }}-37390623044
+          path: original_frozen
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '37390623044'
+      - name: Restore original submission grading manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: frozen-manifest-37390623044
+          path: original_manifest
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '37390623044'
+      - name: Expand only explicitly frozen archive into separate evaluation root
+        shell: bash
+        run: |
+          set -euo pipefail
+          pid="${{ matrix.project_id }}"
+          mkdir -p "workspaces/$pid/repo"
+          tar -xzf "original_frozen/$pid.repo.tar.gz" -C "workspaces/$pid"
+          cp original_manifest/frozen_submissions.csv frozen_submissions.csv
+          python -m grader.safe_archive_submission \
+            --frozen-repo "workspaces/$pid/repo" \
+            --out "extracted_student/$pid" \
+            --archive-basename "${{ matrix.archive_name }}" \
+            --proof "reports_archive_recovery/$pid/extraction_proof.json"
+          python - <<'PY' >> "$GITHUB_ENV"
+          import json,os
+          pid=os.environ["PROJECT_ID"]
+          with open(f"reports_archive_recovery/{pid}/extraction_proof.json",encoding="utf-8") as f:
+              proof=json.load(f)
+          print("TARGET_WORKSPACE="+proof["source_root"])
+          PY
+        env:
+          PROJECT_ID: ${{ matrix.project_id }}
+      - name: Build student runtime base
+        run: python build_runtime_image.py
+      - name: Restore deterministic teacher hidden cases
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "${HIDDEN_SEED:-}" || exit 2
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Regrade only originally unexecuted MIDTERM
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -u evaluate_project.py \
+            --project "${{ matrix.project_id }}" \
+            --submissions frozen_submissions.csv \
+            --workspace "$TARGET_WORKSPACE" \
+            --mode midterm --network-profile isolated --plan-b --allow-low-confidence
+      - name: Publish isolated evidence without overwriting official results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: archive-recovery-midterm-${{ matrix.project_id }}-${{ github.run_id }}
+          path: |
+            reports_archive_recovery/${{ matrix.project_id }}/
+            reports/${{ matrix.project_id }}/
+          if-no-files-found: warn
+          retention-days: 90
