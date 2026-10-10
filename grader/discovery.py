@@ -248,9 +248,12 @@ def _documented_ingest_command(repo: Path, readme: str) -> tuple[str | None, str
         candidates.append((score, cmd, entrypoint))
 
     if not candidates:
-        if fixed_input_candidates:
-            fixed_input_candidates.sort(key=lambda x: -x[0])
-            return fixed_input_candidates[0][1], fixed_input_candidates[0][2]
+        # Only names that clearly denote an ingestion pipeline qualify; an arbitrary documented
+        # script that happens to read a CSV (audit/report/maintenance helpers) is not an ingest.
+        strong = [c for c in fixed_input_candidates if c[0] >= 3]
+        if strong:
+            strong.sort(key=lambda x: -x[0])
+            return strong[0][1], strong[0][2]
         return None, None
     candidates.sort(key=lambda x: -x[0])
     return candidates[0][1], candidates[0][2]

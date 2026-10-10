@@ -599,6 +599,22 @@ if not SKIP_INGEST:
             r = request("POST", "/ingest", body, timeout=240)
             keys = sorted(body.keys())
         ingest_attempts.append({"kind": kind, "body_keys": keys, "response": r})
+        if kind == "form" and not r.get("ok") and r.get("status") == 422 and "UploadFile" in json.dumps(r.get("body"), ensure_ascii=False):
+            # The server says a form field must be a real uploaded file, not a path string.
+            # Resend that field as multipart file bytes and keep the other fields as text.
+            detail = (r.get("body") or {}).get("detail") if isinstance(r.get("body"), dict) else None
+            upload_fields = []
+            for item in detail if isinstance(detail, list) else []:
+                loc = item.get("loc") if isinstance(item, dict) else None
+                if isinstance(loc, list) and len(loc) >= 2 and loc[0] == "body" and isinstance(loc[1], str):
+                    upload_fields.append(loc[1])
+            for up_name in dict.fromkeys(upload_fields):
+                rest = {k: v for k, v in (attempt.get("fields") or {}).items() if k != up_name}
+                r2 = request_file_upload("/ingest", up_name, fields=rest, timeout=240)
+                ingest_attempts.append({"kind": "upload", "body_keys": sorted(list(rest.keys()) + [up_name]), "response": r2})
+                r = r2
+                if r2.get("ok"):
+                    break
         if r.get("ok"):
             break
         if r.get("status") not in (400, 404, 405, 415, 422):

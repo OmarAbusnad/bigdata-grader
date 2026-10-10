@@ -53,3 +53,10 @@ def test_missing_openapi_requestbody_fallback_attempts_upload_last():
     assert len(attempts) == 7
     assert all(a["kind"] == "json" for a in attempts[:-1])
     assert attempts[-1] == {"kind": "upload", "file_field": "file", "fields": {}}
+
+
+def test_form_422_uploadfile_triggers_multipart_retry_in_probe_source():
+    code = _probe_python()
+    ast.parse(code)
+    assert '"UploadFile" in json.dumps' in code
+    assert 'request_file_upload("/ingest", up_name' in code
