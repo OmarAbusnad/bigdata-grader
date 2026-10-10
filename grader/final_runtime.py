@@ -26,6 +26,14 @@ REQUIRED_ENDPOINTS = {
 }
 
 
+def _refresh_transport_unproved(*responses: dict[str, Any]) -> bool:
+    """A transport exception without HTTP status cannot justify a student FAIL."""
+    return any(
+        response.get("status") is None and bool(response.get("error"))
+        for response in responses
+    )
+
+
 def _assertion(key: str, label: str, verdict: str, *, expected: Any = None, actual: Any = None,
                evidence: list[str] | None = None, note: str | None = None) -> dict[str, Any]:
     return {
@@ -1292,10 +1300,7 @@ def run_final_suite(
         mv_needs_init = _mv_requires_initialization(mv1, mv2)
         # Timeout without a HTTP response is an uncompleted grader probe;
         # never count it as an API implementation failure.
-        mv_transport_blocked = any(
-            (x.get("status") is None and bool(x.get("error")))
-            for x in (mv1, mv2)
-        )
+        mv_transport_blocked = _refresh_transport_unproved(mv1, mv2)
         mv_probe_blocked = bool(
             mv1.get("probe_blocked") or mv2.get("probe_blocked") or mv_transport_blocked
         )
