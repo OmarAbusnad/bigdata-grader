@@ -49,8 +49,10 @@ jobs:
           mkdir -p evidence/overlays
           for run in ${RUNS//,/ }; do
             mkdir -p "evidence/overlays/$run"
-            gh run download "$run" --repo "${{ github.repository }}" --dir "evidence/overlays/$run" \
-              || echo "::warning::run $run has no downloadable artifacts (expired?)"
+            # A missing/expired run is a hard stop, never a silent no-op.
+            gh run download "$run" --repo "${{ github.repository }}" --dir "evidence/overlays/$run"
+            test -n "$(find "evidence/overlays/$run" -type f -print -quit)" \
+              || { echo "::error::Overlay run $run yielded no evidence files"; exit 1; }
           done
       - name: Build ledger
         shell: bash
@@ -63,7 +65,8 @@ jobs:
           rulings=()
           [ -f ledger_rulings.json ] && rulings=(--rulings ledger_rulings.json)
           python build_ledger.py --base evidence/base --base-run 37874152827 \
-            --frozen-http-preconditions "${args[@]}" "${rulings[@]}" --out ledger_out \
+            "${args[@]}" "${rulings[@]}" --out ledger_out \
+            --frozen-http-preconditions \
             --expected-projects "${{ inputs.expected_projects }}"
       - name: Upload ledger
         if: always()

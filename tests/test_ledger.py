@@ -207,3 +207,128 @@ def test_final_report_at_root_is_not_taken_as_midterm(base):
     rep["final_plan"] = {}
     from grader.ledger import _is_midterm_report, _is_final_report
     assert not _is_midterm_report("x/result.json", rep) and _is_final_report("x/result.json", rep)
+
+def test_overlay_unknown_json_causes_hard_failure(base, tmp_path):
+    ledger = build(base)
+    root = tmp_path / "unknown-run"
+    write(root / "P05/not_accepted.json", {
+        "project_id": "P05", "result": {"verdict": "PASS"},
+        "reason": "unrecognized structure must not be silently discarded",
+    })
+    with pytest.raises(ValueError, match="unrecognized evidence"):
+        ledger.apply_overlay_dir(root, run_id=8800)
+    assert entry(ledger, "P05", "midterm", "spark_pipeline.command")["verdict"] == "INCONCLUSIVE"
+
+
+def test_archive_metadata_is_explicitly_counted_but_not_applied(base, tmp_path):
+    ledger = build(base)
+    root = tmp_path / "archive-recovery"
+    write(root / "reports/P05/result.json", mid("P05", {"spark_pipeline.command": A("PASS")}))
+    write(root / "reports_archive_recovery/P05/extraction_proof.json", {
+        "container": "zip", "frozen_archive": "P05.zip",
+        "source_root": "/tmp/safe/P05", "student_code_executed_during_extraction": False,
+        "official_result_modified": False,
+    })
+    stats = ledger.apply_overlay_dir(root, run_id=1)
+    assert stats["files_seen"] == 2
+    assert stats["midterm_reports"] == 1
+    assert stats["metadata_files"] == 1
+    assert stats["ignored_files"] == 0
+    assert stats["changes"] == 1
+    assert {x["kind"] for x in stats["files"]} == {
+        "safe_extraction_metadata", "midterm_full",
+    }
+
+
+def test_run_with_only_metadata_rejected(base, tmp_path):
+    ledger = build(base)
+    root=tmp_path/"only-metadata"
+    write(root/"extraction_proof.json",{
+        "container":"zip", "frozen_archive":"a.zip","source_root":"/safe",
+        "student_code_executed_during_extraction": False,
+        "official_result_modified":False,
+    })
+    with pytest.raises(ValueError, match="only metadata"):
+        ledger.apply_overlay_dir(root, run_id=77)
+
+
+def test_malformed_overlay_json_is_not_silently_ignored(base, tmp_path):
+    ledger=build(base)
+    folder=tmp_path/"bad"
+    folder.mkdir()
+    (folder/"grade.json").write_text("{'not-json'",encoding="utf-8")
+    with pytest.raises(ValueError,match="Cannot parse overlay evidence"):
+        ledger.apply_overlay_dir(folder,run_id=123)
+
+
+def test_missing_overlay_directory_is_not_silent(base, tmp_path):
+    ledger=build(base)
+    with pytest.raises(ValueError,match="is missing"):
+        ledger.apply_overlay_dir(tmp_path/"does-not-exist",run_id=123)
+
+
+def test_review_and_source_audit_csv_exports(base, tmp_path):
+    ledger=build(base)
+    root=tmp_path/"proof"
+    write(root/"P05/spark_only.json", {
+        "project_id":"P05","source_run":37874152827,"frozen_commit":SHA,
+        "only_test":"spark_pipeline.command",
+        "passed_tests_reexecuted":0,"other_tests_reexecuted":0,
+        "official_grade_changed":False,"verdict":"PASS",
+        "run":{"returncode":0,"timed_out":False},"engine":"pyspark",
+        "after":{"raw":100000,"validated":100000,"quarantine":0,"duplicate_business_keys":0},
+    })
+    stats=ledger.apply_overlay_dir(root,run_id=38003977105)
+    write_outputs(ledger,tmp_path/"results",expected=2)
+    assert stats["changes"] == 2
+    summary=(tmp_path/"results/source_audit.csv").read_text(encoding="utf-8-sig")
+    assert "38003977105" in summary and "spark_recovery" in summary
+    assert "P05/spark_only.json" in summary
+    assert "review_queue.csv" in [p.name for p in (tmp_path/"results").iterdir()]
+
+
+def test_frozen_http_timeouts_are_review_not_fail(base):
+    ledger=build(base)
+    ledger._base_probes["P05"]={
+        "ingest_attempts":[{"response":{"status":None,"ok":False,
+                     "error":"TimeoutError: timed out"}}],
+        "refresh_mv_first":{"status":500,"ok":False,
+                           "body":{"detail":"student failed"}},
+    }
+    result=ledger.apply_frozen_transport_preconditions(base_run_id=1)
+    assert result["changes"] == 1
+    assert result["cases"][0]["project_id"]=="P05"
+    assert result["cases"][0]["key"]=="final.api.ingest"
+    assert entry(ledger,"P05","final","final.api.ingest")["verdict"]=="INCONCLUSIVE"
+    assert entry(ledger,"P05","final","final.api.health")["verdict"]=="PASS"
+    assert ledger.verify()["ok"]
+
+
+def test_transport_http_500_not_downgraded(base):
+    ledger=build(base)
+    ledger._base_probes["P05"]={
+        "ingest_attempts":[{"response":{"status":500,"ok":False,
+                                           "error":"timeout in database"}}]}
+    ledger.apply_frozen_transport_preconditions(base_run_id=1)
+    assert entry(ledger,"P05","final","final.api.ingest")["verdict"]=="FAIL"
+
+
+def test_transport_respects_later_pass_and_mixed_http_results(base,tmp_path):
+    ledger=build(base)
+    ledger._base_probes["P05"]={
+        "ingest_attempts":[
+            {"response":{"status":500,"error":"server internal"}},
+            {"response":{"status":None,"error":"TimeoutError: timed out"}}
+        ]}
+    ledger.apply_frozen_transport_preconditions(base_run_id=1)
+    assert entry(ledger,"P05","final","final.api.ingest")["verdict"]=="FAIL"
+    ov=tmp_path/"proof"
+    write(ov/"result.json", {
+        "project":"P05","scope":"only_final.api.ingest","verdict":"PASS",
+        "reason":"persisted after correct input"
+    })
+    ledger.apply_overlay_dir(ov,run_id=999)
+    ledger._base_probes["P05"]={"ingest_attempts":[{"response":{
+        "status":None,"error":"TimeoutError: timed out"}}]}
+    assert ledger.apply_frozen_transport_preconditions(base_run_id=1)["changes"]==0
+    assert entry(ledger,"P05","final","final.api.ingest")["verdict"]=="PASS"
