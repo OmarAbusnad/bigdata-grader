@@ -665,7 +665,9 @@ def refresh_mv_with_contract(openapi, full_refresh=False):
         key = param.get("name") or ""
         schema = resolve_schema(openapi, param.get("schema") or {})
         enum = schema.get("enum") or []
-        if key in ("full_refresh", "force_full"):
+        if str(key).lower().replace("-", "_") in {"full_refresh", "force_full", "fullrefresh", "initial", "initialize", "initialise",
+                                                   "init", "bootstrap", "rebuild", "full", "force", "reset"}:
+            # Boolean switches that request the initial/full build; the second (incremental) call sends false.
             query[key] = str(bool(full_refresh)).lower()
         elif param.get("required") and "default" in schema:
             query[key] = schema["default"]
@@ -680,6 +682,21 @@ def refresh_mv_with_contract(openapi, full_refresh=False):
 
 result["refresh_mv_first"] = refresh_mv_with_contract(openapi, full_refresh=True)
 result["refresh_mv_second"] = refresh_mv_with_contract(openapi, full_refresh=False)
+
+def precondition_refresh_first(resp):
+    """Aggregation/query answer that says analytics facts need a refresh/initialization first."""
+    text = json.dumps((resp or {}).get("body"), ensure_ascii=False).lower()
+    return (resp or {}).get("status") in (400, 409, 412, 422, 425, 500, 503) and any(
+        w in text for w in ("refresh-mv", "refresh first", "refresh_mv", "not initialized", "not initialised", "initialize analytics", "run refresh"))
+
+if result["aggregation_calls"] and any(precondition_refresh_first(c.get("response")) for c in result["aggregation_calls"]) \
+        and (result["refresh_mv_first"].get("ok") or result["refresh_mv_second"].get("ok")):
+    # The API documents refresh as a precondition for aggregations: judge them after the refresh.
+    result["aggregation_calls_before_refresh"] = result["aggregation_calls"]
+    result["aggregation_calls"] = [
+        {"name": name, "response": request("GET", "/aggregations/" + urllib.parse.quote(name, safe=""), timeout=90)}
+        for name in anames[:5]
+    ]
 
 j = request("GET", "/jobs", timeout=30)
 result["jobs"] = j

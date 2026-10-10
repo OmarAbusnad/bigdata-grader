@@ -45,7 +45,10 @@ def staged_command(cmd: str, target_rel: str, hidden_file_rel: str) -> str:
     target_dir = posixpath.dirname(target_rel)
     mkdir = f"mkdir -p {shlex.quote(target_dir)} && " if target_dir else ""
     src = shlex.quote(f"/grader-tests/{hidden_file_rel}")
-    return f"{mkdir}cp {src} {shlex.quote(target_rel)} && {cmd}"
+    # The sandbox runs `exec <command>`, so a compound command must be ONE program: a nested bash.
+    # (Without this only the first word would run and the rest of the `&&` chain would be ignored.)
+    inner = f"{mkdir}cp {src} {shlex.quote(target_rel)} && {cmd}"
+    return f"bash -c {shlex.quote(inner)}"
 
 
 def plan_staging_retry(stderr: str, stdout: str, snapshot: dict, *, fresh: bool,
