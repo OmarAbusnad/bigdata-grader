@@ -1,0 +1,55 @@
+name: Frozen P24 Final API Source Audit - Read Only
+on:
+  push:
+    paths:
+      - '.grader/trigger-static-api-p24.txt'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  static-api-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install archive readers only
+        run: |
+          python -m pip install 'rarfile>=4.2,<5'
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libarchive-tools
+      - name: Get exact frozen P24 submission
+        uses: actions/download-artifact@v4
+        with:
+          name: frozen-P24-37390623044
+          path: frozen_p24
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '37390623044'
+      - name: Inspect submitted Python files without executing student code
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p workspaces/P24/repo
+          tar -xzf frozen_p24/P24.repo.tar.gz -C workspaces/P24
+          python -m grader.safe_archive_submission \
+            --frozen-repo workspaces/P24/repo \
+            --out extracted/P24 \
+            --archive-basename midterm-data-pipeline.rar \
+            --proof reports_static/P24/extraction_proof.json
+          python - <<'PY'
+          import json,subprocess,sys
+          p=json.load(open("reports_static/P24/extraction_proof.json"))
+          subprocess.check_call([sys.executable,"-m","grader.frozen_api_source_audit",
+              "--project","P24","--root",p["source_root"],
+              "--out","reports_static/P24/final_api_source.json"])
+          PY
+      - name: Preserve isolated read-only proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p24-static-final-api-${{ github.run_id }}
+          path: reports_static/P24/
+          if-no-files-found: error
