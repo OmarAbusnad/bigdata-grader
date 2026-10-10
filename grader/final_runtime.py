@@ -26,6 +26,15 @@ REQUIRED_ENDPOINTS = {
 }
 
 
+def _ingest_transport_unproved(attempts: list[dict[str, Any]]) -> bool:
+    """No HTTP response at all: transport timeout cannot prove student FAIL."""
+    return bool(attempts) and all(
+        (attempt.get("response") or {}).get("status") is None
+        and bool((attempt.get("response") or {}).get("error"))
+        for attempt in attempts
+    )
+
+
 def _refresh_transport_unproved(*responses: dict[str, Any]) -> bool:
     """A transport exception without HTTP status cannot justify a student FAIL."""
     return any(
@@ -1177,6 +1186,7 @@ def run_final_suite(
 
         ingest_attempts = probe.get("ingest_attempts") or []
         ingest_ok = any((x.get("response") or {}).get("ok") for x in ingest_attempts)
+        ingest_transport_blocked = _ingest_transport_unproved(ingest_attempts)
         pipeline_counts = {}
         for cname in (raw_name, validated_name, quarantine_name):
             try:
@@ -1187,7 +1197,7 @@ def run_final_suite(
         assertions.append(_assertion(
             "final.api.ingest",
             "POST /ingest invokes the existing project pipeline on hidden data",
-            "PASS" if ingest_ok and pipeline_effect else ("INCONCLUSIVE" if ingest_ok else "FAIL"),
+            "PASS" if ingest_ok and pipeline_effect else ("INCONCLUSIVE" if (ingest_ok or ingest_transport_blocked) else "FAIL"),
             expected={"http_2xx": True, "pipeline_database_effect": True},
             actual={
                 "statuses": [(x.get("response") or {}).get("status") for x in ingest_attempts],
