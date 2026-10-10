@@ -490,7 +490,8 @@ def build_ingest_attempts(openapi):
             n = name.lower()
             is_path = (
                 any(x in n for x in ["path", "input_path", "file_path", "csv_path"])
-                or n in {"input", "file", "source_file", "source", "csv", "filename"}
+                or n in {"input", "file", "source_file", "source", "csv", "filename",
+                         "input_file", "csv_file", "input_csv", "input_filename", "csv_filename"}
             )
             if is_path:
                 fields[name] = DATASET
@@ -504,7 +505,15 @@ def build_ingest_attempts(openapi):
                     fields[name] = DATASET
                     break
         if media_type == "application/json":
-            attempts.append({"kind": "json", "body": fields})
+            if not props and schema.get("type") == "object":
+                # FastAPI payload: dict produces a free-form JSON object with
+                # no documented property names. Sending {} yields a false 400.
+                # Probe common path keys as separate legitimate requests.
+                for fallback_key in ("file_path", "input_path", "input_file",
+                                     "csv_path", "file", "input"):
+                    attempts.append({"kind": "json", "body": {fallback_key: DATASET}})
+            else:
+                attempts.append({"kind": "json", "body": fields})
         elif media_type in ("multipart/form-data", "application/x-www-form-urlencoded"):
             binary_fields = [
                 name for name, schema_item in props.items()
