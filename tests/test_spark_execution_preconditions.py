@@ -56,7 +56,7 @@ def test_cross_platform_launcher_signatures_trigger_review(tmp_path):
     inputs = [
         ("Project Java 17 was not found at /opt/student-venv/Library/bin/java.exe",
          "SPARK_PLATFORM_JAVA_CONFIGURATION_UNPROVEN"),
-        (r"JAVA_HOME does not contain bin\\java.exe: /usr/lib/jvm/java-17-openjdk-amd64",
+        (r"JAVA_HOME does not contain bin\java.exe: /usr/lib/jvm/java-17-openjdk-amd64",
          "SPARK_PLATFORM_JAVA_CONFIGURATION_UNPROVEN"),
         ("Permission denied: '/opt/student-venv/bin/spark-submit.cmd'",
          "SPARK_PLATFORM_WINDOWS_EXECUTABLE_UNPROVEN"),
