@@ -1,0 +1,66 @@
+name: Verify P41 frozen build contract (audit only)
+on:
+  push:
+    branches:
+      - audit/verify-p41-frozen-requirements-20261012
+    paths:
+      - .github/workflows/audit-p41-requirements.yml
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download frozen P41 snapshot
+        uses: actions/download-artifact@v4
+        with:
+          name: frozen-P41-37390623044
+          path: frozen_project
+          repository: ${{ github.repository }}
+          run-id: '37390623044'
+          github-token: ${{ github.token }}
+      - name: Reconstruct effective frozen build contract without executing student code
+        shell: bash
+        env:
+          GRADER_PREWARM_SPARK: '0'
+        run: |
+          set -euo pipefail
+          mkdir -p workspaces/P41
+          tar -xzf frozen_project/P41.repo.tar.gz -C workspaces/P41
+          python - <<'PY'
+          import json, re
+          from pathlib import Path
+          from grader.sandbox import DockerSandbox
+          repo=Path("workspaces/P41/repo").resolve()
+          req=repo/"requirements.txt"
+          assert req.is_file(), "P41 frozen requirements missing"
+          src=req.read_text(encoding="utf-8-sig")
+          assert re.search(r"(?im)^\s*pyspark\s*==\s*4\.2\.0\s*$",src), "Frozen P41 PySpark pin differs from evidence"
+          sb=DockerSandbox(Path.cwd()/".audit_workspace","P41",repo,Path.cwd()/".no_hidden_data")
+          sb.prepare_build_context()
+          context=sb.build_context
+          manifest=context/".grader.requirements.combined.txt"
+          assert manifest.is_file()
+          effective=manifest.read_text(encoding="utf-8-sig")
+          assert re.search(r"(?im)^\s*pyspark\s*==\s*4\.2\.0\s*$",effective), "P41 pin missing from effective manifest"
+          dockerfile=(context/".grader.Dockerfile").read_text()
+          assert "-c .grader.constraints.txt" not in dockerfile, "Grader still imposes conflicting Spark constraint"
+          assert not (context/".grader.constraints.txt").exists(), "Constraint unexpectedly generated"
+          proof={"project":"P41","frozen_run":37390623044,"source_pyspark_pin":"4.2.0",
+                 "effective_pyspark_pin":"4.2.0","grader_injected_constraint":False,
+                 "student_code_executed":False,"docker_build_executed":False}
+          Path("p41-build-contract-proof.json").write_text(json.dumps(proof,indent=2))
+          print(json.dumps(proof))
+          PY
+      - name: Upload audit proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: p41-frozen-build-contract-proof-${{ github.run_id }}
+          path: p41-build-contract-proof.json
+          retention-days: 30
