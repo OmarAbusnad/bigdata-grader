@@ -680,8 +680,19 @@ def refresh_mv_with_contract(openapi, full_refresh=False):
     suffix = "?" + urllib.parse.urlencode(query) if query else ""
     return request("POST", "/refresh-mv" + suffix, {}, timeout=120)
 
-result["refresh_mv_first"] = refresh_mv_with_contract(openapi, full_refresh=True)
-result["refresh_mv_second"] = refresh_mv_with_contract(openapi, full_refresh=False)
+def refresh_waiting_for_initialization(full_refresh):
+    """The ELT behind /ingest may still be finishing: give an uninitialized watermark a few chances."""
+    resp = refresh_mv_with_contract(openapi, full_refresh=full_refresh)
+    for _ in range(4):
+        text = json.dumps((resp or {}).get("body"), ensure_ascii=False).lower()
+        if (resp or {}).get("ok") or not any(w in text for w in ("not initialized", "not initialised", "run --initial", "watermark")):
+            break
+        time.sleep(6)
+        resp = refresh_mv_with_contract(openapi, full_refresh=full_refresh)
+    return resp
+
+result["refresh_mv_first"] = refresh_waiting_for_initialization(True)
+result["refresh_mv_second"] = refresh_waiting_for_initialization(False)
 
 def precondition_refresh_first(resp):
     """Aggregation/query answer that says analytics facts need a refresh/initialization first."""

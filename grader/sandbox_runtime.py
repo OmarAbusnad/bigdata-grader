@@ -385,30 +385,6 @@ def run_behavioral_suite(
                     staged_target["path"] = target
                     input_staging = {"target": target, "source": rel, "first_attempt_returncode": first_rc,
                                      "reason": "student program reads a fixed CSV path instead of the supplied argument"}
-            if int(run.get("returncode") or 0) == 0 and not run.get("timed_out") and not input_staging:
-                run_stdout = str(run.get("stdout") or "")
-                flag_cmd = plan_flag_retry(run_stdout, cmd, mongo.snapshot().to_dict(), fresh=fresh)
-                if flag_cmd:
-                    _live(f"{project_id}: {case_name} was a check-only run that names the executing flag; re-running once with it")
-                    first_cmd = cmd
-                    cmd = flag_cmd
-                    run = sb.run_student(cmd, env=env, timeout=timeout, stdin_text=stdin_text)
-                    input_staging = {"first_command": first_cmd, "retry_command": flag_cmd,
-                                     "reason": "program output asked for an explicit execute flag; nothing had been written"}
-                else:
-                    _snap_now = mongo.snapshot().to_dict()
-                    _live(f"{project_id}: {case_name} input probe | fresh={fresh} raw={_snap_now.get('raw')} expected_rows={spec.get('input')} printed_csv={processed_csv_path(run_stdout, rel)}")
-                    other_csv = plan_processed_input_retry(
-                        run_stdout, mongo.snapshot().to_dict(), expected_rows=int(spec.get("input") or 0),
-                        hidden_file_rel=rel, fresh=fresh, already_staged=bool(staged_target["path"]))
-                    if other_csv:
-                        _live(f"{project_id}: {case_name} processed {other_csv} instead of the supplied file; staging the test file there and retrying once")
-                        fresh_database()
-                        cmd = staged_command(cmd, other_csv, rel)
-                        run = sb.run_student(cmd, env=env, timeout=timeout, stdin_text=stdin_text)
-                        staged_target["path"] = other_csv
-                        input_staging = {"target": other_csv, "source": rel,
-                                         "reason": "program printed a different CSV path than the supplied test file and raw count did not match"}
             if _pipeline_completed_before_timeout({
                 "timed_out": run.get("timed_out"),
                 "stdout_tail": str(run.get("stdout") or "")[-12000:],
@@ -442,6 +418,31 @@ def run_behavioral_suite(
                         "source": "unresolved",
                         "evidence": candidate_evidence,
                     }
+            if int(run.get("returncode") or 0) == 0 and not run.get("timed_out") and not input_staging:
+                run_stdout = str(run.get("stdout") or "")
+                flag_cmd = plan_flag_retry(run_stdout, cmd, after, fresh=fresh)
+                if flag_cmd:
+                    _live(f"{project_id}: {case_name} was a check-only run that names the executing flag; re-running once with it")
+                    first_cmd = cmd
+                    cmd = flag_cmd
+                    run = sb.run_student(cmd, env=env, timeout=timeout, stdin_text=stdin_text)
+                    input_staging = {"first_command": first_cmd, "retry_command": flag_cmd,
+                                     "reason": "program output asked for an explicit execute flag; nothing had been written"}
+                    after = mongo.snapshot().to_dict()
+                else:
+                    _live(f"{project_id}: {case_name} input probe | fresh={fresh} raw={after.get('raw')} expected_rows={spec.get('input')} printed_csv={processed_csv_path(run_stdout, rel)}")
+                    other_csv = plan_processed_input_retry(
+                        run_stdout, after, expected_rows=int(spec.get("input") or 0),
+                        hidden_file_rel=rel, fresh=fresh, already_staged=bool(staged_target["path"]))
+                    if other_csv:
+                        _live(f"{project_id}: {case_name} processed {other_csv} instead of the supplied file; staging the test file there and retrying once")
+                        fresh_database()
+                        cmd = staged_command(cmd, other_csv, rel)
+                        run = sb.run_student(cmd, env=env, timeout=timeout, stdin_text=stdin_text)
+                        staged_target["path"] = other_csv
+                        input_staging = {"target": other_csv, "source": rel,
+                                         "reason": "program printed a different CSV path than the supplied test file and raw count did not match"}
+                        after = mongo.snapshot().to_dict()
             _live(
                 f"{project_id}: DONE {case_name} | rc={run.get('returncode')} "
                 f"| elapsed={float(run.get('elapsed_seconds', 0)):.2f}s "
