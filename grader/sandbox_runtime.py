@@ -13,6 +13,7 @@ from .oracle import HiddenOracle
 from .runtime_evidence import detect_engine
 from .sandbox import DockerSandbox, SandboxConfig, SandboxError
 from .spark_probe import ensure_large_clean_probe
+from .spark_dependency_audit import check_submission
 from .tests_midterm import (
     A,
     assert_equal,
@@ -153,6 +154,35 @@ def _spark_dependency_resolution_blocked(runtime_log: dict[str, Any] | None) -> 
     ]
     hits = [m for m in markers if m in text]
     return bool(hits), hits
+
+
+def _unproven_spark_execution_precondition(
+    repo: Path, runtime_log: dict[str, Any] | None
+) -> tuple[str | None, list[str]]:
+    """Identify a narrowly evidenced execution blocker; never infer a student PASS.
+
+    Only a failed Spark process with a known platform/runtime provider signature
+    qualifies. A source-proven connector/version mismatch stays a student error.
+    Successful executions, arbitrary runtime failures, and timeouts are untouched.
+    """
+    log = runtime_log or {}
+    if log.get("timed_out") or int(log.get("returncode") or 0) == 0:
+        return None, []
+    text = str(log.get("stderr_tail") or "") + "\n" + str(log.get("stdout_tail") or "")
+    if re.search(r"Configured Java was not found at\\s+[A-Za-z]:[\\\\/]", text, re.I):
+        return "SPARK_PLATFORM_JAVA_CONFIGURATION_UNPROVEN", [
+            "The execution hardcodes a Windows Java path unavailable in the Linux grading sandbox; "
+            "portability/assignment ownership requires review before deducting Spark behavior."
+        ]
+    if re.search(r"ClassNotFoundException:\\s*mongodb\\.DefaultSource", text, re.I):
+        audit = check_submission(repo, runtime_error=text)
+        if audit.get("owner") == "STUDENT_CODE":
+            return None, []  # Source-proven incompatible coordinates or format.
+        return "SPARK_MONGODB_PROVIDER_UNPROVEN", [
+            "The Spark JVM could not load the MongoDB data source provider; "
+            "check declared JARs, Scala/Spark compatibility and sandbox classpath before attributing failure."
+        ]
+    return None, []
 
 
 def _format_threshold_env(value: float | int) -> str:
@@ -603,22 +633,32 @@ def run_behavioral_suite(
         spark, t2_eff = execute_case("spark_pipeline", "test_02", fresh=False, expected_engine="pyspark",
                                      file_path=spark_file, spec_override=spark_spec, threshold_override=spark_threshold)
         s2 = spark.snapshot_after or {}
-        spark_blocked, spark_block_evidence = _spark_dependency_resolution_blocked(getattr(spark, "runtime_log", None))
-        if spark_blocked:
+        spark_log = getattr(spark, "runtime_log", None)
+        spark_blocked, spark_block_evidence = _spark_dependency_resolution_blocked(spark_log)
+        precondition, precondition_evidence = _unproven_spark_execution_precondition(repo, spark_log)
+        if spark_blocked or precondition:
+            reason = ("Blocked by isolated Maven dependency resolution." if spark_blocked else
+                      "Spark execution precondition is unresolved; no downstream records could be evaluated.")
+            evidence = spark_block_evidence if spark_blocked else precondition_evidence
+            report.setdefault("stage_preconditions", {})["spark_pipeline"] = {
+                "code": "GRADER_NETWORK_DEPENDENCY_BLOCKED" if spark_blocked else precondition,
+                "owner": "GRADER_ENVIRONMENT" if spark_blocked else "UNPROVEN",
+                "evidence": evidence,
+            }
             for a in spark.assertions:
-                if a.key in {"spark_pipeline.command", "spark_pipeline.engine"}:
+                if a.key == "spark_pipeline.command" or (spark_blocked and a.key == "spark_pipeline.engine"):
                     a.verdict = "INCONCLUSIVE"
-                    a.note = "Spark Maven dependency could not be resolved under the grader's isolated network; this is not an automatic student failure."
-                    a.evidence.extend(spark_block_evidence)
+                    a.note = reason
+                    a.evidence.extend(evidence)
             spark.assertions += [
                 A("spark.raw_count", "Spark: orders_raw = الإدخال", "INCONCLUSIVE", int(t2_eff["input"]), s2.get("raw"),
-                  spark_block_evidence, note="Blocked by isolated Maven dependency resolution."),
+                  evidence, note=reason),
                 A("spark.validated_count", "Spark: validated = الإدخال النظيف", "INCONCLUSIVE", int(t2_eff["validated_after_run"]), s2.get("validated"),
-                  spark_block_evidence, note="Blocked by isolated Maven dependency resolution."),
+                  evidence, note=reason),
                 A("spark.quarantine_count", "Spark: quarantine = 0", "INCONCLUSIVE", int(t2_eff["quarantine"]), s2.get("quarantine"),
-                  spark_block_evidence, note="Blocked by isolated Maven dependency resolution."),
+                  evidence, note=reason),
                 A("spark.duplicates", "Spark: لا توجد Business Keys مكررة", "INCONCLUSIVE", 0, s2.get("duplicate_business_keys"),
-                  spark_block_evidence, note="Blocked by isolated Maven dependency resolution."),
+                  evidence, note=reason),
             ]
         else:
             spark.assertions += [
