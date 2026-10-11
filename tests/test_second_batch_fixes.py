@@ -84,3 +84,10 @@ def test_external_audit_collection_is_accepted():
     mc.collections = {"raw": "orders_raw", "validated": "orders_validated", "quarantine": "orders_quarantine"}
     assert mc.external_audit("A-1") is True
     assert mc.external_audit("B-2") is False
+
+
+def test_probe_waits_for_uninitialized_watermark():
+    code = _probe_python()
+    ast.parse(code)
+    assert "def refresh_waiting_for_initialization(" in code
+    assert "def precondition_refresh_first(" in code
