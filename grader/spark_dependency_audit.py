@@ -36,7 +36,12 @@ def scala_compat_constraint(result: dict) -> str | None:
     if scalas != {"2.12"}:
         return None
     specs = result.get("pyspark_constraints") or []
-    if any(sp.get("operator") in ("==", "===", "<", "<=", "~=") for sp in specs):
+    # Only an explicitly declared open-ended Spark 3 lower bound qualifies.
+    # An unparsed/absent requirement or an explicit Spark 4 selection must
+    # never be silently rewritten by the grader's pip constraint.
+    if not specs or any(sp.get("operator") in ("==", "===", "<", "<=", "~=") for sp in specs):
+        return None
+    if not any(sp.get("operator") in (">", ">=") and int(sp.get("major", 99)) == 3 for sp in specs):
         return None
     return "pyspark<4"
 

@@ -324,6 +324,14 @@ class Ledger:
                          expected_sha=proj["frozen_sha"], got_sha=sha)
             return 0
         ph = proj["phases"]["midterm"]
+        # Track the latest attempt even if the environment produced no assertions.
+        latest_status = runtime.get("status")
+        if latest_status is not None and latest_status != ph["status"]:
+            ph.setdefault("status_history", []).append({
+                "from": ph["status"], "to": latest_status, "source": source,
+                "informational": bool(ph["entries"]),
+            })
+            ph["status"] = latest_status
         raw = runtime.get("assertions")
         if not isinstance(raw, dict) or not raw:
             return 0
