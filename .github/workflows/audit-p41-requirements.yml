@@ -36,11 +36,11 @@ jobs:
           python - <<'PY'
           import json, re
           from pathlib import Path
-          from grader.sandbox import DockerSandbox
+          from grader.sandbox import DockerSandbox, _read_requirements_text
           repo=Path("workspaces/P41/repo").resolve()
           req=repo/"requirements.txt"
           assert req.is_file(), "P41 frozen requirements missing"
-          src=req.read_text(encoding="utf-8-sig")
+          src,source_encoding=_read_requirements_text(req)
           assert re.search(r"(?im)^\s*pyspark\s*==\s*4\.2\.0\s*$",src), "Frozen P41 PySpark pin differs from evidence"
           sb=DockerSandbox(Path.cwd()/".audit_workspace","P41",repo,Path.cwd()/".no_hidden_data")
           sb.prepare_build_context()
