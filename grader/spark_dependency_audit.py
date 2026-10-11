@@ -46,6 +46,26 @@ def scala_compat_constraint(result: dict) -> str | None:
     return "pyspark<4"
 
 
+def _read_requirement_manifest(path: Path) -> str:
+    """Parse frozen requirements with the same UTF-8/UTF-16 support as the sandbox.
+
+    These are metadata only. An unreadable manifest must not masquerade as an
+    absent PySpark pin, which could cause an incompatible grader constraint.
+    """
+    raw = path.read_bytes()
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return raw.decode("utf-16")
+    if b"\x00" in raw[:200]:
+        for encoding in ("utf-16-le", "utf-16-be"):
+            try:
+                decoded = raw.decode(encoding)
+                if "\x00" not in decoded:
+                    return decoded
+            except UnicodeError:
+                continue
+    return raw.decode("utf-8-sig", errors="replace")
+
+
 def check_submission(repo: Path, *, runtime_error: str = "") -> dict:
     if not repo.is_dir():
         raise ValueError("Repository path not found")
@@ -77,7 +97,7 @@ def check_submission(repo: Path, *, runtime_error: str = "") -> dict:
     requirements = []
     for p in sorted(repo.rglob("requirements*.txt"))[:25]:
         try:
-            requirements.append(p.read_text(encoding="utf-8-sig", errors="replace"))
+            requirements.append(_read_requirement_manifest(p))
         except OSError:
             pass
     declarations = sorted(set(COORD.findall(source + "\n" + "\n".join(source_literals))))
