@@ -66,12 +66,13 @@ def write_outputs(ledger: Ledger, out: Path, expected: int | None) -> dict:
                 "metadata_files": src.get("metadata_files", 0),
                 "ignored_files": src.get("ignored_files", 0),
                 "changes": src.get("changes", 0),
+                "evidence_refreshes": src.get("evidence_refreshes", 0),
                 "files": "; ".join(f"{x['path']} [{x['kind']}: {x['changes']}]"
                                     for x in src.get("files", [])),
             })
     af = ["run_id", "type", "files_seen", "recognized", "midterm_reports",
           "spark_proofs", "final_proofs", "evidence_overlays", "metadata_files",
-          "ignored_files", "changes", "files"]
+          "ignored_files", "changes", "evidence_refreshes", "files"]
     _write_csv(out / "source_audit.csv", audit_rows, af)
     return data
 
@@ -102,7 +103,9 @@ def main() -> int:
         print(json.dumps({"overlay_run": int(run), "files_seen": stats["files_seen"],
                           "grading_files": stats["recognized_files"] - stats["metadata_files"],
                           "metadata_files": stats["metadata_files"], "ignored_files": stats["ignored_files"],
-                          "changes_applied": stats["changes"], "files": stats["files"]},
+                          "changes_applied": stats["changes"],
+                          "evidence_refreshes": stats.get("evidence_refreshes", 0),
+                          "files": stats["files"]},
                          ensure_ascii=False), flush=True)
     if a.final_explain_rule:
         stats = ledger.apply_final_explain_rule(base_run_id=a.base_run)
@@ -125,7 +128,8 @@ def main() -> int:
                       "overlay_runs": [
                           {"run_id": src["run_id"], "recognized": src.get("recognized_files"),
                            "metadata": src.get("metadata_files"),
-                           "ignored": src.get("ignored_files"), "changes_applied": src["changes"]}
+                           "ignored": src.get("ignored_files"), "changes_applied": src["changes"],
+                           "evidence_refreshes": src.get("evidence_refreshes", 0)}
                           for src in data["sources"] if src["type"] == "overlay_dir"
                       ],
                       "timeout_preconditions": [

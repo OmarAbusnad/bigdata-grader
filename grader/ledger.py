@@ -110,6 +110,7 @@ class Ledger:
         self.rejected: list[dict[str, Any]] = []
         self.conflicts: list[dict[str, Any]] = []
         self.pass_overrides: list[dict[str, Any]] = []
+        self.evidence_refreshes: list[dict[str, Any]] = []
         self.sources: list[dict[str, Any]] = []
         self._base_assertions: dict[str, dict[str, dict[str, Any]]] = {}
         self._base_probes: dict[str, dict[str, Any]] = {}
@@ -207,12 +208,33 @@ class Ledger:
                             "history": [], "flags": ["added_by_overlay"]}
             return "added"
         if cur["verdict"] == to:
-            cur["history"].append({**record, "kind": "corroborated"})
-            reason = (detail or {}).get("reason")
-            if reason and reason != cur.get("note") and source.get("type") in {"midterm_full", "final_full", "spark_recovery"}:
-                cur["history"][-1]["previous_note"] = cur.get("note")
-                cur["note"] = _clip(reason)  # latest evidence wins in the review queue
-                cur["origin"] = source
+            event = {**record, "kind": "corroborated"}
+            # A newer complete rerun can retain FAIL/INCONCLUSIVE yet demonstrate
+            # a different actual count. Never display the old observed=0 when
+            # the saved latest proof says observed=18250.
+            if cur["verdict"] != "PASS" and source.get("type") in {
+                "midterm_full", "final_full", "spark_recovery",
+            }:
+                updates = {
+                    "expected": (detail or {}).get("expected"),
+                    "actual": (detail or {}).get("observed"),
+                    "note": (detail or {}).get("reason"),
+                }
+                changed_fields = {}
+                for field, raw_value in updates.items():
+                    if raw_value is not None:
+                        latest = _clip(raw_value)
+                        if latest != cur.get(field):
+                            changed_fields[field] = cur.get(field)
+                            cur[field] = latest
+                if changed_fields:
+                    event["previous_values"] = changed_fields
+                    event["previous_origin"] = cur["origin"]
+                    cur["origin"] = source
+                    self.evidence_refreshes.append({"project_id": pid, "phase": phase,
+                                                     "key": key, "fields": sorted(changed_fields),
+                                                     "source": source})
+            cur["history"].append(event)
             return "same"
         if allowed_from is not None and cur["verdict"] not in allowed_from:
             self.conflicts.append({"reason": "precondition_mismatch", "current": cur["verdict"],
@@ -247,6 +269,7 @@ class Ledger:
         root = Path(root)
         if not root.is_dir():
             raise ValueError(f"Requested overlay run {run_id} is missing: {root}")
+        refresh_start = len(self.evidence_refreshes)
         stats: dict[str, Any] = {
             "midterm_reports": 0, "final_reports": 0, "evidence_overlays": 0, "spark_proofs": 0,
             "final_proofs": 0, "metadata_files": 0, "ignored_files": 0,
@@ -304,6 +327,7 @@ class Ledger:
             raise ValueError(f"Overlay run {run_id} has {len(unknown)} unrecognized evidence files: {unknown[:10]}")
         if stats["recognized_files"] == stats["metadata_files"]:
             raise ValueError(f"Overlay run {run_id} contains only metadata, no grading evidence")
+        stats["evidence_refreshes"] = len(self.evidence_refreshes) - refresh_start
         self.sources.append({"type": "overlay_dir", "run_id": run_id, **stats})
         return stats
 
@@ -578,6 +602,7 @@ class Ledger:
             "conflicts": self.conflicts,
             "rejected": self.rejected,
             "pass_overrides": self.pass_overrides,
+            "evidence_refreshes": self.evidence_refreshes,
         }
 
 
