@@ -24,3 +24,5 @@ jobs:
         run: |
           python -m pytest -q
           python -m py_compile grader/sandbox_runtime.py grader/sandbox.py grader/spark_dependency_audit.py grader/ledger.py
+
+# Evidence review: comprehensive offline audit, no student execution.
