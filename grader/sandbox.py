@@ -230,6 +230,23 @@ def _safe_id(project_id: str) -> str:
     return x[:48]
 
 
+def _guard_spark_constraint(constraint: str | None, install_requirements: Path) -> str | None:
+    """Never overlay a grader Spark range onto an explicitly pinned version.
+
+    Check the actual manifest passed to pip, not only the source audit. Merged
+    requirements and legacy encodings can differ from the audit's source view.
+    """
+    if not constraint or not install_requirements.is_file():
+        return constraint
+    try:
+        declared, _encoding = _read_requirements_text(install_requirements)
+    except (OSError, UnicodeError):
+        return None  # Unreadable manifest: do not impose an unverified constraint.
+    if re.search(r"(?im)^\s*pyspark\s*(?:===|==|~=|<=|<)\s*\d", declared):
+        return None
+    return constraint
+
+
 class DockerSandbox:
     """Per-project Docker sandbox with a dedicated MongoDB container and network.
 
@@ -367,7 +384,7 @@ class DockerSandbox:
         constraint_flag = ""
         try:
             from .spark_dependency_audit import check_submission as _audit, scala_compat_constraint
-            constraint = scala_compat_constraint(_audit(self.repo))
+            constraint = _guard_spark_constraint(scala_compat_constraint(_audit(self.repo)), req)
             if constraint:
                 (self.build_context / ".grader.constraints.txt").write_text(constraint + "\n", encoding="utf-8")
                 constraint_flag = " -c .grader.constraints.txt"
