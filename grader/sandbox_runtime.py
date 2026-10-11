@@ -169,12 +169,12 @@ def _unproven_spark_execution_precondition(
     if log.get("timed_out") or int(log.get("returncode") or 0) == 0:
         return None, []
     text = str(log.get("stderr_tail") or "") + "\n" + str(log.get("stdout_tail") or "")
-    if re.search(r"Configured Java was not found at\\s+[A-Za-z]:[\\\\/]", text, re.I):
+    if re.search(r"Configured Java was not found at\s+[A-Za-z]:[\\/]", text, re.I):
         return "SPARK_PLATFORM_JAVA_CONFIGURATION_UNPROVEN", [
             "The execution hardcodes a Windows Java path unavailable in the Linux grading sandbox; "
             "portability/assignment ownership requires review before deducting Spark behavior."
         ]
-    if re.search(r"ClassNotFoundException:\\s*mongodb\\.DefaultSource", text, re.I):
+    if re.search(r"ClassNotFoundException:\s*mongodb\.DefaultSource", text, re.I):
         audit = check_submission(repo, runtime_error=text)
         if audit.get("owner") == "STUDENT_CODE":
             return None, []  # Source-proven incompatible coordinates or format.
