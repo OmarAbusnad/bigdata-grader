@@ -1,0 +1,26 @@
+name: Audit-only grader regression tests
+on:
+  push:
+    branches:
+      - fix/general-spark-preconditions-ledger-status-20261012
+    paths:
+      - .github/workflows/audit-grader-regressions.yml
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - name: Verify regression cases
+        run: |
+          python -m pytest -q tests/test_spark_execution_preconditions.py tests/test_spark_constraint_manifest.py tests/test_ledger_midterm_run_status.py tests/test_spark_dependency_audit.py tests/test_ledger.py
+      - name: Verify complete unit suite without student code
+        run: |
+          python -m pytest -q
+          python -m py_compile grader/sandbox_runtime.py grader/sandbox.py grader/spark_dependency_audit.py grader/ledger.py
