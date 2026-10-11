@@ -159,28 +159,43 @@ def _spark_dependency_resolution_blocked(runtime_log: dict[str, Any] | None) -> 
 def _unproven_spark_execution_precondition(
     repo: Path, runtime_log: dict[str, Any] | None
 ) -> tuple[str | None, list[str]]:
-    """Identify a narrowly evidenced execution blocker; never infer a student PASS.
+    """Identify unproved Spark execution preconditions without awarding PASS.
 
-    Only a failed Spark process with a known platform/runtime provider signature
-    qualifies. A source-proven connector/version mismatch stays a student error.
-    Successful executions, arbitrary runtime failures, and timeouts are untouched.
+    Only a failed execution with one of the narrowly evidenced signatures is
+    affected. Generic application errors remain evaluable student evidence.
     """
     log = runtime_log or {}
-    if log.get("timed_out") or int(log.get("returncode") or 0) == 0:
+    if log.get("timed_out"):
+        return "SPARK_TIMEOUT_UNPROVEN", [
+            "The Spark stage exceeded the grader timeout before completion; "
+            "inspect progress and the assignment's time limits before attributing its missing output."
+        ]
+    if int(log.get("returncode") or 0) == 0:
         return None, []
     text = str(log.get("stderr_tail") or "") + "\n" + str(log.get("stdout_tail") or "")
-    if re.search(r"Configured Java was not found at\s+[A-Za-z]:[\\/]", text, re.I):
+    if re.search(
+        r"(?:Configured|Project)\s+Java(?:\s+\d+)?\s+was not found at|"
+        r"JAVA_HOME does not contain bin\\java\.exe", text, re.I
+    ):
         return "SPARK_PLATFORM_JAVA_CONFIGURATION_UNPROVEN", [
-            "The execution hardcodes a Windows Java path unavailable in the Linux grading sandbox; "
-            "portability/assignment ownership requires review before deducting Spark behavior."
+            "The Spark launcher could not find the Java executable at the program's configured path; "
+            "check cross-platform launch contract before penalizing downstream data checks."
+        ]
+    if re.search(r"spark-submit\.cmd|Cannot run program [\"']python\.exe[\"']", text, re.I):
+        return "SPARK_PLATFORM_WINDOWS_EXECUTABLE_UNPROVEN", [
+            "A Windows-only Spark/Python executable was invoked in the Linux grading container."
+        ]
+    if re.search(r"Ivy jar cache not found", text, re.I):
+        return "SPARK_CONNECTOR_CACHE_PATH_UNPROVEN", [
+            "The Spark launcher expects an Ivy cache directory that is absent in this environment."
         ]
     if re.search(r"ClassNotFoundException:\s*mongodb\.DefaultSource", text, re.I):
         audit = check_submission(repo, runtime_error=text)
         if audit.get("owner") == "STUDENT_CODE":
-            return None, []  # Source-proven incompatible coordinates or format.
+            return None, []  # Independently proven source-level mismatch is not excused.
         return "SPARK_MONGODB_PROVIDER_UNPROVEN", [
-            "The Spark JVM could not load the MongoDB data source provider; "
-            "check declared JARs, Scala/Spark compatibility and sandbox classpath before attributing failure."
+            "Spark cannot load the MongoDB data source provider; audit declared JARs, "
+            "Scala/Spark compatibility, and the sandbox classpath before assigning responsibility."
         ]
     return None, []
 
