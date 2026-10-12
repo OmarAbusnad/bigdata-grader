@@ -1,0 +1,11 @@
+project_id,students,student_nos,project_title,repo_url,repo_full_name,stage,track,ref,grading_mode,historical_policy
+P01,رحاب بشير عبدالرحمن الخطيب,23,,https://github.com/6980-rehab/midterm-data-pipeline-,6980-rehab/midterm-data-pipeline-,midterm,,c43aae3d5e9c0d96731640206752f886f2618497,all,retain_prior_evidence
+P10,نجم الدين حيدر طه حزام الوليدي,82,,https://github.com/Najmadeenalwealdi/finall-project-for-big-data/tree/main/pro,Najmadeenalwealdi/finall-project-for-big-data,final,,c43fb24256bd9edb890be36f5ae7766df0a3696e,final,retain_prior_evidence
+P24,صقر عبده ناجي محمد البرش,39,,https://github.com/mohsenalfahed2026-sketch/Sagralbrsh,mohsenalfahed2026-sketch/Sagralbrsh,midterm,,2ea070985b82edf2cd560d188b1b2a4d410f9df2,all,retain_prior_evidence
+P26,محمد والي سلطان الشيباني,71,,https://github.com/engmwaly/Project-BigData-Data-Pipeline,engmwaly/Project-BigData-Data-Pipeline,midterm,,fc4f5d9924fe9a59f09e4167d323eaf4672ccca2,all,retain_prior_evidence
+P40,قصي سعد سعد قاريه,58,,https://github.com/qusaiqaria-cmyk/-midterm-data-pipeline,qusaiqaria-cmyk/-midterm-data-pipeline,midterm,,ce51dee3dff5a4abd589d1c5dcab88dfaae4020b,all,retain_prior_evidence
+P50,رغد اسكندر ثابت الصغير مقبل,24,,https://github.com/raghadeskander27/hybrid-bigdata-elt-pipeline,raghadeskander27/hybrid-bigdata-elt-pipeline,final,,e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3,final,retain_prior_evidence
+P67,حمزة يفوز,,,https://github.com/HamzaAhmedYafooz/big_data_hybrid_pipline,HamzaAhmedYafooz/big_data_hybrid_pipline,midterm,,9f4c7a6f37ef35e620a2e88d46d9b25690a02229,midterm,retain_prior_evidence
+P68,بلال الشامي,,,https://github.com/Bilal-AlShami/bigdata-hybrid-pipeline,Bilal-AlShami/bigdata-hybrid-pipeline,midterm,,ee03bbe63d17c5c84e8320103e1ecf57ac4aaf46,midterm,retain_prior_evidence
+P69,رؤى منتصر محسن المدي,,,https://github.com/newump2017-coder/Final-project-bigdata,newump2017-coder/Final-project-bigdata,final,,db75dd75794b9c752b519b4ad8f9ee69838d6784,final,retain_prior_evidence
+P70,رائد الانسي,,,https://github.com/raed-alansi/big-data-pipeline,raed-alansi/big-data-pipeline,midterm,,e42ffb8ac88f34ad10b508a95a4bde14aa8bad85,all,retain_prior_evidence
