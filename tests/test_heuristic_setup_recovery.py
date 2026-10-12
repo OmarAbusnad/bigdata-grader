@@ -51,3 +51,23 @@ def test_readme_explicit_module_setup_is_not_skipped(tmp_path):
 def test_no_arbitrary_retry_on_missing_dependency(tmp_path):
     repo=make_repo(tmp_path)
     assert not ok(repo,error_output='ModuleNotFoundError: No module named pymongo')
+
+
+def test_existing_unique_index_proven_by_mongo_error_with_different_db_alias(tmp_path):
+    repo = make_repo(tmp_path)
+    error = (
+        'pymongo.errors.OperationFailure: An existing index has the same name '
+        'as the requested index. Requested index: { v: 2, key: { order_id: 1 }, '
+        'name: "order_id_1" }, existing index: { v: 2, unique: true, '
+        'key: { order_id: 1 }, name: "order_id_1" }, codeName: IndexKeySpecsConflict'
+    )
+    assert ok(repo, unique_index_exists=False, error_output=error)
+
+
+def test_nonunique_existing_index_not_sufficient_for_clean_retry(tmp_path):
+    repo = make_repo(tmp_path)
+    error = (
+        'IndexKeySpecsConflict: existing index: { v: 2, key: { order_id: 1 }, '
+        'name: "order_id_1" }'
+    )
+    assert not ok(repo, unique_index_exists=False, error_output=error)
