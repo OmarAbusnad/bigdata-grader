@@ -437,24 +437,42 @@ def run_behavioral_suite(
                                  for k in ("raw", "validated", "quarantine")),
             )):
                 first_rc = int(run.get("returncode") or 0)
-                mongo.drop_database()
-                before = mongo.snapshot().to_dict()
-                _live(f"{project_id}: {case_name} index conflict after inferred setup; "
-                      "retrying original command once with an empty database")
-                retry = sb.run_student(cmd, env=env, timeout=timeout, stdin_text=stdin_text)
-                recovered = int(retry.get("returncode") or 0) == 0 and not retry.get("timed_out")
-                report.setdefault("setup_recovery", []).append({
-                    "case": case_name, "reason": "inferred_setup_index_spec_conflict",
-                    "first_returncode": first_rc, "retry_returncode": retry.get("returncode"),
-                    "retry_timed_out": bool(retry.get("timed_out")), "recovered": recovered,
-                })
-                if recovered:
-                    setup_mode["skip_auto"] = True
-                    input_staging = {
-                        "reason": "inferred setup conflicted with student index specification",
-                        "first_returncode": first_rc, "retry_clean_db_without_setup": True,
-                    }
-                run = retry
+                target_db, target_evidence = mongo.find_unambiguous_empty_unique_index_database()
+                if not target_db:
+                    report.setdefault("setup_recovery", []).append({
+                        "case": case_name, "reason": "inferred_setup_index_spec_conflict",
+                        "first_returncode": first_rc, "recovered": False,
+                        "retry_skipped": "no_unique_empty_target_database",
+                        "database_evidence": target_evidence,
+                    })
+                else:
+                    if target_db != mongo.database_name:
+                        mongo.switch_database(target_db)
+                        effective_db = target_db
+                        report["database"] = target_db
+                        report["database_discovery"] = {
+                            "source": "unique_empty_setup_index_database_in_isolated_runtime",
+                            "evidence": target_evidence,
+                        }
+                    mongo.drop_database()
+                    before = mongo.snapshot().to_dict()
+                    _live(f"{project_id}: {case_name} index conflict after inferred setup; "
+                          "retrying original command once in proven empty project database")
+                    retry = sb.run_student(cmd, env=env, timeout=timeout, stdin_text=stdin_text)
+                    recovered = int(retry.get("returncode") or 0) == 0 and not retry.get("timed_out")
+                    report.setdefault("setup_recovery", []).append({
+                        "case": case_name, "reason": "inferred_setup_index_spec_conflict",
+                        "database": target_db, "database_evidence": target_evidence,
+                        "first_returncode": first_rc, "retry_returncode": retry.get("returncode"),
+                        "retry_timed_out": bool(retry.get("timed_out")), "recovered": recovered,
+                    })
+                    if recovered:
+                        setup_mode["skip_auto"] = True
+                        input_staging = {
+                            "reason": "inferred setup conflicted with student index specification",
+                            "first_returncode": first_rc, "retry_clean_db_without_setup": True,
+                        }
+                    run = retry
             if int(run.get("returncode") or 0) != 0 and not run.get("timed_out"):
                 decision = plan_staging_retry(
                     str(run.get("stderr") or ""), str(run.get("stdout") or ""),
