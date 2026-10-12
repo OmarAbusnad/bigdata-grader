@@ -49,6 +49,51 @@ class MongoChecker:
                 evidence.append(f"{name}: {counts}")
         return (candidates[0] if len(candidates) == 1 else None), evidence
 
+    def find_unambiguous_empty_unique_index_database(self) -> tuple[str | None, list[str]]:
+        """Locate the *one* empty project database carrying a unique business-key index.
+
+        Only the isolated MongoDB instance attached to this student sandbox is
+        inspected. An empty database is safe to reset for a single bounded
+        inferred-setup retry. Multiple matches or any written rows mean no
+        automatic recovery; never guess a database or erase project output.
+        """
+        candidates: list[str] = []
+        notes: list[str] = []
+        valid = self.collections.get("validated")
+        if not valid:
+            return None, ["missing validated collection mapping"]
+        allowed_keys = {self.business_key, *BUSINESS_KEY_ALIASES}
+        for dbname in self.client.list_database_names():
+            if dbname in {"admin", "config", "local"}:
+                continue
+            db = self.client[dbname]
+            existing = set(db.list_collection_names())
+            if valid not in existing:
+                continue
+            present = sorted(set(self.collections.values()) & existing)
+            counts = {c: db[c].count_documents({}) for c in present}
+            if any(counts.values()):
+                notes.append(f"{dbname}: project data present, refusing reset")
+                continue
+            try:
+                indexes = list(db[valid].list_indexes())
+            except Exception as exc:
+                notes.append(f"{dbname}: cannot inspect indexes: {type(exc).__name__}")
+                continue
+            matches = [
+                str(idx.get("name") or "")
+                for idx in indexes
+                if idx.get("unique")
+                and any(k in allowed_keys for k in (idx.get("key") or {}).keys())
+            ]
+            if matches:
+                candidates.append(dbname)
+                notes.append(f"{dbname}: empty with unique business-key index {matches}")
+        if len(candidates) != 1:
+            notes.append(f"candidate_database_count={len(candidates)}; no automatic reset")
+            return None, notes
+        return candidates[0], notes
+
     def switch_database(self, name: str) -> None:
         if not name or name in {"admin", "config", "local"}:
             raise ValueError("Invalid student database")
