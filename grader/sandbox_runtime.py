@@ -709,17 +709,34 @@ def run_behavioral_suite(
         spark_log = getattr(spark, "runtime_log", None)
         spark_blocked, spark_block_evidence = _spark_dependency_resolution_blocked(spark_log)
         precondition, precondition_evidence = _unproven_spark_execution_precondition(repo, spark_log)
-        if spark_blocked or precondition:
+        # A failed Spark command can be an actual student failure, but its
+        # downstream *final* counts were never proven. Do not assign separate
+        # count FAIL for zeros/partial records left by an unfinished stage.
+        spark_unfinished = bool(spark_log) and (
+            int(spark_log.get("returncode") or 0) != 0 or bool(spark_log.get("timed_out"))
+        ) and not _pipeline_completed_before_timeout(spark_log)
+        if spark_blocked or precondition or spark_unfinished:
             reason = ("Blocked by isolated Maven dependency resolution." if spark_blocked else
-                      "Spark execution precondition is unresolved; no downstream records could be evaluated.")
-            evidence = spark_block_evidence if spark_blocked else precondition_evidence
+                      "Spark execution precondition is unresolved; no downstream records could be evaluated."
+                      if precondition else
+                      "Spark command did not complete; downstream count snapshots are not final stage results.")
+            evidence = (spark_block_evidence if spark_blocked else precondition_evidence
+                        if precondition else [
+                            f"Spark incomplete: returncode={spark_log.get('returncode')}; "
+                            f"timed_out={bool(spark_log.get('timed_out'))}"
+                        ])
             report.setdefault("stage_preconditions", {})["spark_pipeline"] = {
-                "code": "GRADER_NETWORK_DEPENDENCY_BLOCKED" if spark_blocked else precondition,
+                "code": ("GRADER_NETWORK_DEPENDENCY_BLOCKED" if spark_blocked else
+                         precondition if precondition else "SPARK_COMMAND_UNFINISHED"),
                 "owner": "GRADER_ENVIRONMENT" if spark_blocked else "UNPROVEN",
                 "evidence": evidence,
             }
             for a in spark.assertions:
-                if a.key == "spark_pipeline.command" or (spark_blocked and a.key == "spark_pipeline.engine"):
+                # Preserve a genuine failed student command. For known grader
+                # preconditions only, keep the existing unproven-command policy.
+                if (precondition or spark_blocked) and (
+                    a.key == "spark_pipeline.command" or (spark_blocked and a.key == "spark_pipeline.engine")
+                ):
                     a.verdict = "INCONCLUSIVE"
                     a.note = reason
                     a.evidence.extend(evidence)
