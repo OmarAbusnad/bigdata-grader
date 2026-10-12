@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - audit/one-pass-closure-20261012
+      - audit/authoritative-p41-ledger-20261012
     paths:
       - .github/workflows/grading-final-closure.yml
 
@@ -27,9 +27,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .audit/source
-          gh run download 38180868830 \
+          gh run download 38196458648 \
             --repo "${{ github.repository }}" \
-            --name verified-evidence-refreshed-ledger-38180868830 \
+            --name final-evidence-ledger-with-P41-38196458648 \
             --dir .audit/source
           for f in ledger.json review_queue.csv project_summary.csv source_audit.csv; do
             test -s ".audit/source/$f"
@@ -42,13 +42,13 @@ jobs:
           import csv,json,pathlib
           out=pathlib.Path('closure_artifacts')
           gate=json.loads((out/'closure_gate.json').read_text())
-          with (out/'cases_1029.csv').open(encoding='utf-8-sig', newline='') as f:
+          with (out/'cases_1009.csv').open(encoding='utf-8-sig', newline='') as f:
               cases=list(csv.DictReader(f))
-          assert len(cases)==1029
+          assert len(cases)==1009
           assert gate['baseline_pass_preserved']==2022
           assert gate['closure_gate']=='OPEN' and not gate['publish_grades_allowed']
           assert not any(r['rubric_penalty_authorized']!='NO' for r in cases)
-          print('Audit coverage 1029/1029; graded results NOT released.')
+          print('Audit coverage 1009/1009; graded results NOT released.')
           PY
       - name: Upload complete audit package for human and rubric adjudication
         if: always()
