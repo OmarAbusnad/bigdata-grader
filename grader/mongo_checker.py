@@ -49,13 +49,16 @@ class MongoChecker:
                 evidence.append(f"{name}: {counts}")
         return (candidates[0] if len(candidates) == 1 else None), evidence
 
-    def find_unambiguous_empty_unique_index_database(self) -> tuple[str | None, list[str]]:
+    def find_unambiguous_empty_unique_index_database(
+        self, *, allow_partial_failed_attempt: bool = False
+    ) -> tuple[str | None, list[str]]:
         """Locate the *one* empty project database carrying a unique business-key index.
 
         Only the isolated MongoDB instance attached to this student sandbox is
-        inspected. An empty database is safe to reset for a single bounded
-        inferred-setup retry. Multiple matches or any written rows mean no
-        automatic recovery; never guess a database or erase project output.
+        inspected. A nonempty database is eligible only when explicitly
+        requested for a failed first attempt: its row counts must be captured
+        before reset so its evidence is not lost. Never guess between multiple
+        candidate databases. Never use this locator outside the sandbox.
         """
         candidates: list[str] = []
         notes: list[str] = []
@@ -73,8 +76,10 @@ class MongoChecker:
             present = sorted(set(self.collections.values()) & existing)
             counts = {c: db[c].count_documents({}) for c in present}
             if any(counts.values()):
-                notes.append(f"{dbname}: project data present, refusing reset")
-                continue
+                if not allow_partial_failed_attempt:
+                    notes.append(f"{dbname}: project data present, refusing reset")
+                    continue
+                notes.append(f"{dbname}: partial output from failed stage: {counts}")
             try:
                 indexes = list(db[valid].list_indexes())
             except Exception as exc:
