@@ -1,6 +1,9 @@
 name: Reconcile 70 Project Versioned Evidence (No Student Runs)
 on:
   workflow_dispatch:
+  push:
+    branches: [audit/reconcile-70-snapshots-20261013]
+    paths: ['.github/workflows/reconcile-late-70.yml', 'tools/reconcile_late_70.py']
 permissions:
   contents: read
   actions: read
