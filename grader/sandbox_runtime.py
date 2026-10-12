@@ -157,6 +157,16 @@ def _spark_dependency_resolution_blocked(runtime_log: dict[str, Any] | None) -> 
     return bool(hits), hits
 
 
+def _spark_stage_unfinished(runtime_log: dict[str, Any] | None) -> bool:
+    """A failed command proves execution failure, not independent final counts."""
+    log = runtime_log or {}
+    if not log:
+        return False
+    return bool(
+        int(log.get("returncode") or 0) != 0 or log.get("timed_out")
+    ) and not _pipeline_completed_before_timeout(log)
+
+
 def _unproven_spark_execution_precondition(
     repo: Path, runtime_log: dict[str, Any] | None
 ) -> tuple[str | None, list[str]]:
@@ -712,9 +722,7 @@ def run_behavioral_suite(
         # A failed Spark command can be an actual student failure, but its
         # downstream *final* counts were never proven. Do not assign separate
         # count FAIL for zeros/partial records left by an unfinished stage.
-        spark_unfinished = bool(spark_log) and (
-            int(spark_log.get("returncode") or 0) != 0 or bool(spark_log.get("timed_out"))
-        ) and not _pipeline_completed_before_timeout(spark_log)
+        spark_unfinished = _spark_stage_unfinished(spark_log)
         if spark_blocked or precondition or spark_unfinished:
             reason = ("Blocked by isolated Maven dependency resolution." if spark_blocked else
                       "Spark execution precondition is unresolved; no downstream records could be evaluated."
