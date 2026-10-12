@@ -1,0 +1,99 @@
+name: Targeted Late Student Submissions and P50 Regression (2026-10-13)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.grader/trigger-late-submissions-20261013.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  targeted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - {project_id: P01, mode: all}
+          - {project_id: P10, mode: final}
+          - {project_id: P24, mode: all}
+          - {project_id: P26, mode: all}
+          - {project_id: P40, mode: all}
+          - {project_id: P50, mode: final}
+          - {project_id: P67, mode: midterm}
+          - {project_id: P68, mode: midterm}
+          - {project_id: P69, mode: final}
+          - {project_id: P70, mode: all}
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+      STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Validate hidden fixture secret
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: test -n "${HIDDEN_SEED:-}"
+      - name: Freeze only this selected project at verified student commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python freeze_submissions.py --submissions late_submissions_20261013.csv \
+            --project "${{ matrix.project_id }}" --output-dir frozen
+          python freeze_submissions.py --submissions late_submissions_20261013.csv \
+            --build-manifest --artifacts-dir frozen --output frozen_submissions.csv
+          python - <<'PY'
+          import csv, json, os
+          project = "${{ matrix.project_id }}"
+          rows = list(csv.DictReader(open("frozen_submissions.csv", encoding="utf-8-sig")))
+          item = next(x for x in rows if x["project_id"] == project)
+          assert item["freeze_status"] == "READY", item["freeze_error"]
+          assert item["commit_sha"] == item["ref"], (item["commit_sha"], item["ref"])
+          root = f"workspaces/{project}/repo"
+          sub = item.get("workspace_subdir") or ""
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              env.write(f"TARGET_WORKSPACE={root + '/' + sub if sub else root}\n")
+          print(json.dumps({"project":project,"sha":item["commit_sha"],"subdir":sub},ensure_ascii=False))
+          PY
+      - name: Build base grader runtime image
+        run: python build_runtime_image.py
+      - name: Regenerate identical hidden data without leaking Oracle to student
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Grade new snapshot, retaining original baseline for comparison
+        run: |
+          python -u evaluate_project.py \
+            --project "${{ matrix.project_id }}" \
+            --submissions frozen_submissions.csv \
+            --workspace "$TARGET_WORKSPACE" \
+            --mode "${{ matrix.mode }}" \
+            --network-profile isolated
+      - name: Upload provenance and targeted result, even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: late-grading-${{ matrix.project_id }}-${{ github.run_id }}
+          path: |
+            frozen/${{ matrix.project_id }}.metadata.json
+            frozen_submissions.csv
+            reports_unified/${{ matrix.project_id }}/
+            reports/${{ matrix.project_id }}/
+            reports_final/${{ matrix.project_id }}/
+          if-no-files-found: warn
+          retention-days: 90
