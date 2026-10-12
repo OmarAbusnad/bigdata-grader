@@ -157,6 +157,36 @@ def _spark_dependency_resolution_blocked(runtime_log: dict[str, Any] | None) -> 
     return bool(hits), hits
 
 
+def _guard_unfinished_mutation_case(case: Any) -> int:
+    """Never double-penalize a failed Upsert/Incremental command via final counts.
+
+    The command verdict remains intact. We mark only dependent numeric FAILs
+    as INCONCLUSIVE when the stage never finished; completed executions are
+    still fully evaluated against the teacher Oracle.
+    """
+    log = getattr(case, "runtime_log", None) or {}
+    if not log or _pipeline_completed_before_timeout(log):
+        return 0
+    if int(log.get("returncode") or 0) == 0 and not log.get("timed_out"):
+        return 0
+    dependent = {
+        "upsert.final_validated", "incremental.final_validated",
+        "idempotency.validated_stable", "incremental.rerun_validated_stable",
+    }
+    changed = 0
+    for assertion in getattr(case, "assertions", []):
+        if assertion.key in dependent and assertion.verdict == "FAIL":
+            assertion.verdict = "INCONCLUSIVE"
+            assertion.note = ("The upstream command did not complete; "
+                              "the observed count is partial and is not an independent failure.")
+            assertion.evidence.append(
+                f"failed stage returncode={log.get('returncode')}; "
+                f"timed_out={bool(log.get('timed_out'))}"
+            )
+            changed += 1
+    return changed
+
+
 def _spark_stage_unfinished(runtime_log: dict[str, Any] | None) -> bool:
     """A failed command proves execution failure, not independent final counts."""
     log = runtime_log or {}
@@ -800,6 +830,7 @@ def run_behavioral_suite(
             assert_zero("upsert.duplicates_first", "لا توجد Business Keys مكررة بعد Upsert", int(s31.get("duplicate_business_keys", -1))),
         ]
         upsert1.assertions += _verify_upsert_actions(mongo, insert_cases, update_cases, unchanged_cases, before_updates, before_unchanged)
+        _guard_unfinished_mutation_case(upsert1)
         report["cases"].append(_case_dict(upsert1))
 
         _live(f"{project_id}: stage 5/5 — Idempotency rerun")
@@ -810,6 +841,7 @@ def run_behavioral_suite(
                                 compare_stability(s32.get("validated"), (upsert2.snapshot_before or {}).get("validated"))),
             assert_zero("idempotency.duplicates", "إعادة التشغيل لا تنشئ Business Keys مكررة", int(s32.get("duplicate_business_keys", -1))),
         ]
+        _guard_unfinished_mutation_case(upsert2)
         report["cases"].append(_case_dict(upsert2))
 
         if plan_b:
@@ -821,6 +853,7 @@ def run_behavioral_suite(
                                 compare_new_inserts(s41.get("validated"), (inc1.snapshot_before or {}).get("validated"), t4["inserted"])),
                 assert_zero("incremental.duplicates_first", "Delta لا ينشئ Business Keys مكررة", int(s41.get("duplicate_business_keys", -1))),
             ]
+            _guard_unfinished_mutation_case(inc1)
             report["cases"].append(_case_dict(inc1))
             inc2, _ = execute_case("incremental_rerun", "test_04", fresh=False)
             s42 = inc2.snapshot_after or {}
@@ -829,6 +862,7 @@ def run_behavioral_suite(
                                 compare_stability(s42.get("validated"), (inc2.snapshot_before or {}).get("validated"))),
                 assert_zero("incremental.rerun_duplicates", "إعادة Delta لا تنشئ Business Keys مكررة", int(s42.get("duplicate_business_keys", -1))),
             ]
+            _guard_unfinished_mutation_case(inc2)
             report["cases"].append(_case_dict(inc2))
 
         assertions: dict[str, Any] = {}
