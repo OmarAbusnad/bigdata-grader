@@ -44,11 +44,11 @@ def write_outputs(ledger: Ledger, out: Path, expected: int | None) -> dict:
                 entries.append(base)
                 if e["verdict"] != "PASS":
                     queue.append({**base, "expected": e["expected"], "actual": e["actual"],
-                                  "note": e["note"], "hint": review_hint(e)})
+                                  "note": e["note"], "evidence_preview": e.get("evidence_preview"), "hint": review_hint(e)})
         summary.append(row)
     ef = ["project_id", "phase", "key", "verdict", "source", "run_id", "flags", "changed"]
     _write_csv(out / "entries.csv", entries, ef)
-    _write_csv(out / "review_queue.csv", queue, ef + ["expected", "actual", "note", "hint"])
+    _write_csv(out / "review_queue.csv", queue, ef + ["expected", "actual", "note", "evidence_preview", "hint"])
     sf = ["project_id", "students", "frozen_sha"] + [f"{p}_{x}" for p in ("midterm", "final")
                                                     for x in ["status", *VERDICTS]]
     _write_csv(out / "project_summary.csv", summary, sf)
