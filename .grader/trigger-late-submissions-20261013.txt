@@ -1,0 +1,5 @@
+START targeted frozen-snapshot grade at 2026-10-13.
+Workflow: .github/workflows/targeted-late-submissions-20261013.yml
+Project IDs: P01,P10,P24,P26,P40,P50,P67,P68,P69,P70
+Grader base commit: de6e6b3f61d686c77e21cf488ae3bd026fc1be78
+Rules: preserve prior frozen evidence, verify new student commit before evaluation, isolated students, unchanged Oracle and rubric, manual approval before any score release.
