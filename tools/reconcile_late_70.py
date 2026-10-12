@@ -135,7 +135,7 @@ def reconcile(base_path, new_root, p10_root, roster_path, late_path, out_dir,
         raise ValueError("Historical PASS preservation must be exactly 2022")
     roster = {r["project_id"]: r for r in read_csv(roster_path)}
     late = {r["project_id"]: r for r in read_csv(late_path)}
-    if set(roster) != set(historical) or set(late) != set(TARGET_MODES):
+    if set(roster) != (set(historical) | {"P69", "P70"}) or set(late) != set(TARGET_MODES):
         raise ValueError("Roster or pinned target manifest differs from reviewed 68+10 selection")
     if len(late) != len(TARGET_MODES):
         raise ValueError("Duplicate project ID in late manifest")
