@@ -19,7 +19,7 @@ def allow_clean_database_retry(
     error_output: str,
     data_written: bool,
 ) -> bool:
-    if (not setup_command or not setup_succeeded or not unique_index_exists
+    if (not setup_command or not setup_succeeded
             or not failed_returncode or timed_out or data_written
             or plan_source.strip().lower() != "heuristic"):
         return False
@@ -27,6 +27,14 @@ def allow_clean_database_retry(
         r"An existing index has the same name as the requested index|IndexKeySpecsConflict",
         error_output, re.I
     ):
+        return False
+    # The grader may inspect a placeholder DB while student code uses an
+    # immutable DB name. Trust the server's explicit existing index spec,
+    # not only an index lookup against the grader's nominal database.
+    server_says_unique = bool(re.search(
+        r"existing index:\s*\{[^}]*\bunique:\s*true\b", error_output, re.I
+    ))
+    if not (unique_index_exists or server_says_unique):
         return False
     # Do not override an explicit, documented setup procedure.
     normalized = re.sub(r"\s+", " ", setup_command.strip()).lower()
