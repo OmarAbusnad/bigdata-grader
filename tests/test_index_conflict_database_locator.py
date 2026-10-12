@@ -64,3 +64,28 @@ def test_nonunique_or_unrelated_index_is_never_selected():
         {"name":"idx_other","unique":True,"key":{"customer_id":1}}
     ])})})
     assert y.find_unambiguous_empty_unique_index_database()[0] is None
+
+
+def test_partial_failed_attempt_is_eligible_only_with_explicit_opt_in():
+    x=checker({"midterm_db":DB({
+        "orders_validated":Coll(n=18750,indexes=[UNIQUE]),
+        "orders_raw":Coll(n=20000), "orders_quarantine":Coll(n=1250)
+    })})
+    assert x.find_unambiguous_empty_unique_index_database()[0] is None
+    chosen,evidence=x.find_unambiguous_empty_unique_index_database(
+        allow_partial_failed_attempt=True
+    )
+    assert chosen=="midterm_db"
+    assert any("partial output from failed stage" in t for t in evidence)
+
+
+def test_partial_opt_in_still_refuses_two_possible_databases():
+    x=checker({
+        "first":DB({"orders_validated":Coll(n=2,indexes=[UNIQUE])}),
+        "second":DB({"orders_validated":Coll(n=2,indexes=[UNIQUE])}),
+    })
+    chosen,evidence=x.find_unambiguous_empty_unique_index_database(
+        allow_partial_failed_attempt=True
+    )
+    assert chosen is None
+    assert any("candidate_database_count=2" in t for t in evidence)
