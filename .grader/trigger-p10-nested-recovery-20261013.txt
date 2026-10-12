@@ -1,0 +1,1 @@
+Start isolated P10 FINAL recovery ONLY, frozen commit c43fb24256bd9edb890be36f5ae7766df0a3696e in pro/. Prior P10 task run 38317234359 failed due to duplicate workspace subdir (grader-only infrastructure). All nine other project runs remain in their original execution; no changes to other student submissions or grades. 2026-10-13.
