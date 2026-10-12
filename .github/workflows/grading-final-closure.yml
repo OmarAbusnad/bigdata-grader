@@ -1,5 +1,6 @@
 name: Grading Final Closure — read-only gate
 on:
+  workflow_dispatch:
   push:
     branches:
       - audit/one-pass-closure-20261012
