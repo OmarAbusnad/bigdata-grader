@@ -1,0 +1,56 @@
+name: Reconcile 70 Project Versioned Evidence (No Student Runs)
+on:
+  workflow_dispatch:
+  push:
+    branches: [audit/reconcile-70-snapshots-20261013]
+    paths: ['.github/workflows/reconcile-late-70.yml', 'tools/reconcile_late_70.py']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download verified 68-project ledger
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p evidence/base
+          gh run download 38196458648 --name final-evidence-ledger-with-P41-38196458648 --dir evidence/base
+          test -s evidence/base/ledger.json
+      - name: Download ten SHA-pinned targeted submissions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p evidence/late
+          gh run download 38317234359 --pattern 'late-grading-*' --dir evidence/late
+          for p in P01 P24 P26 P40 P50 P67 P68 P69 P70; do
+            test -d "evidence/late/late-grading-${p}-38317234359" || exit 1
+          done
+      - name: Download repaired P10-only evaluation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p evidence/p10
+          gh run download 38317798470 --name late-grading-P10-38317798470 --dir evidence/p10/late-grading-P10-38317798470
+      - name: Build version-aware academic evidence ledger
+        run: |
+          python tools/reconcile_late_70.py \
+            --base evidence/base/ledger.json \
+            --late evidence/late \
+            --p10 evidence/p10 \
+            --out ledger_70_out
+          test -s ledger_70_out/intake_audit.json
+      - name: Upload reconciliation and historical provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ledger-70-versioned-evidence-${{ github.run_id }}
+          path: ledger_70_out/
+          retention-days: 90
+          if-no-files-found: warn
