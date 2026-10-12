@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 import re
+import os
 from pathlib import Path
 from typing import Any
 
@@ -350,6 +351,13 @@ def run_behavioral_suite(
 
         def run_setup() -> None:
             if not plan.setup_command or setup_mode["skip_auto"]:
+                return
+            # Controlled read-only diagnosis: never shipped to main. Compare
+            # frozen student behavior without grader-inferred, undocumented setup.
+            if (os.environ.get("GRADER_AUDIT_SKIP_INFERRED_SETUP") == "1"
+                    and str(plan.source or "").lower() == "heuristic"):
+                report.setdefault("setup_diagnostic", []).append(
+                    "No undocumented grader-inferred setup was executed")
                 return
             env = {
                 "MONGO_DB_NAME": effective_db,
