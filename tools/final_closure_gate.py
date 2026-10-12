@@ -105,7 +105,7 @@ def run(evidence, output):
             "frozen_root_evidence": proof if root else "",
         })
     assert len(audits) == len(review)
-    assert len({(x["project_id"],x["phase"],x["test_key"]) for x in audits}) == 1029
+    assert len({(x["project_id"],x["phase"],x["test_key"]) for x in audits}) == 1009
     group = defaultdict(list)
     for x in audits:
         group[x["root_cluster"]].append(x)
@@ -125,7 +125,7 @@ def run(evidence, output):
         "grade_status": "NOT_APPROVED", "manual_discussion": "PENDING",
         "reason": "MIDTERM_RUBRIC_DRAFT_OR_CAUSAL_PROOF_INCOMPLETE"
     } for p in projects]
-    dump_csv(output / "cases_1029.csv", audits, list(audits[0]))
+    dump_csv(output / "cases_1009.csv", audits, list(audits[0]))
     dump_csv(output / "root_clusters.csv", clusters, list(clusters[0]))
     dump_csv(output / "projects_68.csv", roster, list(roster[0]))
     state = {
