@@ -1,0 +1,98 @@
+name: Compare frozen P41 without undocumented inferred setup
+on:
+  push:
+    branches:
+      - audit/p41-no-inferred-setup-controlled-20261012
+    paths:
+      - .github/workflows/audit-targeted-p41.yml
+permissions:
+  contents: read
+  actions: read
+jobs:
+  p41-midterm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+      GRADER_PREWARM_SPARK: '1'
+      GRADER_AUDIT_SKIP_INFERRED_SETUP: '1'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Guard frozen seed and Gemini connection
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "${HIDDEN_SEED:-}" || exit 2
+          test -n "${GEMINI_API_KEY:-}" || exit 2
+      - uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          run-id: '37390623044'
+          name: frozen-manifest-37390623044
+          path: freeze_manifest
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          run-id: '37390623044'
+          name: frozen-P41-37390623044
+          path: frozen_project
+          github-token: ${{ github.token }}
+      - name: Restore immutable P41 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p workspaces/P41/repo
+          tar -xzf frozen_project/P41.repo.tar.gz -C workspaces/P41
+          test -f workspaces/P41/repo/requirements.txt
+          cp freeze_manifest/frozen_submissions.csv frozen_submissions.csv
+      - name: Build isolated Docker runtime
+        run: python build_runtime_image.py
+      - name: Generate identical hidden test pack
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Evaluate frozen P41 MIDTERM only
+        shell: bash
+        run: |
+          python -u evaluate_project.py \
+            --project P41 \
+            --submissions frozen_submissions.csv \
+            --workspace workspaces/P41/repo \
+            --mode midterm \
+            --network-profile isolated \
+            --plan-b
+      - name: Verify frozen SHA before any ledger application
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("reports/P41/result.json")
+          if p.is_file():
+              report=json.loads(p.read_text())
+              assert report.get("commit_sha")=="2b82bd268479e6407f56bbf4aa96da4b791ebd2c"
+              print("P41:",report.get("runtime",{}).get("status"),
+                    report.get("runtime",{}).get("assertion_counts"))
+          else:
+              print("No report; inspect workflow logs")
+          PY
+      - name: Upload isolated P41 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: targeted-P41-midterm-${{ github.run_id }}
+          path: |
+            reports/P41/
+            reports_unified/P41/
+          retention-days: 90
+          if-no-files-found: warn
