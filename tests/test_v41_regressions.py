@@ -34,8 +34,20 @@ def test_instructor_override_is_external_and_high_confidence():
     assert evidence
 
 
-def test_draft_midterm_rubric_cannot_score():
+def test_instructor_approved_midterm_rubric_requires_evidence():
     rubric = json.loads((Path(__file__).parents[1] / 'rubrics' / 'midterm_18.json').read_text(encoding='utf-8'))
+    assert rubric['status'] == 'ACTIVE'
+    assert sum(float(item['points']) for item in rubric['items']) == pytest.approx(18.0)
+    result = score_boolean_checks(rubric, {'python_batch': True})
+    assert not result['complete']
+    assert result['rubric_max'] == 18.0
+    assert result['score'] == 2.0
+    assert all(item['awarded'] is None for item in result['details'] if item['key'] != 'python_batch')
+
+
+def test_draft_rubric_still_cannot_score_without_instructor_approval():
+    rubric = json.loads((Path(__file__).parents[1] / 'rubrics' / 'midterm_18.json').read_text(encoding='utf-8'))
+    rubric['status'] = 'DRAFT_DISABLED'
     with pytest.raises(RuntimeError):
         score_boolean_checks(rubric, {'python_batch': True})
 
