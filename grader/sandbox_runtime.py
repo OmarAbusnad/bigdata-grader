@@ -447,7 +447,9 @@ def run_behavioral_suite(
                                  for k in ("raw", "validated", "quarantine")),
             )):
                 first_rc = int(run.get("returncode") or 0)
-                target_db, target_evidence = mongo.find_unambiguous_empty_unique_index_database()
+                target_db, target_evidence = mongo.find_unambiguous_empty_unique_index_database(
+                    allow_partial_failed_attempt=True,
+                )
                 if not target_db:
                     report.setdefault("setup_recovery", []).append({
                         "case": case_name, "reason": "inferred_setup_index_spec_conflict",
@@ -464,17 +466,24 @@ def run_behavioral_suite(
                             "source": "unique_empty_setup_index_database_in_isolated_runtime",
                             "evidence": target_evidence,
                         }
+                    # All records belong to this isolated failed run, not to
+                    # a student-owned database. Preserve exact counts and the
+                    # first failure before resetting the one proven target DB.
+                    failed_snapshot = mongo.snapshot().to_dict()
+                    first_error = str(run.get("stderr") or "")[-3000:]
                     mongo.drop_database()
                     before = mongo.snapshot().to_dict()
-                    _live(f"{project_id}: {case_name} index conflict after inferred setup; "
-                          "retrying original command once in proven empty project database")
+                    _live(f"{project_id}: {case_name} inferred index setup blocked processing; "
+                          "retrying original command once after a documented isolated DB reset")
                     retry = sb.run_student(cmd, env=env, timeout=timeout, stdin_text=stdin_text)
                     recovered = int(retry.get("returncode") or 0) == 0 and not retry.get("timed_out")
                     report.setdefault("setup_recovery", []).append({
                         "case": case_name, "reason": "inferred_setup_index_spec_conflict",
                         "database": target_db, "database_evidence": target_evidence,
+                        "first_snapshot_after": failed_snapshot, "first_stderr_tail": first_error,
                         "first_returncode": first_rc, "retry_returncode": retry.get("returncode"),
                         "retry_timed_out": bool(retry.get("timed_out")), "recovered": recovered,
+                        "retry_stderr_tail": str(retry.get("stderr") or "")[-3000:],
                     })
                     if recovered:
                         setup_mode["skip_auto"] = True
