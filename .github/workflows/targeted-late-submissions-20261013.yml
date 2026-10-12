@@ -67,7 +67,7 @@ jobs:
           root = f"workspaces/{project}/repo"
           sub = item.get("workspace_subdir") or ""
           with open(os.environ["GITHUB_ENV"], "a") as env:
-              env.write(f"TARGET_WORKSPACE={root + '/' + sub if sub else root}\n")
+              env.write(f"TARGET_WORKSPACE={root}\n")
           print(json.dumps({"project":project,"sha":item["commit_sha"],"subdir":sub},ensure_ascii=False))
           PY
       - name: Build base grader runtime image
