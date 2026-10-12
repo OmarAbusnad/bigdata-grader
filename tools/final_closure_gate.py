@@ -10,7 +10,7 @@ import hashlib
 import json
 from pathlib import Path
 
-REFERENCE_COUNTS = {"PASS": 2651, "FAIL": 348, "INCONCLUSIVE": 681}
+REFERENCE_COUNTS = {"PASS": 2678, "FAIL": 353, "INCONCLUSIVE": 656}
 FROZEN_ROOTS = {
     "P01": ("FROZEN_DEPENDENCY", "STUDENT_SUBMISSION_CANDIDATE", "psutil import omitted from frozen requirements"),
     "P02": ("FROZEN_DEPENDENCY", "STUDENT_SUBMISSION_CANDIDATE", "psutil import omitted from frozen requirements"),
@@ -18,7 +18,7 @@ FROZEN_ROOTS = {
     "P17": ("PACKAGE_OR_COMMAND_MISMATCH", "OWNER_UNRESOLVED", "README command and frozen source layout conflict"),
     "P29": ("FROZEN_SOURCE_SYNTAX", "STUDENT_SUBMISSION_CANDIDATE", "late from __future__ import"),
     "P33": ("TIMEOUT_UNPROVEN", "OWNER_UNRESOLVED", "no completed pipeline proof"),
-    "P41": ("GRADER_SETUP_INTERFERENCE", "GRADER_BLOCKER", "inferred setup/index collision persists in latest frozen rerun"),
+    "P41": ("GRADER_SETUP_INTERFERENCE_RESOLVED", "PRIOR_GRADER_ISSUE_FIXED", "rerun 38196157736 after isolated replay: 27 PASS / 6 FAIL / 2 INCONCLUSIVE"),
     "P51": ("GRADER_OR_DATABASE_DISCOVERY", "OWNER_UNRESOLVED", "database provenance not resolved"),
     "P55": ("FINAL_STAGE_BLOCK", "OWNER_UNRESOLVED", "final dependency chain unresolved"),
     "P63": ("FROZEN_PACKAGE_ABSENT", "STUDENT_SUBMISSION_CANDIDATE", "src package absent from frozen commit"),
@@ -73,8 +73,8 @@ def run(evidence, output):
         for phase in project["phases"].values() for e in phase["entries"].values()
     )
     assert len(ledger["projects"]) == len(projects) == 68
-    assert len(sources) == 18
-    assert len(review) == counts["FAIL"] + counts["INCONCLUSIVE"] == 1029
+    assert len(sources) == 19
+    assert len(review) == counts["FAIL"] + counts["INCONCLUSIVE"] == 1009
     assert all(counts[k] == v for k,v in REFERENCE_COUNTS.items()), counts
     assert ledger["invariants"]["ok"] and ledger["invariants"]["baseline_pass_preserved"] == 2022
     assert not ledger["rejected"] and not ledger["pass_overrides"]
@@ -89,7 +89,7 @@ def run(evidence, output):
         elif family == "UPSTREAM_BLOCKED":
             decision = "DO_NOT_DEDUCT_DEPENDENT_TEST"
         elif pid == "P41" and row["phase"] == "midterm":
-            decision = "GRADER_BLOCKER_REQUIRES_REPLAY"
+            decision = "REPLAY_CONFIRMED_REVIEW_SIX_ACTUAL_BEHAVIOR_FAILURES"
         else:
             decision = "REVIEW_SOURCE_RUNTIME_AND_RUBRIC"
         evidence_run = row.get("run_id") or ""
@@ -137,7 +137,7 @@ def run(evidence, output):
         "evidence_refreshes": len(ledger.get("evidence_refreshes",[])),
         "baseline_pass_preserved": 2022,
         "pending_academic_controls": ["midterm_18 DRAFT_DISABLED", "oral discussion 0.25 manual"],
-        "pending_technical_controls": ["causal ownership proof", "oracle count checks", "P41 isolated true-DB index reset"],
+        "pending_technical_controls": ["causal ownership proof", "oracle count checks", "post-replay P41 behavior and rubric review"],
         "categories": dict(Counter(x["family"] for x in audits)),
         "root_reference_projects": len(FROZEN_ROOTS),
         "no_automatic_fail_attribution": True,
@@ -146,7 +146,7 @@ def run(evidence, output):
     (output / "REPORT_AR.md").write_text(
         "# نتيجة بوابة إغلاق تصحيح Big Data\n\n"
         "**OPEN — لم يتم إثبات مسؤولية الطالب في جميع حالات FAIL ولا يجوز إصدار الدرجات بعد.**\n\n"
-        "حُصر 1029 حكمًا وربط كل منها بمصدره؛ تُراجع مجموعات السبب الجذري قبل أي خصم.\n\n"
+        "حُصر 1009 أحكام وربط كل منها بمصدره؛ تُراجع مجموعات السبب الجذري قبل أي خصم.\n\n"
         "نجاحات الأساس 2022/2022 محفوظة. المناقشة بشرية وRubric النصفي DRAFT_DISABLED.\n",
         encoding="utf-8"
     )
