@@ -46,6 +46,7 @@ def _entry(raw: dict[str, Any], source: dict[str, Any]) -> dict[str, Any]:
         "expected": _clip(raw.get("expected")),
         "actual": _clip(raw.get("actual")),
         "note": _clip(raw.get("note")),
+        "evidence_preview": _clip(raw.get("evidence")),
         "origin": source,
         "history": [],
         "flags": [],
@@ -204,7 +205,8 @@ class Ledger:
         if cur is None:
             entries[key] = {"verdict": to, "expected": _clip((detail or {}).get("expected")),
                             "actual": _clip((detail or {}).get("observed")),
-                            "note": _clip((detail or {}).get("reason")), "origin": source,
+                            "note": _clip((detail or {}).get("reason")),
+                            "evidence_preview": _clip((detail or {}).get("evidence")), "origin": source,
                             "history": [], "flags": ["added_by_overlay"]}
             return "added"
         if cur["verdict"] == to:
@@ -219,6 +221,7 @@ class Ledger:
                     "expected": (detail or {}).get("expected"),
                     "actual": (detail or {}).get("observed"),
                     "note": (detail or {}).get("reason"),
+                    "evidence_preview": (detail or {}).get("evidence"),
                 }
                 changed_fields = {}
                 for field, raw_value in updates.items():
@@ -258,6 +261,8 @@ class Ledger:
             cur["expected"] = _clip(detail.get("expected", cur["expected"]))
             cur["actual"] = _clip(detail.get("observed", cur["actual"]))
             cur["note"] = _clip(detail.get("reason", cur["note"]))
+            if "evidence" in detail:
+                cur["evidence_preview"] = _clip(detail["evidence"])
         return "replaced"
 
     # -------------------------------------------------------------- overlays
@@ -373,7 +378,8 @@ class Ledger:
                     pid, "midterm", key, a["verdict"], source, sha=sha,
                     may_downgrade_fail=_authoritative(report),
                     detail={"expected": a.get("expected"), "observed": a.get("actual"),
-                            "reason": a.get("note") or "narrow midterm rerun after grader fix"}))
+                            "reason": a.get("note") or "narrow midterm rerun after grader fix",
+                            "evidence": a.get("evidence")}))
         return n
 
     def _final_full(self, report: dict, source: dict) -> int:
@@ -402,7 +408,8 @@ class Ledger:
                     pid, "final", key, a["verdict"], source, sha=sha,
                     may_downgrade_fail=_authoritative(report),
                     detail={"expected": a.get("expected"), "observed": a.get("actual"),
-                            "reason": a.get("note") or "final rerun after grader fix"}))
+                            "reason": a.get("note") or "final rerun after grader fix",
+                            "evidence": a.get("evidence")}))
         return n
 
     def _evidence_overlay(self, obj: dict, source: dict) -> int:
