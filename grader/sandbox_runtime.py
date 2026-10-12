@@ -13,6 +13,7 @@ from .oracle import HiddenOracle
 from .runtime_evidence import detect_engine
 from .sandbox import DockerSandbox, SandboxConfig, SandboxError
 from .spark_probe import ensure_large_clean_probe
+from .heuristic_setup_recovery import allow_clean_database_retry
 from .spark_dependency_audit import check_submission
 from .tests_midterm import (
     A,
@@ -345,8 +346,10 @@ def run_behavioral_suite(
         mongo.ping()
         _live(f"{project_id}: sandbox ready | database={effective_db} | threshold={threshold:.1f}MB")
 
+        setup_mode = {"skip_auto": False}
+
         def run_setup() -> None:
-            if not plan.setup_command:
+            if not plan.setup_command or setup_mode["skip_auto"]:
                 return
             env = {
                 "MONGO_DB_NAME": effective_db,
@@ -415,6 +418,43 @@ def run_behavioral_suite(
                 cmd = staged_command(cmd, staged_target["path"], rel)
                 input_staging = {"target": staged_target["path"], "source": rel, "reason": "fixed input path discovered in an earlier stage"}
             run = sb.run_student(cmd, env=env, timeout=timeout, stdin_text=stdin_text)
+            # Retry only a grader-inferred setup that created a conflicting
+            # index before the student's normal command. This never changes
+            # student code and does not award PASS without a successful run.
+            first_after = mongo.snapshot().to_dict()
+            setup_succeeded = bool(report["setup_runs"]) and int(
+                report["setup_runs"][-1].get("returncode", 1)
+            ) == 0
+            if (not setup_mode["skip_auto"] and allow_clean_database_retry(
+                repo, plan_source=str(plan.source or ""),
+                setup_command=plan.setup_command,
+                setup_succeeded=setup_succeeded,
+                unique_index_exists=mongo.has_unique_business_index()[0],
+                failed_returncode=int(run.get("returncode") or 0),
+                timed_out=bool(run.get("timed_out")),
+                error_output=str(run.get("stderr") or "") + "\n" + str(run.get("stdout") or ""),
+                data_written=any(int(first_after.get(k) or 0) > 0
+                                 for k in ("raw", "validated", "quarantine")),
+            )):
+                first_rc = int(run.get("returncode") or 0)
+                mongo.drop_database()
+                before = mongo.snapshot().to_dict()
+                _live(f"{project_id}: {case_name} index conflict after inferred setup; "
+                      "retrying original command once with an empty database")
+                retry = sb.run_student(cmd, env=env, timeout=timeout, stdin_text=stdin_text)
+                recovered = int(retry.get("returncode") or 0) == 0 and not retry.get("timed_out")
+                report.setdefault("setup_recovery", []).append({
+                    "case": case_name, "reason": "inferred_setup_index_spec_conflict",
+                    "first_returncode": first_rc, "retry_returncode": retry.get("returncode"),
+                    "retry_timed_out": bool(retry.get("timed_out")), "recovered": recovered,
+                })
+                if recovered:
+                    setup_mode["skip_auto"] = True
+                    input_staging = {
+                        "reason": "inferred setup conflicted with student index specification",
+                        "first_returncode": first_rc, "retry_clean_db_without_setup": True,
+                    }
+                run = retry
             if int(run.get("returncode") or 0) != 0 and not run.get("timed_out"):
                 decision = plan_staging_retry(
                     str(run.get("stderr") or ""), str(run.get("stdout") or ""),
