@@ -1,0 +1,60 @@
+name: Grading Final Closure — read-only gate
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - audit/one-pass-closure-20261012
+    paths:
+      - .github/workflows/grading-final-closure.yml
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  evidence-closure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify pinned 68-project ledger artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .audit/source
+          gh run download 38180868830 \
+            --repo "${{ github.repository }}" \
+            --name verified-evidence-refreshed-ledger-38180868830 \
+            --dir .audit/source
+          for f in ledger.json review_queue.csv project_summary.csv source_audit.csv; do
+            test -s ".audit/source/$f"
+          done
+      - name: Run one-pass causal classification with zero student execution
+        run: |
+          set -euo pipefail
+          python tools/final_closure_gate.py --evidence .audit/source --out closure_artifacts
+          python - <<'PY'
+          import csv,json,pathlib
+          out=pathlib.Path('closure_artifacts')
+          gate=json.loads((out/'closure_gate.json').read_text())
+          with (out/'cases_1029.csv').open(encoding='utf-8-sig', newline='') as f:
+              cases=list(csv.DictReader(f))
+          assert len(cases)==1029
+          assert gate['baseline_pass_preserved']==2022
+          assert gate['closure_gate']=='OPEN' and not gate['publish_grades_allowed']
+          assert not any(r['rubric_penalty_authorized']!='NO' for r in cases)
+          print('Audit coverage 1029/1029; graded results NOT released.')
+          PY
+      - name: Upload complete audit package for human and rubric adjudication
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grading-final-closure-audit-${{ github.run_id }}
+          path: closure_artifacts/
+          if-no-files-found: warn
+          retention-days: 90
