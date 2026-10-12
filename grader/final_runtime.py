@@ -711,7 +711,27 @@ if result["aggregation_calls"] and any(precondition_refresh_first(c.get("respons
 
 j = request("GET", "/jobs", timeout=30)
 result["jobs"] = j
-jnames = names_from(j.get("body"), ["jobs", "available_jobs", "configured_jobs", "registered", "names", "scheduler", "items", "data", "results", "scheduled_jobs", "tasks", "registered_jobs"])
+# Some documented /jobs responses wrap the actual list as
+# {"scheduler_status": {"jobs_count": 2, "jobs": [{"job_name": ...}, ...]}}.
+# Extract real job identifiers BEFORE the generic name discovery, which would
+# otherwise mistake wrapper keys such as "scheduler_running" for job names.
+jobs_body = j.get("body") or {}
+nested = jobs_body.get("scheduler_status") if isinstance(jobs_body, dict) else {}
+listed_jobs = (nested or {}).get("jobs") if isinstance(nested, dict) else None
+if not isinstance(listed_jobs, (list, dict)) and isinstance(jobs_body, dict):
+    listed_jobs = jobs_body.get("jobs")
+jnames = []
+if isinstance(listed_jobs, list):
+    for job in listed_jobs:
+        if isinstance(job, dict):
+            name = job.get("job_name") or job.get("name") or job.get("id")
+            if isinstance(name, str) and name.strip() and name not in jnames:
+                jnames.append(name)
+elif isinstance(listed_jobs, dict):
+    jnames = [str(k) for k, v in listed_jobs.items()
+              if isinstance(v, dict) and str(k).strip()]
+if not jnames:
+    jnames = names_from(j.get("body"), ["jobs", "available_jobs", "configured_jobs", "registered", "names", "scheduler", "items", "data", "results", "scheduled_jobs", "tasks", "registered_jobs"])
 result["job_names"] = jnames[:30]
 result["job_calls"] = [
     {"name": name, "response": request("POST", "/jobs/" + urllib.parse.quote(name, safe="") + "/run", {}, timeout=120)}
@@ -1468,7 +1488,14 @@ def run_final_suite(
 
         jnames = (semantic.get("jobs") or {}).get("names") or probe.get("job_names") or []
         jmeta = semantic.get("jobs") or {}
-        jcount = max(len(jnames), int(jmeta.get("declared_count") or 0))
+        # A live API response with explicit job records is stronger than an
+        # incomplete static-code semantic discovery result.
+        jobs_body = (probe.get("jobs") or {}).get("body") or {}
+        nested_jobs = jobs_body.get("scheduler_status") if isinstance(jobs_body, dict) else {}
+        nested_jobs = nested_jobs if isinstance(nested_jobs, dict) else {}
+        explicit_jobs = nested_jobs.get("jobs")
+        api_jobs_count = len(explicit_jobs) if isinstance(explicit_jobs, (list, dict)) else 0
+        jcount = max(len(jnames), int(jmeta.get("declared_count") or 0), api_jobs_count)
         assertions.append(_assertion("final.jobs.count", "At least two scheduled jobs are exposed",
                                      "PASS" if jcount >= 2 else "FAIL", expected=">= 2", actual=jcount,
                                      evidence=[json.dumps(jmeta, ensure_ascii=False)[:1800]]))
