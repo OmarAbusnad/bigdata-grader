@@ -1,0 +1,87 @@
+name: Final Verified Ledger With P41 Recovery
+on:
+  push:
+    branches:
+      - audit/final-ledger-p41-20261012
+    paths:
+      - .github/workflows/audit-final-p41-ledger.yml
+permissions:
+  contents: read
+  actions: read
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - name: Load immutable 68-project baseline
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          run-id: '37874152827'
+          pattern: unified-P*-37874152827
+          path: evidence/base
+          github-token: ${{ github.token }}
+      - name: Download 18 verified overlay runs plus P41 bounded recovery
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNS: '37982763274,37983268895,37984555642,37986423624,38000458514,38003977105,38004329576,38004638719,38004806202,38004899802,38005530245,38005533393,38015912512,38016947468,38079787463,38088837812,38096258510,38099290754,38196157736'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for run in ${RUNS//,/ }; do
+            mkdir -p "evidence/overlays/$run"
+            gh run download "$run" --repo "${{ github.repository }}" --dir "evidence/overlays/$run"
+            test -n "$(find "evidence/overlays/$run" -type f -print -quit)"
+          done
+      - name: Build adjudication ledger without executing student code
+        env:
+          RUNS: '37982763274,37983268895,37984555642,37986423624,38000458514,38003977105,38004329576,38004638719,38004806202,38004899802,38005530245,38005533393,38015912512,38016947468,38079787463,38088837812,38096258510,38099290754,38196157736'
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=()
+          for run in ${RUNS//,/ }; do args+=(--overlay "$run:evidence/overlays/$run"); done
+          python build_ledger.py --base evidence/base --base-run 37874152827 \
+            "${args[@]}" --out candidate_p41 \
+            --final-explain-rule --frozen-http-preconditions --expected-projects 68
+      - name: Validate P41 origin and no regression to baseline PASS
+        run: |
+          python - <<'PY'
+          import json,csv
+          from collections import Counter
+          from pathlib import Path
+          j=json.loads(Path('candidate_p41/ledger.json').read_text())
+          c=Counter(e['verdict'] for p in j['projects'].values()
+                    for ph in p['phases'].values() for e in ph['entries'].values())
+          p41=j['projects']['P41']
+          m=p41['phases']['midterm']
+          m_counts=Counter(e['verdict'] for e in m['entries'].values())
+          print('Candidate overall:',dict(c),'P41 midterm:',dict(m_counts))
+          assert len(j['projects'])==68 and j['invariants']['ok']
+          assert j['invariants']['baseline_pass_total']==2022
+          assert j['invariants']['baseline_pass_preserved']==2022
+          assert not j['rejected'] and not j['pass_overrides']
+          assert p41['frozen_sha']=='2b82bd268479e6407f56bbf4aa96da4b791ebd2c'
+          assert m_counts['PASS']==27 and m_counts['FAIL']==6 and m_counts['INCONCLUSIVE']==2
+          with Path('candidate_p41/source_audit.csv').open(encoding='utf-8-sig',newline='') as h:
+              sources=list(csv.DictReader(h))
+          assert len(sources)==19, len(sources)
+          target=[x for x in sources if x['run_id']=='38196157736']
+          assert len(target)==1 and int(target[0]['ignored_files'])==0, target
+          assert any(e['origin'].get('run_id')==38196157736
+                     for e in m['entries'].values()), 'P41 latest source not applied'
+          print('Verified targeted P41 success evidence incorporated, old PASS preserved')
+          PY
+      - name: Upload merged candidate ledger for independent review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-evidence-ledger-with-P41-${{ github.run_id }}
+          path: candidate_p41/
+          retention-days: 90
+          if-no-files-found: warn
