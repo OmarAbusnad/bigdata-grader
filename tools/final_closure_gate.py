@@ -144,10 +144,10 @@ def run(evidence, output):
     }
     (output / "closure_gate.json").write_text(json.dumps(state,ensure_ascii=False,indent=2),encoding="utf-8")
     (output / "REPORT_AR.md").write_text(
-        "# نتيجة بوابة إغلاق تصحيح Big Data\\n\\n"
-        "**OPEN — لم يتم إثبات مسؤولية الطالب في جميع حالات FAIL ولا يجوز إصدار الدرجات بعد.**\\n\\n"
-        "حُصر 1029 حكمًا وربط كل منها بمصدره؛ تُراجع مجموعات السبب الجذري قبل أي خصم.\\n\\n"
-        "نجاحات الأساس 2022/2022 محفوظة. المناقشة بشرية وRubric النصفي DRAFT_DISABLED.\\n",
+        "# نتيجة بوابة إغلاق تصحيح Big Data\n\n"
+        "**OPEN — لم يتم إثبات مسؤولية الطالب في جميع حالات FAIL ولا يجوز إصدار الدرجات بعد.**\n\n"
+        "حُصر 1029 حكمًا وربط كل منها بمصدره؛ تُراجع مجموعات السبب الجذري قبل أي خصم.\n\n"
+        "نجاحات الأساس 2022/2022 محفوظة. المناقشة بشرية وRubric النصفي DRAFT_DISABLED.\n",
         encoding="utf-8"
     )
     print(json.dumps(state,ensure_ascii=False))
