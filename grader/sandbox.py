@@ -48,10 +48,13 @@ def _diagnostic_packages(project_id: str) -> tuple[str, ...]:
     raw = os.environ.get("GRADER_DIAGNOSTIC_EXTRAS", "").strip()
     if not raw:
         return ()
+    # evaluate_project uses the "-unified" suffix when midterm and final
+    # share a Docker image. Resolve only this exact internal ID format.
+    canonical = project_id[:-8] if project_id.endswith("-unified") else project_id
     claimed_project = os.environ.get("GRADER_DIAGNOSTIC_PROJECT_ID", "")
-    approved = _DIAGNOSTIC_DEPENDENCIES.get(project_id)
+    approved = _DIAGNOSTIC_DEPENDENCIES.get(canonical)
     requested = tuple(s.strip() for s in raw.split(",") if s.strip())
-    if claimed_project != project_id or requested != approved:
+    if claimed_project != canonical or requested != approved:
         raise SandboxError(
             "Grader diagnostic dependency override is not explicitly approved "
             f"for project {project_id}: {requested!r}"
