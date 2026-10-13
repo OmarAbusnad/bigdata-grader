@@ -348,6 +348,10 @@ class DockerSandbox:
                     'timeout 240s /opt/student-venv/bin/spark-submit --master "local[1]" --conf spark.jars.ivy=/home/student/.ivy2 --packages "$packages" /workspace/.grader.spark-cache-only.py',
                     "rc=$?",
                     "echo GRADER_SPARK_PREFETCH_RC=$rc",
+                    'if [ "$rc" -ne 0 ]; then echo "GRADER_SPARK_PREFETCH_FAILED: Maven resolution unavailable"; exit 41; fi',
+                    'connector_count="$(find /home/student/.ivy2/jars -type f -name "*mongo-spark-connector*.jar" 2>/dev/null | wc -l)"',
+                    'if [ "$connector_count" -lt 1 ]; then echo "GRADER_SPARK_PREFETCH_MISSING_CONNECTOR"; exit 42; fi',
+                    'echo "GRADER_SPARK_PREFETCH_VERIFIED=$connector_count"',
                     "chown -R student:student /home/student/.ivy2 || true",
                     "chmod -R u+rwX /home/student/.ivy2 || true",
                     "exit 0",
@@ -440,6 +444,10 @@ class DockerSandbox:
         (self.logs_dir / "docker_build.stdout.log").write_text(p.stdout, encoding="utf-8", errors="replace")
         (self.logs_dir / "docker_build.stderr.log").write_text(p.stderr, encoding="utf-8", errors="replace")
         combined = (p.stdout or "") + "\n" + (p.stderr or "")
+        spark_precondition_failed = (
+            "GRADER_SPARK_PREFETCH_FAILED" in combined or
+            "GRADER_SPARK_PREFETCH_MISSING_CONNECTOR" in combined
+        )
         fallback_used = "GRADER_REQUIREMENTS_FALLBACK=platform_compat" in combined
         runtime_profile_used = "GRADER_REQUIREMENTS_MODE=runtime_profile_large_manifest" in combined
         return {
@@ -451,6 +459,7 @@ class DockerSandbox:
             "runtime_profile_used": runtime_profile_used,
             "runtime_requirements_profile": getattr(self, "_runtime_requirements_profile", {}) if runtime_profile_used else None,
             "spark_dependency_prewarm": getattr(self, "_spark_prefetch", {}),
+            "spark_dependency_precondition_failed": spark_precondition_failed,
             "spark_prefetch_log_tail": combined[-1200:] if getattr(self, "_spark_prefetch", {}).get("enabled") else None,
             "requirements_manifests": getattr(self, "_requirements_manifest_meta", {}).get("manifests", []),
             "platform_packages_skipped": list(getattr(self, "_compat_requirements_skipped", []) or []) if (fallback_used or runtime_profile_used) else [],
