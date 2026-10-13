@@ -508,8 +508,8 @@ def missing_query_parameters(response, available, already):
     for name in available:
         lower = name.lower()
         quoted = re.escape(lower)
-        if (re.search(r"(?:missing|required|provide|specify)[^\\n.]{0,90}\\b" + quoted + r"\\b", message)
-            or re.search(r"\\b" + quoted + r"\\b[^\\n.]{0,45}(?:missing|required)", message)):
+        if (re.search(r"(?:missing|required|provide|specify)[^\n.]{0,90}\b" + quoted + r"\b", message)
+            or re.search(r"\b" + quoted + r"\b[^\n.]{0,45}(?:missing|required)", message)):
             pending.add(name)
     if "missing dates" in message or "dates required" in message:
         pending.update(p for p in ("start_date", "end_date", "start", "end") if p in available)
