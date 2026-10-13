@@ -1,11 +1,14 @@
-# P39 — verified source-side destructive resets on every ingestion
+# P39 — confirmed grader invocation failure, not proven student Upsert failure
 
-Frozen student SHA: `ec844f735a04f351b8e9785d209ddfce74a0c829`.
+**Corrected conclusion after reading the frozen student's README.** The previous source-only analysis overlooked the documented `--no-reset` stage contract.
 
-Original grader run state: `upsert_baseline` left 18,750 validated records; next `upsert_first` left 1,875; `incremental_first` left 958. These are *real MongoDB collection snapshot counts*, not physical negative numbers. A provisional grading ledger recorded negative **deltas** because later collections were smaller than the earlier baseline.
+Frozen SHA: `ec844f735a04f351b8e9785d209ddfce74a0c829`
 
-**Why source-side:** [src/main.py](https://github.com/mushtaqalfaqih/BigData-Midterm-Pipeline/blob/ec844f735a04f351b8e9785d209ddfce74a0c829/src/main.py#L12-L44) accepts `--no-reset`, but its default calls `run_elt_pipeline(..., reset=not args.no_reset)` with reset=True. [src/mongo_setup.py](https://github.com/mushtaqalfaqih/BigData-Midterm-Pipeline/blob/ec844f735a04f351b8e9785d209ddfce74a0c829/src/mongo_setup.py#L12-L60) drops `orders_raw`, `orders_validated`, and `orders_quarantine` on reset. The grading command `python src/main.py --file-path {file}` did not pass `--no-reset`.
+Student [README lines 688–701](https://github.com/mushtaqalfaqih/BigData-Midterm-Pipeline/blob/ec844f735a04f351b8e9785d209ddfce74a0c829/README.md#L688-L701) explicitly specifies **`python src/main.py --file-path ... --no-reset`** for idempotency/upsert reruns. Student `src/main.py` exposes flag `--no-reset` and passes `reset=not args.no_reset`. `src/mongo_setup.py` drops collections on default reset=True.
 
-**Conclusion:** submission's default CLI contract destructively resets persistence; unsuitable for upsert/incremental replay. There is an alternative flag to disable reset, but the student README/contract should be checked whether grader was expected to invoke it. This is **not** evidence the grader fabricated negative record counts. Do not change PASS history or grades without rubric review.
+Grader did **not** append documented `--no-reset` for upsert and incremental stages. Saved MongoDB snapshots:
+- Baseline: validated 18,750
+- Upsert-first: validated 1,875 after unwanted reset
+- Incremental-first: validated 958 after next unwanted reset.
 
-Original actions: https://github.com/omrbosnd/bigdata-grader/actions/runs/37874152827 .
+Negative deltas in evidence ledger are a consequence of comparing successive **reset** snapshots. This is a confirmed **GRADER_INVOCATION_FAILURE**, [Issue #41](https://github.com/omrbosnd/bigdata-grader/issues/41), not proof student's business Upsert implementation fails. Preserve any already verified PASS and do not automatically grant new PASS without valid evidence. **No rerun or grade change performed.**
