@@ -73,7 +73,24 @@ def detect_engine(stdout: str, stderr: str, metrics: dict[str, Any] | None,
         if eng:
             votes.append(eng)
             evidence.append(f'mongodb:engine={value}')
-    text = f'{stdout}\n{stderr}'
+    # Structured measurements from the just-completed MongoDB run are authoritative.
+    # Free-text router explanations may mention Spark merely as a comparison
+    # (P54: "batch is faster than Spark startup"); such words cannot override
+    # an explicit database engine marker.
+    mongo_engines = [normalize_engine(value) for value in (mongo_values or [])]
+    mongo_engines = [engine for engine in mongo_engines if engine is not None]
+    if mongo_engines:
+        if len(set(mongo_engines)) == 1:
+            return mongo_engines[0], evidence
+        evidence.append('conflicting MongoDB engine markers; no safe verdict')
+        return None, evidence
+    if votes:
+        if len(set(votes)) == 1:
+            return votes[0], evidence
+        evidence.append('conflicting structured metrics engine markers; no safe verdict')
+        return None, evidence
+
+    text = f'{stdout}\\n{stderr}'
 
     # A direct router/selection statement is stronger than generic Spark
     # signatures that may appear later in a secondary ELT stage or traceback.
