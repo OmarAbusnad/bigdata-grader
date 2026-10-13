@@ -197,6 +197,14 @@ def readme_contract(repo: Path) -> dict[str, Any]:
         for name in (".env.example", "example.env", "env.example")
         for p in [repo / name, repo / "final_extension" / name, repo / "final" / name, repo / "phase2" / name]
     )
+    # A missing example file matters when the README tells the user to copy it;
+    # a project with safe os.getenv defaults does not universally need one.
+    env_copy_documented = bool(re.search(
+        r"(?im)\\b(?:cp|copy|نسخ)\\s+(?:\\./)?(?:\\.env\\.example|example\\.env|env\\.example)(?:\\s|$)",
+        readme,
+    ))
+    env_instruction_broken = env_copy_documented and not env_exists
+
     requirements_exists = any(
         p.is_file() and len(p.relative_to(repo).parts) <= 3
         for p in repo.rglob("requirements*.txt")
@@ -207,6 +215,8 @@ def readme_contract(repo: Path) -> dict[str, Any]:
         "covered_topics": covered,
         "required_topics": len(deterministic),
         "env_example": env_exists,
+        "env_copy_documented": env_copy_documented,
+        "env_instruction_broken": env_instruction_broken,
         "requirements": requirements_exists,
         "source": source,
         "readme_file": readme_name,
