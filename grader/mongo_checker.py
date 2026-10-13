@@ -238,6 +238,29 @@ class MongoChecker:
     _AUDIT_KEY_FIELDS = ('order_id', 'id_order', 'orderId', 'business_key', 'record_id', 'entity_id',
                          'document_id', 'doc_id', 'key', 'record_key', 'original_order_id')
 
+    def inspect_external_audit(self, order_id: str) -> dict[str, Any]:
+        """Locate a linked audit event while distinguishing missing from query failure."""
+        try:
+            if not hasattr(self, '_audit_collections'):
+                own = set(self.collections.values())
+                self._audit_collections = [
+                    name for name in self.db.list_collection_names()
+                    if name not in own and not name.startswith('system.')
+                    and self._AUDIT_COLLECTION_HINT.search(name)
+                    and not re.search(r'(job|schedul|run_log|execution|metric|result|report)', name, re.I)
+                ]
+            examined = 0
+            for name in self._audit_collections:
+                clauses = [{k: order_id} for k in self._AUDIT_KEY_FIELDS]
+                clauses += [{f'record.{k}': order_id} for k in ('order_id', 'id_order')]
+                examined += 1
+                if self.db[name].find_one({'$or': clauses}, {'_id': 1}) is not None:
+                    return {'status': 'FOUND', 'collection': name, 'examined': examined}
+            return {'status': 'NO_MATCH', 'examined': examined,
+                    'audit_collections': len(self._audit_collections)}
+        except Exception as exc:
+            return {'status': 'UNVERIFIED', 'reason': 'audit_query_' + type(exc).__name__}
+
     def external_audit(self, order_id: str) -> bool:
         """True when a correction/audit collection of this database holds an entry for the order.
 
