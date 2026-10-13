@@ -90,7 +90,7 @@ def detect_engine(stdout: str, stderr: str, metrics: dict[str, Any] | None,
         evidence.append('conflicting structured metrics engine markers; no safe verdict')
         return None, evidence
 
-    text = f'{stdout}\\n{stderr}'
+    text = f'{stdout}\n{stderr}'
 
     # A direct router/selection statement is stronger than generic Spark
     # signatures that may appear later in a secondary ELT stage or traceback.
