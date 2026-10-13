@@ -716,6 +716,40 @@ result["aggregation_calls"] = [
     for name in anames[:5]
 ]
 
+def discover_refresh_view_name(openapi, source_root="/workspace"):
+    """Ground a required view name in a live listing or literal student source."""
+    for endpoint in ("/views", "/materialized-views", "/materialized_views"):
+        if "get" not in ((openapi.get("paths") or {}).get(endpoint) or {}):
+            continue
+        response = request("GET", endpoint, timeout=15)
+        if response.get("ok"):
+            names = names_from(response.get("body"), ["views", "materialized_views", "names", "data"])
+            if names:
+                return names[0]
+    import ast
+    for relative in ("src/api.py", "src/phase2/api.py", "src/final/api.py", "api/main.py"):
+        path = os.path.join(source_root, relative)
+        try:
+            if not os.path.isfile(path) or os.path.getsize(path) > 500_000:
+                continue
+            with open(path, "r", encoding="utf-8-sig", errors="replace") as fp:
+                source = ast.parse(fp.read(), filename=relative)
+            for node in ast.walk(source):
+                if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+                    continue
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                if not any(isinstance(target, ast.Name) and target.id in
+                           {"MV_NAMES", "MATERIALIZED_VIEW_NAMES", "VIEW_NAMES"} for target in targets):
+                    continue
+                value = ast.literal_eval(node.value)
+                if isinstance(value, (list, tuple)) and value:
+                    if isinstance(value[0], str) and value[0].strip():
+                        return value[0]
+        except (OSError, SyntaxError, ValueError, TypeError):
+            continue
+    return None
+
+
 def refresh_mv_with_contract(openapi, full_refresh=False):
     post = ((openapi.get("paths") or {}).get("/refresh-mv") or {}).get("post") or {}
     query_parameters = [p for p in (post.get("parameters") or []) if p.get("in") == "query"]
@@ -733,9 +767,16 @@ def refresh_mv_with_contract(openapi, full_refresh=False):
         elif param.get("required") and enum:
             query[key] = enum[0]
         elif param.get("required"):
-            # Do not invent a view name and then punish its absence as student failure.
-            return {"status": None, "ok": False, "probe_blocked": "required_query_parameter_unresolved",
-                    "required_parameter": key, "is_json": False}
+            # Prefer the student's advertised view list or literal MV_NAMES,
+            # never a generic invented name.
+            grounded_view = discover_refresh_view_name(openapi) if str(key).lower() in {
+                "name", "view", "view_name", "materialized_view",
+            } else None
+            if grounded_view:
+                query[key] = grounded_view
+            else:
+                return {"status": None, "ok": False, "probe_blocked": "required_query_parameter_unresolved",
+                        "required_parameter": key, "is_json": False}
     suffix = "?" + urllib.parse.urlencode(query) if query else ""
     return request("POST", "/refresh-mv" + suffix, {}, timeout=120)
 
