@@ -200,7 +200,7 @@ def readme_contract(repo: Path) -> dict[str, Any]:
     # A missing example file matters when the README tells the user to copy it;
     # a project with safe os.getenv defaults does not universally need one.
     env_copy_documented = bool(re.search(
-        r"(?im)\\b(?:cp|copy|نسخ)\\s+(?:\\./)?(?:\\.env\\.example|example\\.env|env\\.example)(?:\\s|$)",
+        r"(?im)\b(?:cp|copy|نسخ)\s+(?:\./)?(?:\.env\.example|example\.env|env\.example)(?:\s|$)",
         readme,
     ))
     env_instruction_broken = env_copy_documented and not env_exists
