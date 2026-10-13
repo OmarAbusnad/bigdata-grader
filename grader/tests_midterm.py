@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -40,9 +41,41 @@ def _env(plan, threshold_mb: float, db_name: str | None = None) -> dict[str, str
     return env
 
 
-def _run_ingest(plan, repo: Path, file: Path, threshold: float, timeout: int, venv: str | Path | None, db_name: str | None = None):
+_INCREMENTAL_STAGES = frozenset({
+    'upsert_first', 'upsert_rerun', 'incremental_first', 'incremental_rerun',
+})
+
+
+def _documented_incremental_command(command: str, repo: Path, stage: str | None) -> str:
+    """Honor a safe documented CLI no-reset flag on only incremental stages.
+
+    Do not attempt arbitrary commands/flags from a student's README. The flag
+    must be documented *and* declared in the same frozen source entrypoint.
+    """
+    if stage not in _INCREMENTAL_STAGES or '--no-reset' in command:
+        return command
+    if not re.search(r'(?<![\\w])python(?:3)?\\s+src/main\\.py(?:\\s|$)', command):
+        return command
+    if re.search(r'&&|[;|><]', command):
+        return command
+    readme = repo / 'README.md'
+    source = repo / 'src' / 'main.py'
+    if not readme.is_file() or not source.is_file():
+        return command
+    try:
+        docs = readme.read_text(encoding='utf-8-sig', errors='replace')
+        code = source.read_text(encoding='utf-8-sig', errors='replace')
+    except OSError:
+        return command
+    if '--no-reset' in docs and re.search(r'add_argument\\s*\\(\\s*["\\\']--no-reset["\\\']', code):
+        return command + ' --no-reset'
+    return command
+
+
+def _run_ingest(plan, repo: Path, file: Path, threshold: float, timeout: int, venv: str | Path | None, db_name: str | None = None, stage: str | None = None):
     effective_db = db_name or plan.database_name
     cmd = render_command(plan.ingest_command, file=file, threshold_mb=threshold, db_name=effective_db)
+    cmd = _documented_incremental_command(cmd, repo, stage)
     result = run_command(cmd, repo, timeout=timeout, env=_env(plan, threshold, effective_db), venv=venv)
     metrics, metrics_path = find_latest_metrics(repo)
     return cmd, result, metrics, metrics_path
@@ -240,7 +273,7 @@ def run_midterm_runtime(plan, repo_path: Path, hidden_dir: Path, oracle: HiddenO
         file_path = file_override or (hidden_dir / spec['file'])
         effective_threshold = threshold if threshold_override is None else threshold_override
         before = mongo.snapshot().to_dict()
-        cmd, result, metrics, metrics_path = _run_ingest(plan, repo_path, file_path, effective_threshold, timeout, venv, effective_db)
+        cmd, result, metrics, metrics_path = _run_ingest(plan, repo_path, file_path, effective_threshold, timeout, venv, effective_db, stage=case_name)
         after = mongo.snapshot().to_dict()
         engine, engine_ev = detect_engine(result.stdout, result.stderr, metrics, mongo.distinct_engine_values())
         if file_override:
