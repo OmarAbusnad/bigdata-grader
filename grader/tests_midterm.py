@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -121,28 +122,66 @@ def _ratio_assertion(key: str, label: str, passed: int, total: int, pass_at: flo
 
 
 def _verify_clean_samples(mongo: MongoChecker, cases: list[OracleCase]) -> tuple[AssertionResult, AssertionResult]:
-    checked = good = audit_good = 0
-    evidence: list[str] = []
+    checked = good = audit_good = audit_unverified = 0
+    cleaning_evidence: list[str] = []
     audit_evidence: list[str] = []
     for case in cases:
         if not case.expected_order_id or not case.expected_clean_record:
             continue
         checked += 1
         doc = mongo.find_validated(case.expected_order_id)
-        ok, notes = compare_clean_record(doc, case.expected_clean_record)
-        if ok:
+        cleaned_ok, notes = compare_clean_record(doc, case.expected_clean_record)
+        if cleaned_ok:
             good += 1
-        elif len(evidence) < 8:
-            evidence.append(f'{case.expected_order_id}: ' + ('; '.join(notes) if notes else 'not found'))
-        external_audit = getattr(mongo, 'external_audit', None)
-        if doc and (audit_entries(doc) or (callable(external_audit) and external_audit(case.expected_order_id))):
+        elif len(cleaning_evidence) < 8:
+            # Never disclose hidden fixture IDs or expected private fields.
+            cleaned_reason = '; '.join(notes) if notes else 'not found'
+            cleaning_evidence.append(f'sample={checked}: {cleaned_reason[:160]}')
+        source = 'none'
+        inspection = {'status': 'NOT_NEEDED'}
+        if doc is not None:
+            if audit_entries(doc):
+                source = 'embedded'
+            else:
+                inspector = getattr(mongo, 'inspect_external_audit', None)
+                if callable(inspector):
+                    inspection = inspector(case.expected_order_id)
+                    if inspection.get('status') == 'FOUND':
+                        source = 'external'
+                    elif inspection.get('status') == 'UNVERIFIED':
+                        audit_unverified += 1
+                else:
+                    fallback = getattr(mongo, 'external_audit', None)
+                    if callable(fallback) and fallback(case.expected_order_id):
+                        source = 'external'
+                    else:
+                        inspection = {'status': 'UNVERIFIED',
+                                      'reason': 'external_audit_probe_unavailable'}
+                        audit_unverified += 1
+        if source != 'none':
             audit_good += 1
-        elif len(audit_evidence) < 8:
-            audit_evidence.append(f'{case.expected_order_id}: no audit entries')
-    return (
-        _ratio_assertion('batch.cleaning_samples', 'عينات Cleaning مطابقة للـOracle', good, checked, pass_at=SAMPLE_PASS_AT, fail_below=SAMPLE_FAIL_BELOW, evidence=evidence),
-        _ratio_assertion('batch.audit_trail', 'Audit Trail موجود للحالات المصححة', audit_good, checked, pass_at=SAMPLE_PASS_AT, fail_below=SAMPLE_FAIL_BELOW, evidence=audit_evidence),
-    )
+        digest = hashlib.sha256(str(case.expected_order_id).encode('utf-8')).hexdigest()[:12]
+        audit_evidence.append(json.dumps({
+            'sample_ref': digest, 'validated_record_present': doc is not None,
+            'cleaning_match': cleaned_ok, 'audit_source': source,
+            'external_audit_status': inspection.get('status'),
+            'external_audit_reason': inspection.get('reason'),
+            'external_audit_collection': inspection.get('collection'),
+        }, ensure_ascii=False, sort_keys=True))
+    clean_result = _ratio_assertion(
+        'batch.cleaning_samples', 'عينات Cleaning مطابقة للـOracle',
+        good, checked, pass_at=SAMPLE_PASS_AT, fail_below=SAMPLE_FAIL_BELOW,
+        evidence=cleaning_evidence)
+    audit_result = _ratio_assertion(
+        'batch.audit_trail', 'Audit Trail موجود للحالات المصححة',
+        audit_good, checked, pass_at=SAMPLE_PASS_AT, fail_below=SAMPLE_FAIL_BELOW,
+        evidence=audit_evidence)
+    if audit_unverified and audit_result.verdict == 'FAIL':
+        audit_result.verdict = 'INCONCLUSIVE'
+        audit_result.note = (
+            f'{audit_unverified} audit collection queries were not verified; '
+            'the grader cannot prove a student failure.')
+    return clean_result, audit_result
 
 
 def _verify_quarantine_evidence(mongo: MongoChecker) -> AssertionResult:
