@@ -50,7 +50,7 @@ def test_orchestrator_executes_all_core_cases(monkeypatch, tmp_path):
     monkeypatch.setattr(tm, 'find_latest_metrics', lambda *a, **k: ({}, None))
     monkeypatch.setattr(tm, 'detect_engine', lambda out,err,metrics,mongo_values: (mongo_values[0], [mongo_values[0]]))
 
-    def fake_run(plan, repo, file, threshold, timeout, venv, db_name=None):
+    def fake_run(plan, repo, file, threshold, timeout, venv, db_name=None, stage=None):
         m=FakeMongo.last
         if file.name=='t1.csv':
             if m.state['validated']==0:
