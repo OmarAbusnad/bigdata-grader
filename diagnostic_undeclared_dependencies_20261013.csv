@@ -1,0 +1,4 @@
+project_id,students,student_nos,project_title,repo_url,repo_full_name,stage,track,ref,grading_mode,historical_policy
+P01,رحاب بشير عبدالرحمن الخطيب,23,,https://github.com/6980-rehab/midterm-data-pipeline-,6980-rehab/midterm-data-pipeline-,midterm,,c43aae3d5e9c0d96731640206752f886f2618497,all,retain_prior_evidence
+P02,ابرار مروان محمد قاسم الدبعي,2,,https://github.com/AbrarMarwan/BigData_pipline,AbrarMarwan/BigData_pipline,midterm,,a627555a6c2d03378efb1de85d581951016f308b,all,retain_prior_evidence
+P67,حمزة يفوز,,,https://github.com/HamzaAhmedYafooz/big_data_hybrid_pipline,HamzaAhmedYafooz/big_data_hybrid_pipline,midterm,,9f4c7a6f37ef35e620a2e88d46d9b25690a02229,all,retain_prior_evidence
