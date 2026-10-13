@@ -306,9 +306,21 @@ def run_midterm_runtime(plan, repo_path: Path, hidden_dir: Path, oracle: HiddenO
     ]
     unique_ok, unique_ev = mongo.has_unique_business_index()
     batch.assertions.append(A('batch.unique_index_runtime', 'Unique Index موجود فعليًا على Business Key', 'PASS' if unique_ok else 'FAIL', True, unique_ok, unique_ev))
-    batch.assertions.append(A('batch.schema_validator_runtime', '$jsonSchema Validator موجود فعليًا على validated', 'PASS' if mongo.has_json_schema_validator() else 'INCONCLUSIVE', True, mongo.has_json_schema_validator(),
-                              note='INCONCLUSIVE لا يعني رسوبًا إذا لم يكن الـvalidator جزءًا إلزاميًا في rubric النهائية.'))
-    clean_cases = oracle.sample('test_01', classes=['correctable'], n=18)
+    inspect = getattr(mongo, 'inspect_json_schema_validator', None)
+    schema_proof = inspect() if callable(inspect) else {
+        'status': 'PRESENT' if mongo.has_json_schema_validator() else 'UNVERIFIED',
+        'reason': 'validator_inspector_unavailable',
+    }
+    schema_ok = schema_proof['status'] == 'PRESENT'
+    batch.assertions.append(A(
+        'batch.schema_validator_runtime', '$jsonSchema Validator موجود فعليًا على validated',
+        'PASS' if schema_ok else 'INCONCLUSIVE', True, schema_ok,
+        evidence=[json.dumps(schema_proof, ensure_ascii=False, sort_keys=True)],
+        note=('Confirmed absent in live MongoDB; rubric must decide scoring.' if
+              schema_proof['status'] in {'ABSENT', 'COLLECTION_MISSING'} else
+              'Unverified validator probe; do not charge student.')
+             if not schema_ok else None,
+    ))    clean_cases = oracle.sample('test_01', classes=['correctable'], n=18)
     clean_a, audit_a = _verify_clean_samples(mongo, clean_cases)
     batch.assertions += [clean_a, audit_a, _verify_quarantine_evidence(mongo)]
     batch.assertions += _metrics_assertions('batch', batch.metrics, {'input': int(t1['input']), 'quarantine': int(t1['quarantine'])}, t1_metrics_path)
