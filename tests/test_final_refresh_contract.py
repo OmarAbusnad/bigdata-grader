@@ -26,7 +26,7 @@ def test_p59_read_frozen_literal_mv_names_instead_of_guess(tmp_path):
     import os
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "api.py").write_text(
-        'MV_NAMES = ["city_sales", "daily_sales"]\\n', encoding="utf-8"
+        'MV_NAMES = ["city_sales", "daily_sales"]\n', encoding="utf-8"
     )
     tree = ast.parse(_probe_python())
     selected = [node for node in tree.body if isinstance(node, ast.FunctionDef)
