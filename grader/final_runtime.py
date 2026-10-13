@@ -363,6 +363,10 @@ def sample_value(name, schema=None):
     if "engine" in n: return "batch"
     if "start" in n and "date" in n: return "2026-01-01"
     if "end" in n and "date" in n: return "2026-12-31"
+    if n in {"start", "from_date", "date_from", "start_date"}: return "2026-01-01"
+    if n in {"end", "to_date", "date_to", "end_date"}: return "2026-12-31"
+    if n in {"order_id", "order", "id_order"}: return "F-001"
+    if n in {"reason", "error_code", "quarantine_reason"}: return "INVALID_EMAIL"
     if "date" in n: return "2026-01-01"
     if any(x in n for x in ["limit", "size", "count", "batch"]): return 10
     if any(x in n for x in ["min", "amount", "total", "price", "value"]): return 10
@@ -464,11 +468,52 @@ def semantic_query_param_names(name, available):
     add_if("product", "sku", "product_id", "item_name", "product_name")
     add_if("sku", "sku")
     add_if("payment", "payment_method", "payment_status", "min_amount")
-    add_if("high_value", "min_total", "min_amount", "start_date", "end_date")
-    add_if("range", "start_date", "end_date", "min_total", "max_total")
-    add_if("date", "start_date", "end_date")
+    add_if("high_value", "min_total", "min_amount")
+    add_if("reason", "reason", "quarantine_reason", "error_code")
+    add_if("order_id", "order_id")
+    add_if("period", "start", "end", "start_date", "end_date")
+    if "value" in available and ("orders" in n or n.startswith("quality_")):
+        out.add("value")
+    add_if("range", "start_date", "end_date", "start", "end", "min_total", "max_total")
+    add_if("date", "start_date", "end_date", "start", "end")
     if "limit" in available: out.add("limit")
     return out
+
+
+def sample_query_parameter(name, pname, schema=None):
+    """Use already documented fixture values; never invent a parameter name."""
+    n, p = str(name).lower(), str(pname).lower()
+    if p == "value":
+        if "customer" in n: return "CUST-001"
+        if "city" in n: return "Sanaa"
+        if "status" in n: return "Delivered"
+        if "quality" in n: return "corrected"
+    return sample_value(pname, schema)
+
+
+def missing_query_parameters(response, available, already):
+    """Return only parameter names confirmed missing by a 400/422 response."""
+    if response.get("status") not in (400, 422):
+        return []
+    body = response.get("body") or {}
+    pending = set()
+    detail = body.get("detail") if isinstance(body, dict) else None
+    for item in detail if isinstance(detail, list) else []:
+        if not isinstance(item, dict):
+            continue
+        loc = item.get("loc") or []
+        if len(loc) >= 2 and loc[0] == "query" and loc[1] in available:
+            pending.add(loc[1])
+    message = json.dumps(body, ensure_ascii=False).lower()
+    for name in available:
+        lower = name.lower()
+        quoted = re.escape(lower)
+        if (re.search(r"(?:missing|required|provide|specify)[^\\n.]{0,90}\\b" + quoted + r"\\b", message)
+            or re.search(r"\\b" + quoted + r"\\b[^\\n.]{0,45}(?:missing|required)", message)):
+            pending.add(name)
+    if "missing dates" in message or "dates required" in message:
+        pending.update(p for p in ("start_date", "end_date", "start", "end") if p in available)
+    return sorted(pending.difference(already))
 
 
 def build_ingest_attempts(openapi):
@@ -640,12 +685,26 @@ for name in qnames[:5]:
     for p in qparams:
         pname = str(p.get("name"))
         if p.get("required") or pname in selected:
-            params[pname] = sample_value(pname, p.get("schema") or {})
+            params[pname] = sample_query_parameter(name, pname, p.get("schema") or {})
     for pname in sorted(selected):
         if pname not in params:
-            params[pname] = sample_value(pname, {})
+            params[pname] = sample_query_parameter(name, pname, {})
+    path = "/queries/" + urllib.parse.quote(name, safe="")
     suffix = "?" + urllib.parse.urlencode(params) if params else ""
-    qcalls.append({"name": name, "params": params, "response": request("GET", "/queries/" + urllib.parse.quote(name, safe="") + suffix, timeout=60)})
+    response = request("GET", path + suffix, timeout=60)
+    attempts = [{"params": dict(params), "response": response}]
+    # Conditional parameters may be required for one query name but optional
+    # in the shared OpenAPI path schema. Retry once, only with names confirmed
+    # missing by the student's HTTP 400/422 response and declared in OpenAPI.
+    additions = missing_query_parameters(response, available, set(params))
+    if additions:
+        for pname in additions:
+            schema = next((p.get("schema") or {} for p in qparams if p.get("name") == pname), {})
+            params[pname] = sample_query_parameter(name, pname, schema)
+        retry_suffix = "?" + urllib.parse.urlencode(params)
+        response = request("GET", path + retry_suffix, timeout=60)
+        attempts.append({"params": dict(params), "response": response})
+    qcalls.append({"name": name, "params": params, "response": response, "attempts": attempts})
 result["query_calls"] = qcalls
 
 a = request("GET", "/aggregations", timeout=30)
