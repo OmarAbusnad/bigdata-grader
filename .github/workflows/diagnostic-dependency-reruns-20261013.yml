@@ -1,0 +1,99 @@
+name: Diagnostic Dependency Reruns P01 P02 P67 (2026-10-13)
+on:
+  push:
+    branches: [fix/targeted-undeclared-deps-20261013]
+    paths:
+      - '.github/workflows/diagnostic-dependency-reruns-20261013.yml'
+      - 'grader/sandbox.py'
+      - 'tests/test_diagnostic_deps.py'
+      - 'diagnostic_undeclared_dependencies_20261013.csv'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - {project_id: P01, extra_pkg: 'psutil==6.1.1', mode: all}
+          - {project_id: P02, extra_pkg: 'psutil==6.1.1', mode: all}
+          - {project_id: P67, extra_pkg: 'tqdm==4.67.1', mode: all}
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+      GRADER_DIAGNOSTIC_PROJECT_ID: ${{ matrix.project_id }}
+      GRADER_DIAGNOSTIC_EXTRAS: ${{ matrix.extra_pkg }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+      STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader only and validate diagnostic injector
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pytest -q tests/test_diagnostic_deps.py
+      - name: Verify seed prerequisite
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: test -n "${HIDDEN_SEED:-}"
+      - name: Freeze only SHA-pinned student submission
+        shell: bash
+        run: |
+          set -euo pipefail
+          python freeze_submissions.py --submissions diagnostic_undeclared_dependencies_20261013.csv \
+            --project "${{ matrix.project_id }}" --output-dir frozen
+          python freeze_submissions.py --submissions diagnostic_undeclared_dependencies_20261013.csv \
+            --build-manifest --artifacts-dir frozen --output frozen_submissions.csv
+          python - <<'PY'
+          import csv
+          import json
+          import os
+          p = os.environ["GRADER_DIAGNOSTIC_PROJECT_ID"]
+          rows = list(csv.DictReader(open("frozen_submissions.csv", encoding="utf-8-sig")))
+          row = next(x for x in rows if x["project_id"] == p)
+          assert row["freeze_status"] == "READY", row["freeze_error"]
+          assert row["commit_sha"] == row["ref"], (row["commit_sha"], row["ref"])
+          assert not row.get("workspace_subdir"), row.get("workspace_subdir")
+          print(json.dumps({"project_id": p, "student_sha": row["ref"],
+                            "diagnostic_extra_package": os.environ["GRADER_DIAGNOSTIC_EXTRAS"]},
+                           ensure_ascii=False))
+          PY
+      - name: Build grader base image
+        run: python build_runtime_image.py
+      - name: Regenerate identical hidden tests outside student sandbox
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Execute diagnostic rerun in isolated sandbox (unchanged student source)
+        run: |
+          python -u evaluate_project.py \
+            --project "${{ matrix.project_id }}" \
+            --submissions frozen_submissions.csv \
+            --workspace "workspaces/${{ matrix.project_id }}/repo" \
+            --mode "${{ matrix.mode }}" \
+            --network-profile isolated
+      - name: Upload snapshot and diagnostic findings regardless of outcome
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostic-undeclared-deps-${{ matrix.project_id }}-${{ github.run_id }}
+          path: |
+            frozen/${{ matrix.project_id }}.metadata.json
+            frozen_submissions.csv
+            reports_unified/${{ matrix.project_id }}/
+            reports/${{ matrix.project_id }}/
+            reports_final/${{ matrix.project_id }}/
+          retention-days: 90
+          if-no-files-found: warn
