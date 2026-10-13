@@ -35,6 +35,30 @@ class SandboxError(RuntimeError):
     pass
 
 
+# Temporary grader-only diagnostic packages, approved for the SHA-pinned
+# submissions below. Never modify the student's repository or requirements.
+_DIAGNOSTIC_DEPENDENCIES = {
+    "P01": ("psutil==6.1.1",),
+    "P02": ("psutil==6.1.1",),
+    "P67": ("tqdm==4.67.1",),
+}
+
+
+def _diagnostic_packages(project_id: str) -> tuple[str, ...]:
+    raw = os.environ.get("GRADER_DIAGNOSTIC_EXTRAS", "").strip()
+    if not raw:
+        return ()
+    claimed_project = os.environ.get("GRADER_DIAGNOSTIC_PROJECT_ID", "")
+    approved = _DIAGNOSTIC_DEPENDENCIES.get(project_id)
+    requested = tuple(s.strip() for s in raw.split(",") if s.strip())
+    if claimed_project != project_id or requested != approved:
+        raise SandboxError(
+            "Grader diagnostic dependency override is not explicitly approved "
+            f"for project {project_id}: {requested!r}"
+        )
+    return requested
+
+
 def _normalize_python_launcher(command: str) -> str:
     """Map the Windows 'py' launcher to the active sandbox Python on Linux."""
     return re.sub(r"^\s*py(?=\s)", "python", str(command), count=1, flags=re.I)
@@ -319,6 +343,8 @@ class DockerSandbox:
         self._runtime_requirements_profile = runtime_profile
         self._requirements_manifest_meta = manifest_meta
         self._use_runtime_requirements_profile = use_runtime_profile
+        diagnostic_packages = _diagnostic_packages(self.project_id)
+        self._diagnostic_packages = diagnostic_packages
 
         # Opt-in, auditable prewarming of EXACTLY the student's declared MongoDB
         # connector artifact; executed during image build where Maven is reachable.
@@ -401,6 +427,11 @@ class DockerSandbox:
                  f'&& /opt/student-venv/bin/pip install --no-cache-dir -r .grader.requirements.compat.txt{constraint_flag}))'
         )
 
+        diagnostic_install_step = (
+            "RUN /opt/student-venv/bin/pip install --no-cache-dir "
+            + " ".join(diagnostic_packages)
+            if diagnostic_packages else ""
+        )
         spark_runtime_conf = (
             "ENV SPARK_CONF_DIR=/workspace/.grader.spark-conf"
             if getattr(self, "_spark_prefetch", {}).get("enabled") else "# Spark prewarm disabled"
@@ -420,6 +451,7 @@ class DockerSandbox:
                      {install_clause}; \
                    elif [ -f pyproject.toml ] || [ -f setup.py ]; then /opt/student-venv/bin/pip install --no-cache-dir .; \
                    fi
+            {diagnostic_install_step}
             {prewarm_step}
             {spark_runtime_conf}
             ENV PATH=/opt/student-venv/bin:$PATH \
@@ -449,6 +481,7 @@ class DockerSandbox:
             "image": self.image_name,
             "compatibility_fallback_used": fallback_used,
             "runtime_profile_used": runtime_profile_used,
+            "diagnostic_extra_packages": list(getattr(self, "_diagnostic_packages", ()) or ()),
             "runtime_requirements_profile": getattr(self, "_runtime_requirements_profile", {}) if runtime_profile_used else None,
             "spark_dependency_prewarm": getattr(self, "_spark_prefetch", {}),
             "spark_prefetch_log_tail": combined[-1200:] if getattr(self, "_spark_prefetch", {}).get("enabled") else None,
