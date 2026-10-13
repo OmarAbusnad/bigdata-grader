@@ -371,7 +371,21 @@ def run_behavioral_suite(
             build = sb.build()
             report["build"] = build
             if not build["ok"]:
-                report["status"] = "DEPENDENCY_BUILD_ERROR"
+                if build.get("spark_dependency_precondition_failed"):
+                    report["status"] = "GRADER_INFRA_FAILURE"
+                    report["root_cause"] = "GRADER_SPARK_PREFETCH_FAILED"
+                    report["root_cause_owner"] = "GRADER_ENVIRONMENT"
+                    report["root_cause_evidence"] = [
+                        "Exact declared Spark connector could not be prefetched/verified "
+                        "before the student's network-isolated run.",
+                        str(build.get("spark_prefetch_log_tail") or "")[-1200:],
+                    ]
+                    report["notes"] = [
+                        "No student execution occurred. Do not assign student FAIL or "
+                        "erase historical PASS on a grader-side Maven precondition.",
+                    ]
+                else:
+                    report["status"] = "DEPENDENCY_BUILD_ERROR"
                 return report
 
             _live(f"{project_id}: starting isolated Docker sandbox + MongoDB")
