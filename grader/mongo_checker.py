@@ -201,6 +201,35 @@ class MongoChecker:
         except Exception:
             return None
 
+    def inspect_json_schema_validator(self, collection_key: str = 'validated') -> dict[str, Any]:
+        """Describe why a validator can/cannot be proved from the live MongoDB.
+
+        Exposes only collection and operator names, never student records or
+        hidden fixture values. Query failure must not be treated as absence.
+        """
+        name = self.collections.get(collection_key)
+        if not name:
+            return {'status': 'UNVERIFIED', 'reason': 'collection_mapping_missing'}
+        try:
+            result = self.db.command({'listCollections': 1, 'filter': {'name': name}})
+        except Exception as exc:
+            return {'status': 'UNVERIFIED', 'collection': name,
+                    'reason': 'listCollections_' + type(exc).__name__}
+        rows = (result.get('cursor') or {}).get('firstBatch') or []
+        if not rows:
+            return {'status': 'COLLECTION_MISSING', 'collection': name}
+        options = rows[0].get('options') or {}
+        validator = options.get('validator') or {}
+        clauses = validator.get('$and') or []
+        has_schema = ('$jsonSchema' in validator or any(
+            isinstance(item, dict) and '$jsonSchema' in item for item in clauses
+        ))
+        return {'status': 'PRESENT' if has_schema else 'ABSENT',
+                'collection': name,
+                'validator_operators': sorted(str(k) for k in validator.keys()),
+                'validation_level': options.get('validationLevel'),
+                'validation_action': options.get('validationAction')}
+
     def has_json_schema_validator(self) -> bool:
         v = self.validator('validated') or {}
         return '$jsonSchema' in v or any('$jsonSchema' in (x if isinstance(x, dict) else {}) for x in v.get('$and', []))
