@@ -359,7 +359,8 @@ def run_midterm_runtime(plan, repo_path: Path, hidden_dir: Path, oracle: HiddenO
               schema_proof['status'] in {'ABSENT', 'COLLECTION_MISSING'} else
               'Unverified validator probe; do not charge student.')
              if not schema_ok else None,
-    ))    clean_cases = oracle.sample('test_01', classes=['correctable'], n=18)
+    ))
+    clean_cases = oracle.sample('test_01', classes=['correctable'], n=18)
     clean_a, audit_a = _verify_clean_samples(mongo, clean_cases)
     batch.assertions += [clean_a, audit_a, _verify_quarantine_evidence(mongo)]
     batch.assertions += _metrics_assertions('batch', batch.metrics, {'input': int(t1['input']), 'quarantine': int(t1['quarantine'])}, t1_metrics_path)
