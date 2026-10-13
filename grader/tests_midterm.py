@@ -1,6 +1,5 @@
 from __future__ import annotations
 import json
-import re
 from pathlib import Path
 from typing import Any
 
@@ -54,9 +53,11 @@ def _documented_incremental_command(command: str, repo: Path, stage: str | None)
     """
     if stage not in _INCREMENTAL_STAGES or '--no-reset' in command:
         return command
-    if not re.search(r'(?<![\\w])python(?:3)?\\s+src/main\\.py(?:\\s|$)', command):
+    # Apply only to a directly invoked, known CLI entrypoint; no shell chains.
+    parts = command.split()
+    if len(parts) < 2 or parts[0] not in ('python', 'python3') or parts[1] != 'src/main.py':
         return command
-    if re.search(r'&&|[;|><]', command):
+    if any(operator in command for operator in ('&&', ';', '|', '>', '<')):
         return command
     readme = repo / 'README.md'
     source = repo / 'src' / 'main.py'
@@ -67,7 +68,7 @@ def _documented_incremental_command(command: str, repo: Path, stage: str | None)
         code = source.read_text(encoding='utf-8-sig', errors='replace')
     except OSError:
         return command
-    if '--no-reset' in docs and re.search(r'add_argument\\s*\\(\\s*["\\\']--no-reset["\\\']', code):
+    if '--no-reset' in docs and ("'--no-reset'" in code or '"--no-reset"' in code):
         return command + ' --no-reset'
     return command
 
