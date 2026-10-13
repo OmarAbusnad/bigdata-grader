@@ -1608,7 +1608,7 @@ def run_final_suite(
             readme_ok
             and readme_topics_ok
             and readme_evidence.get("requirements")
-            and readme_evidence.get("env_example")
+            and not readme_evidence.get("env_instruction_broken")
         )
         assertions.append(_assertion(
             "final.github_readme",
@@ -1617,7 +1617,7 @@ def run_final_suite(
             expected={
                 "all_required_topics": True,
                 "requirements.txt": True,
-                ".env.example_or_example.env": True,
+                "documented_env_copy_target_exists": True,
             },
             actual=readme_evidence,
             evidence=[json.dumps(readme_evidence, ensure_ascii=False)[:3000]],
@@ -1626,13 +1626,12 @@ def run_final_suite(
             static.get("has_requirements")
             and static.get("fastapi_declared")
             and static.get("uvicorn_declared")
-            and static.get("has_env_example")
         )
         assertions.append(_assertion(
             "final.dependencies",
-            "Final API dependencies and environment example are declared",
+            "Final API dependency declarations are complete",
             "PASS" if deps_ok else "FAIL",
-            expected="requirements include FastAPI/Uvicorn and .env.example (or example.env) exists",
+            expected="requirements include FastAPI and Uvicorn; env samples are checked against README separately",
             actual={
                 "requirements": static.get("has_requirements"),
                 "fastapi": static.get("fastapi_declared"),
