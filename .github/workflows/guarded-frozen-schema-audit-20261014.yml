@@ -1,0 +1,53 @@
+name: Guarded Frozen Schema and Audit Source Evidence 2026-10-14
+on:
+  push:
+    paths:
+      - '.grader/trigger-frozen-schema-audit-20261014.txt'
+permissions:
+  contents: write
+  actions: read
+jobs:
+  frozen-only-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Restore original frozen source and original grading reports only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for pid in P16 P41 P44 P47 P50 P52; do
+            mkdir -p "forensic_inputs/$pid/frozen" "forensic_inputs/$pid/original"
+            gh run download 37390623044 -n "frozen-$pid-37390623044" -D "forensic_inputs/$pid/frozen" || echo "UNAVAILABLE_FROZEN=$pid"
+            gh run download 37874152827 -n "unified-$pid-37874152827" -D "forensic_inputs/$pid/original" || echo "UNAVAILABLE_ORIGINAL=$pid"
+          done
+      - name: Read-only exact source audit; no student execution
+        run: |
+          python -u tools/frozen_source_schema_audit.py --root forensic_inputs --out project-results | tee frozen_source_audit_summary.json
+      - name: Upload independent result before Git push
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frozen-schema-audit-${{ github.run_id }}
+          path: |
+            project-results/P*/forensics/FROZEN_STATIC_SCHEMA_AUDIT_20261014.json
+            frozen_source_audit_summary.json
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Commit non-sensitive per-project source indicators to this PR branch
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add project-results/P*/forensics/FROZEN_STATIC_SCHEMA_AUDIT_20261014.json
+          if git diff --cached --quiet; then
+            echo 'No new forensic results'
+          else
+            git commit -m 'evidence: save frozen-SHA schema and audit source triage for P16/P41/P44/P47/P50/P52'
+            git push origin HEAD:${{ github.ref_name }}
+          fi
