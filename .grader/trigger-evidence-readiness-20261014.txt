@@ -1,1 +1,1 @@
-Prepare read-only 68+ project provisional evidence reconciliation; no scoring or student execution; keep historical PASS and accepted late SHAs separate.
+Re-run read-only reconciliation after resolving CLI namespace p01_mid not p01_midterm in 38627455281, without any grading/student execution.

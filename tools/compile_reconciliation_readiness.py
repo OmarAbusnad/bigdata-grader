@@ -28,7 +28,7 @@ def main():
         superseded.append({"project_id":pid,"old_sha":old.get("sha") if old else None,"new_sha":sha,"mix_old_new":False})
         newer={"sha":sha,"run":run,"phases":{}}
         for phase in ("midterm","final"):
-            doc=load(getattr(x,pid.lower()+"_"+phase))
+            doc=load(getattr(x,pid.lower()+"_"+("mid" if phase=="midterm" else "final")))
             assert doc.get("project_id")==pid and doc.get("commit_sha")==sha,pid+" "+phase+" assessed source SHA mismatch"
             newer["phases"][phase]=keys(doc)
         projects[pid]=newer
