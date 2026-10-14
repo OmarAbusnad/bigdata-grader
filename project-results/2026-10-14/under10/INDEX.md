@@ -10,8 +10,8 @@
 | P17 | [Issue](https://github.com/abrarebrahim898-png/Project.big-data/issues/1) | `7009d6fe` | 25/4/0 | 23/1/1 | [Evidence](../../P17/forensics/UNDER10_LAST_CHANCE_RETEST_20261014.json) |
 | P29 | [Issue](https://github.com/kingmohammeds1122-cmd/hybrid-data-pipeline-midterm/issues/1) | `b024c950` | 25/4/0 | 1/1/20 | [Evidence](../../P29/forensics/UNDER10_LAST_CHANCE_RETEST_20261014.json) |
 | P61 | [Issue](https://github.com/oma4-ai/midterm-data-pipeline/issues/1) | `07a9a6eb` | 27/1/1 | 9/14/2 | [Evidence](../../P61/forensics/UNDER10_LAST_CHANCE_RETEST_20261014.json) |
-| P68 | [Issue](https://github.com/Bilal-AlShami/bigdata-hybrid-pipeline/issues/1) | `1c0b2b46` | 27/1/1 | غير مُقيّم | [Evidence](../../P68/forensics/UNDER10_LAST_CHANCE_RETEST_20261014.json) |
-| P69 | [Issue](https://github.com/newump2017-coder/Final-project-bigdata/issues/1) | `cfce6b1d` | غير مُقيّم | 17/4/4 | [Evidence](../../P69/forensics/UNDER10_LAST_CHANCE_RETEST_20261014.json) |
+| P68 | [Issue](https://github.com/Bilal-AlShami/bigdata-hybrid-pipeline/issues/1) | `1c0b2b46` | 27/1/1 | **24/0/1** ([استكمال النهائي](./P68_P69_OMITTED_PHASE_RESULTS_38636543404.md)) | [Evidence](../../P68/forensics/UNDER10_LAST_CHANCE_RETEST_20261014.json) |
+| P69 | [Issue](https://github.com/newump2017-coder/Final-project-bigdata/issues/1) | `cfce6b1d` | **0/1/23** ([استكمال النصفي](./P68_P69_OMITTED_PHASE_RESULTS_38636543404.md)) | 17/4/4 | [Evidence](../../P69/forensics/UNDER10_LAST_CHANCE_RETEST_20261014.json) |
 | P51 | [Issue](https://github.com/renadalhashdi/big-data-elt-pipeline/issues/1) | `6a534b0b` | 0/1/23 | 16/2/7 | [Evidence](../../P51/forensics/UNDER10_LAST_CHANCE_RETEST_20261014.json) |
 | P33 | [Issue](https://github.com/manafalbana710-hash/midterm-data-pipeline2/issues/1) | `c56c9f5e` | 27/1/1 | 24/0/1 | [Evidence](../../P33/forensics/UNDER10_LAST_CHANCE_RETEST_20261014.json) |
 | P67 | [Issue](https://github.com/HamzaAhmedYafooz/big_data_hybrid_pipline/issues/1) | `3ba01316` | 25/1/3 | 23/0/2 | [Evidence](../../P67/forensics/UNDER10_LAST_CHANCE_RETEST_20261014.json) |
@@ -27,3 +27,7 @@
 - [P23 — Run 38634351075](https://github.com/omrbosnd/bigdata-grader/actions/runs/38634351075) — إعادة النصفي فقط.
 
 **الحالة النهائية للجولة التقنية:** جميع التشغيلات المركزة الأربع اكتملت على النسخ المثبتة بنجاح GitHub Actions مع تقارير اختبار فعلية. نتائج PASS لا تعني تلقائيًا كامل درجات المعيار. أخطاء Oracle وأسباب عدم الحسم باقية للتحقيق؛ لم تُعتمد درجات /25 ولا المناقشة.
+
+## استكمال المرحلتين المحذوفتين — تشغيل 38636543404
+
+اكتمل اختبار **P68 النهائي 24/0/1** و**P69 النصفي 0/1/23** على نسختيهما المثبتتين؛ لم تُعَد مراحل سابقة. توجد مشكلة اكتشاف أمر التشغيل في P69 مع قصور منفصل في كود الطالب، ولا يجوز اعتبار الـ23 اختبارًا راسبًا. [التقرير التفصيلي والأدلة](./P68_P69_OMITTED_PHASE_RESULTS_38636543404.md).
