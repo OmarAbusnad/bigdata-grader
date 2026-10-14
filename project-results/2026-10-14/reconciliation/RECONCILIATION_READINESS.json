@@ -75,7 +75,7 @@
       "project_id": "P26",
       "focused_run": null,
       "frozen_sha": "fc4f5d9924fe9a59f09e4167d323eaf4672ccca2",
-      "evidence_report": "P26_SNAPSHOT_BLOCKER.md",
+      "evidence_report": "project-results/P26/forensics/LATER_SHA_SPARK_PASS_PRESERVED_20261014.json",
       "counts": {
         "historical_pass_preserved": 1
       }
@@ -135,7 +135,7 @@
       "project_id": "P01",
       "focused_run": 38625479332,
       "frozen_sha": "c43aae3d5e9c0d96731640206752f886f2618497",
-      "evidence_report": "P01_LATER_SHA_GUARD.md",
+      "evidence_report": "project-results/P01/forensics/LATER_SHA_API_IMPORT_DIAGNOSIS_20261014.json",
       "counts": {
         "not_pass_not_applied": 1
       }

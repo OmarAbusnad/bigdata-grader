@@ -1,0 +1,28 @@
+{
+  "project_id": "P61",
+  "exact_student_sha": "95792fbf3bfe2ffab16bec05d8042fc9988df49a",
+  "phase_coverage": null,
+  "passing_assertions_preserved": 0,
+  "open_cases": [
+    {
+      "project_id": "P61",
+      "phase": "final",
+      "assertion_key": "final.api.discovered",
+      "student_sha": "95792fbf3bfe2ffab16bec05d8042fc9988df49a",
+      "existing_verdict": "FAIL",
+      "source_run": 37874152827,
+      "original_source_kind": "immutable_68_project_ledger",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/37874152827"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    }
+  ],
+  "open_count": 1,
+  "official_marks_unchanged": true
+}

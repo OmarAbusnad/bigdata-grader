@@ -1,0 +1,138 @@
+{
+  "project_id": "P16",
+  "exact_student_sha": "38b0d23dc6136f639a4b37aa0406a4da362fbaa8",
+  "phase_coverage": null,
+  "passing_assertions_preserved": 29,
+  "open_cases": [
+    {
+      "project_id": "P16",
+      "phase": "midterm",
+      "assertion_key": "batch.audit_trail",
+      "student_sha": "38b0d23dc6136f639a4b37aa0406a4da362fbaa8",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38088837812,
+      "original_source_kind": "immutable_68_project_ledger",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "AUDIT_SAMPLES_REQUIRE_REDACTED_COMPARISON",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/36",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38088837812",
+        "project-results/P16/forensics/FROZEN_STATIC_SCHEMA_AUDIT_20261014.json"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P16",
+      "phase": "midterm",
+      "assertion_key": "batch.quarantine_count",
+      "student_sha": "38b0d23dc6136f639a4b37aa0406a4da362fbaa8",
+      "existing_verdict": "FAIL",
+      "source_run": 38088837812,
+      "original_source_kind": "immutable_68_project_ledger",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38088837812"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P16",
+      "phase": "midterm",
+      "assertion_key": "batch.schema_validator_runtime",
+      "student_sha": "38b0d23dc6136f639a4b37aa0406a4da362fbaa8",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 37874152827,
+      "original_source_kind": "immutable_68_project_ledger",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "SCHEMA_VALIDATOR_RUNTIME_UNVERIFIED",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/35",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/37874152827",
+        "project-results/P16/forensics/FROZEN_STATIC_SCHEMA_AUDIT_20261014.json"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P16",
+      "phase": "midterm",
+      "assertion_key": "batch.validated_count",
+      "student_sha": "38b0d23dc6136f639a4b37aa0406a4da362fbaa8",
+      "existing_verdict": "FAIL",
+      "source_run": 38088837812,
+      "original_source_kind": "immutable_68_project_ledger",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38088837812"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P16",
+      "phase": "midterm",
+      "assertion_key": "incremental.final_validated",
+      "student_sha": "38b0d23dc6136f639a4b37aa0406a4da362fbaa8",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 37982763274,
+      "original_source_kind": "immutable_68_project_ledger",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/37982763274"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P16",
+      "phase": "midterm",
+      "assertion_key": "upsert.final_validated",
+      "student_sha": "38b0d23dc6136f639a4b37aa0406a4da362fbaa8",
+      "existing_verdict": "FAIL",
+      "source_run": 38088837812,
+      "original_source_kind": "immutable_68_project_ledger",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38088837812"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P16",
+      "phase": "final",
+      "assertion_key": "final.api.discovered",
+      "student_sha": "38b0d23dc6136f639a4b37aa0406a4da362fbaa8",
+      "existing_verdict": "FAIL",
+      "source_run": 38088837812,
+      "original_source_kind": "immutable_68_project_ledger",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38088837812"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    }
+  ],
+  "open_count": 7,
+  "official_marks_unchanged": true
+}
