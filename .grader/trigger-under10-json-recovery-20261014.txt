@@ -1,1 +1,1 @@
-Batch03: P33 and P67 only; original immutable 38632370130 midterm had zero assertions and confirmed grader NameError; do not rerun successful finals.
+Batch04 P23 ONLY: original 38632370130 exact SHA midterm blocked before assertions by confirmed grader NameError; preserve previously run final 21 PASS / 1 FAIL / 3 INCONCLUSIVE and old-SHA passes.
