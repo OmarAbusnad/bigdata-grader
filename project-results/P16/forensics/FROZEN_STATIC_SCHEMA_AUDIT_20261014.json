@@ -1,0 +1,135 @@
+{
+  "project_id": "P16",
+  "mode": "FROZEN_SOURCE_STATIC_ONLY",
+  "academic_grade_changed": false,
+  "student_code_executed": false,
+  "historical_pass_overwritten": false,
+  "schema_runtime_verified": false,
+  "audit_runtime_verified": false,
+  "original_freeze_run": 37390623044,
+  "original_grading_run": 37874152827,
+  "original_freeze_url": "https://github.com/omrbosnd/bigdata-grader/actions/runs/37390623044",
+  "original_grade_url": "https://github.com/omrbosnd/bigdata-grader/actions/runs/37874152827",
+  "issue_schema": "https://github.com/omrbosnd/bigdata-grader/issues/35",
+  "issue_audit": "https://github.com/omrbosnd/bigdata-grader/issues/36",
+  "exact_student_sha": "38b0d23dc6136f639a4b37aa0406a4da362fbaa8",
+  "frozen_archive_sha256": "5e80175b734a1c52e0d8e80781d77ba6d9c4665f05f1bd9e46c72d68d41fe53c",
+  "source_guard": "VERIFIED_EXACT_SAME_SHA",
+  "original_relevant_assertions": {
+    "batch.schema_validator_runtime": "INCONCLUSIVE",
+    "batch.audit_trail": "FAIL"
+  },
+  "source_scan": {
+    "safe_text_files_examined": 26,
+    "nested_archives_examined": 0,
+    "nested_zip_evidence": [],
+    "schema_indicators": [
+      {
+        "path": "repo/README.md",
+        "line": 108,
+        "indicator": "schema_validation"
+      },
+      {
+        "path": "repo/src/elt_pipeline.py",
+        "line": 1,
+        "indicator": "schema_validation"
+      },
+      {
+        "path": "repo/src/mongo_setup.py",
+        "line": 78,
+        "indicator": "create_collection"
+      },
+      {
+        "path": "repo/tests/test_schema_only.py",
+        "line": 3,
+        "indicator": "schema_validation"
+      }
+    ],
+    "audit_indicators": [
+      {
+        "path": "repo/README.md",
+        "line": 275,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/README.md",
+        "line": 276,
+        "indicator": "corrected_value"
+      },
+      {
+        "path": "repo/README.md",
+        "line": 288,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/README.md",
+        "line": 289,
+        "indicator": "corrected_value"
+      },
+      {
+        "path": "repo/docs/architecture.md",
+        "line": 276,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/docs/architecture.md",
+        "line": 277,
+        "indicator": "corrected_value"
+      },
+      {
+        "path": "repo/docs/architecture.md",
+        "line": 289,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/docs/architecture.md",
+        "line": 290,
+        "indicator": "corrected_value"
+      },
+      {
+        "path": "repo/src/batch_loader.py",
+        "line": 185,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/src/batch_loader.py",
+        "line": 186,
+        "indicator": "corrected_value"
+      },
+      {
+        "path": "repo/src/batch_loader.py",
+        "line": 187,
+        "indicator": "corrected_value"
+      },
+      {
+        "path": "repo/src/correction_rules.py",
+        "line": 111,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/src/correction_rules.py",
+        "line": 112,
+        "indicator": "corrected_value"
+      },
+      {
+        "path": "repo/src/correction_rules.py",
+        "line": 119,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/src/correction_rules.py",
+        "line": 123,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/src/correction_rules.py",
+        "line": 124,
+        "indicator": "corrected_value"
+      }
+    ]
+  },
+  "schema_decision": "SOURCE_INDICATORS_FOUND_RUNTIME_UNVERIFIED",
+  "audit_decision": "SOURCE_INDICATORS_FOUND_RUNTIME_UNVERIFIED",
+  "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+  "next_step": "Use exact frozen SHA and recorded source contract to define isolated validator accept/reject and redacted per-sample audit probes; do not infer student FAIL/PASS from keyword markers."
+}

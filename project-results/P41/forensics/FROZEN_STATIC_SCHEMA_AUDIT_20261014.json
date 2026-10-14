@@ -1,0 +1,168 @@
+{
+  "project_id": "P41",
+  "mode": "FROZEN_SOURCE_STATIC_ONLY",
+  "academic_grade_changed": false,
+  "student_code_executed": false,
+  "historical_pass_overwritten": false,
+  "schema_runtime_verified": false,
+  "audit_runtime_verified": false,
+  "original_freeze_run": 37390623044,
+  "original_grading_run": 37874152827,
+  "original_freeze_url": "https://github.com/omrbosnd/bigdata-grader/actions/runs/37390623044",
+  "original_grade_url": "https://github.com/omrbosnd/bigdata-grader/actions/runs/37874152827",
+  "issue_schema": "https://github.com/omrbosnd/bigdata-grader/issues/35",
+  "issue_audit": "https://github.com/omrbosnd/bigdata-grader/issues/36",
+  "exact_student_sha": "2b82bd268479e6407f56bbf4aa96da4b791ebd2c",
+  "frozen_archive_sha256": "2f69a08b3232f908e5fce496fcbaf2e9337ff505d16b764e3a22ce71777c81e7",
+  "source_guard": "VERIFIED_EXACT_SAME_SHA",
+  "original_relevant_assertions": {
+    "batch.schema_validator_runtime": "INCONCLUSIVE",
+    "batch.audit_trail": "INCONCLUSIVE"
+  },
+  "source_scan": {
+    "safe_text_files_examined": 2308,
+    "nested_archives_examined": 2,
+    "nested_zip_evidence": [
+      "repo/venv_stable/Lib/site-packages/pyspark/python/lib/py4j-0.10.9.7-src.zip",
+      "repo/venv_stable/Lib/site-packages/pyspark/python/lib/pyspark.zip"
+    ],
+    "schema_indicators": [
+      {
+        "path": "repo/src/mongo_setup.py",
+        "line": 30,
+        "indicator": "create_collection"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pydantic/v1/schema.py",
+        "line": 250,
+        "indicator": "schema_validation"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pydantic/v1/schema.py",
+        "line": 289,
+        "indicator": "schema_validation"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pymongo/asynchronous/database.py",
+        "line": 477,
+        "indicator": "create_collection"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pymongo/asynchronous/database.py",
+        "line": 536,
+        "indicator": "validationLevel"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pymongo/asynchronous/database.py",
+        "line": 539,
+        "indicator": "validationAction"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pymongo/asynchronous/encryption.py",
+        "line": 708,
+        "indicator": "create_collection"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pymongo/asynchronous/encryption.py",
+        "line": 712,
+        "indicator": "create_collection"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pymongo/asynchronous/encryption.py",
+        "line": 741,
+        "indicator": "create_collection"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pymongo/synchronous/collection.py",
+        "line": 153,
+        "indicator": "create_collection"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pymongo/synchronous/collection.py",
+        "line": 2864,
+        "indicator": "create_collection"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pymongo/synchronous/database.py",
+        "line": 477,
+        "indicator": "create_collection"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pymongo/synchronous/database.py",
+        "line": 536,
+        "indicator": "validationLevel"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pymongo/synchronous/database.py",
+        "line": 539,
+        "indicator": "validationAction"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pymongo/synchronous/encryption.py",
+        "line": 701,
+        "indicator": "create_collection"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pymongo/synchronous/encryption.py",
+        "line": 705,
+        "indicator": "create_collection"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pymongo/synchronous/encryption.py",
+        "line": 734,
+        "indicator": "create_collection"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/setuptools/config/_validate_pyproject/__init__.py",
+        "line": 8,
+        "indicator": "schema_validation"
+      }
+    ],
+    "audit_indicators": [
+      {
+        "path": "repo/src/quality_rules.py",
+        "line": 114,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/src/quality_rules.py",
+        "line": 115,
+        "indicator": "corrected_value"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pip/_internal/operations/build/build_tracker.py",
+        "line": 33,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pip/_internal/operations/build/build_tracker.py",
+        "line": 34,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pip/_internal/operations/build/build_tracker.py",
+        "line": 37,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pip/_internal/operations/build/build_tracker.py",
+        "line": 38,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pydantic/v1/main.py",
+        "line": 404,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/venv_stable/Lib/site-packages/pydantic/v1/main.py",
+        "line": 405,
+        "indicator": "original_value"
+      }
+    ]
+  },
+  "schema_decision": "SOURCE_INDICATORS_FOUND_RUNTIME_UNVERIFIED",
+  "audit_decision": "SOURCE_INDICATORS_FOUND_RUNTIME_UNVERIFIED",
+  "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+  "next_step": "Use exact frozen SHA and recorded source contract to define isolated validator accept/reject and redacted per-sample audit probes; do not infer student FAIL/PASS from keyword markers."
+}

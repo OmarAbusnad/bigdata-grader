@@ -1,0 +1,44 @@
+{
+  "project_id": "P47",
+  "mode": "FROZEN_SOURCE_STATIC_ONLY",
+  "academic_grade_changed": false,
+  "student_code_executed": false,
+  "historical_pass_overwritten": false,
+  "schema_runtime_verified": false,
+  "audit_runtime_verified": false,
+  "original_freeze_run": 37390623044,
+  "original_grading_run": 37874152827,
+  "original_freeze_url": "https://github.com/omrbosnd/bigdata-grader/actions/runs/37390623044",
+  "original_grade_url": "https://github.com/omrbosnd/bigdata-grader/actions/runs/37874152827",
+  "issue_schema": "https://github.com/omrbosnd/bigdata-grader/issues/35",
+  "issue_audit": "https://github.com/omrbosnd/bigdata-grader/issues/36",
+  "exact_student_sha": "16637583c1cb0937d10e8afa3f029dcc5a36bf62",
+  "frozen_archive_sha256": "da6886ed0c604ec0779a097144c32847a277c4b489b48ff26feaba3a3885a7a1",
+  "source_guard": "VERIFIED_EXACT_SAME_SHA",
+  "original_relevant_assertions": {
+    "batch.schema_validator_runtime": "INCONCLUSIVE",
+    "batch.audit_trail": "FAIL"
+  },
+  "source_scan": {
+    "safe_text_files_examined": 27,
+    "nested_archives_examined": 0,
+    "nested_zip_evidence": [],
+    "schema_indicators": [],
+    "audit_indicators": [
+      {
+        "path": "repo/src/quality_rules.py",
+        "line": 44,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/tests/test_cleaning_rules.py",
+        "line": 15,
+        "indicator": "original_value"
+      }
+    ]
+  },
+  "schema_decision": "NO_STATIC_INDICATORS_RUNTIME_UNVERIFIED",
+  "audit_decision": "SOURCE_INDICATORS_FOUND_RUNTIME_UNVERIFIED",
+  "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+  "next_step": "Use exact frozen SHA and recorded source contract to define isolated validator accept/reject and redacted per-sample audit probes; do not infer student FAIL/PASS from keyword markers."
+}

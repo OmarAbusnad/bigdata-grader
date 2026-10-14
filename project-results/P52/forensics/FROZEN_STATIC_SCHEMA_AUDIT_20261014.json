@@ -1,0 +1,35 @@
+{
+  "project_id": "P52",
+  "mode": "FROZEN_SOURCE_STATIC_ONLY",
+  "academic_grade_changed": false,
+  "student_code_executed": false,
+  "historical_pass_overwritten": false,
+  "schema_runtime_verified": false,
+  "audit_runtime_verified": false,
+  "original_freeze_run": 37390623044,
+  "original_grading_run": 37874152827,
+  "original_freeze_url": "https://github.com/omrbosnd/bigdata-grader/actions/runs/37390623044",
+  "original_grade_url": "https://github.com/omrbosnd/bigdata-grader/actions/runs/37874152827",
+  "issue_schema": "https://github.com/omrbosnd/bigdata-grader/issues/35",
+  "issue_audit": "https://github.com/omrbosnd/bigdata-grader/issues/36",
+  "exact_student_sha": "32d0fde28c7214c8cd7a2738c5d4c9bf36b5101d",
+  "frozen_archive_sha256": "09535af0292562f56c9e9b838614ec98a4b0fe248c468129eaefc4411f7b78fd",
+  "source_guard": "VERIFIED_EXACT_SAME_SHA",
+  "original_relevant_assertions": {
+    "batch.schema_validator_runtime": "NOT_RECORDED",
+    "batch.audit_trail": "NOT_RECORDED"
+  },
+  "source_scan": {
+    "safe_text_files_examined": 0,
+    "nested_archives_examined": 0,
+    "nested_zip_evidence": [
+      "repo/saad hassan.zip"
+    ],
+    "schema_indicators": [],
+    "audit_indicators": []
+  },
+  "schema_decision": "NO_STATIC_INDICATORS_RUNTIME_UNVERIFIED",
+  "audit_decision": "NO_STATIC_INDICATORS_RUNTIME_UNVERIFIED",
+  "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+  "next_step": "Use exact frozen SHA and recorded source contract to define isolated validator accept/reject and redacted per-sample audit probes; do not infer student FAIL/PASS from keyword markers."
+}
