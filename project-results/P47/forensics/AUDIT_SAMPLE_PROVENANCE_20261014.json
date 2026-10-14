@@ -1,0 +1,22 @@
+{
+  "project_id": "P47",
+  "exact_student_sha": "16637583c1cb0937d10e8afa3f029dcc5a36bf62",
+  "original_raw_assessment_run": 37874152827,
+  "original_raw_artifact": "unified-P47-37874152827",
+  "original_audit_verdict": "FAIL",
+  "original_audit_ratio": "0/18",
+  "original_evidence_examples_retained": 8,
+  "original_expected_sample_count": 18,
+  "selected_immutable_ledger_audit_verdict": "FAIL",
+  "selected_evidence_run": 38079787463,
+  "source_contract_summary": "Original source audit evidence retained only eight excerpts for 18 measured cases; missing evidence is not proof of student logic failure",
+  "source_reference": "https://github.com/Badee271/midterm-data-pipeline/blob/16637583c1cb0937d10e8afa3f029dcc5a36bf62/src/mongo_setup.py",
+  "adjudication": "OPEN_NO_NEW_PASS_OR_PENALTY",
+  "grader_diagnostic_gap": "original sample numerator/denominator are broader than retained sample-level excerpts",
+  "next_action": "Check whether corrected source produces embedded/external audit and clarify root",
+  "source_metadata_only": true,
+  "student_code_executed": false,
+  "official_grade_modified": false,
+  "issue_url": "https://github.com/omrbosnd/bigdata-grader/issues/36",
+  "protected_pass_policy": "Never rerun or downgrade same-SHA PASS, including P44 batch.schema_validator_runtime"
+}

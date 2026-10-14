@@ -1,0 +1,22 @@
+{
+  "project_id": "P44",
+  "exact_student_sha": "ecf2c4bd368689ed80e28eb68bce402ab29f2154",
+  "original_raw_assessment_run": 37874152827,
+  "original_raw_artifact": "unified-P44-37874152827",
+  "original_audit_verdict": "INCONCLUSIVE",
+  "original_audit_ratio": "10/18",
+  "original_evidence_examples_retained": 8,
+  "original_expected_sample_count": 18,
+  "selected_immutable_ledger_audit_verdict": "INCONCLUSIVE",
+  "selected_evidence_run": 38079787463,
+  "source_contract_summary": "MongoDB validator already historically PASS; audit recorded 10/18 but original raw JSON retains eight example explanations",
+  "source_reference": "https://github.com/omrbosnd/bigdata-grader/actions/runs/37874152827",
+  "adjudication": "OPEN_NO_NEW_PASS_OR_PENALTY",
+  "grader_diagnostic_gap": "original sample numerator/denominator are broader than retained sample-level excerpts",
+  "next_action": "Do not touch existing schema-validator PASS; audit needs full per-sample diagnosis",
+  "source_metadata_only": true,
+  "student_code_executed": false,
+  "official_grade_modified": false,
+  "issue_url": "https://github.com/omrbosnd/bigdata-grader/issues/36",
+  "protected_pass_policy": "Never rerun or downgrade same-SHA PASS, including P44 batch.schema_validator_runtime"
+}

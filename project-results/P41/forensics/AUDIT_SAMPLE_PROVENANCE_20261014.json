@@ -1,0 +1,22 @@
+{
+  "project_id": "P41",
+  "exact_student_sha": "2b82bd268479e6407f56bbf4aa96da4b791ebd2c",
+  "original_raw_assessment_run": 37874152827,
+  "original_raw_artifact": "unified-P41-37874152827",
+  "original_audit_verdict": "INCONCLUSIVE",
+  "original_audit_ratio": "BLOCKED",
+  "original_evidence_examples_retained": 2,
+  "original_expected_sample_count": 18,
+  "selected_immutable_ledger_audit_verdict": "INCONCLUSIVE",
+  "selected_evidence_run": 38196157736,
+  "source_contract_summary": "Setup source creates collections; earlier assessed batch stage blocked, not 18 sample evidence",
+  "source_reference": "https://github.com/rina0mohammed7-code/big-data-elt-pipeline/blob/2b82bd268479e6407f56bbf4aa96da4b791ebd2c/src/mongo_setup.py",
+  "adjudication": "OPEN_NO_NEW_PASS_OR_PENALTY",
+  "grader_diagnostic_gap": "earlier stage blocked before sampling",
+  "next_action": "Must restore failed-stage precondition or analyze later overlay; no independent audit FAIL",
+  "source_metadata_only": true,
+  "student_code_executed": false,
+  "official_grade_modified": false,
+  "issue_url": "https://github.com/omrbosnd/bigdata-grader/issues/36",
+  "protected_pass_policy": "Never rerun or downgrade same-SHA PASS, including P44 batch.schema_validator_runtime"
+}

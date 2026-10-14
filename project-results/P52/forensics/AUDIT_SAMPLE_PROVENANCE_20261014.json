@@ -1,0 +1,22 @@
+{
+  "project_id": "P52",
+  "exact_student_sha": "32d0fde28c7214c8cd7a2738c5d4c9bf36b5101d",
+  "original_raw_assessment_run": 37874152827,
+  "original_raw_artifact": "unified-P52-37874152827",
+  "original_audit_verdict": "NOT_RECORDED",
+  "original_audit_ratio": null,
+  "original_evidence_examples_retained": 0,
+  "original_expected_sample_count": null,
+  "selected_immutable_ledger_audit_verdict": "INCONCLUSIVE",
+  "selected_evidence_run": 38088837812,
+  "source_contract_summary": "Original 37874152827 artifact lacks usable batch assertion; later same-SHA report has audit INCONCLUSIVE. Frozen source is ZIP-only and includes src/schema_validation.py after nested extraction.",
+  "source_reference": "https://github.com/omrbosnd/bigdata-grader/actions/runs/38625135356",
+  "adjudication": "OPEN_NO_NEW_PASS_OR_PENALTY",
+  "grader_diagnostic_gap": "original report lacks assertion",
+  "next_action": "No 0/18 inferred and no student fault; later samples need causal review",
+  "source_metadata_only": true,
+  "student_code_executed": false,
+  "official_grade_modified": false,
+  "issue_url": "https://github.com/omrbosnd/bigdata-grader/issues/36",
+  "protected_pass_policy": "Never rerun or downgrade same-SHA PASS, including P44 batch.schema_validator_runtime"
+}
