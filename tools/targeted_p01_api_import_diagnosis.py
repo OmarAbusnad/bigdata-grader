@@ -21,8 +21,8 @@ def main():
     report["frozen_source_observations"]={
        "api_imports_spark_loader": api.exists() and "from src.spark_loader import run_spark_loader" in api.read_text(errors="replace"),
        "spark_loader_imports_monitor": source.exists() and "from src.monitor import SystemMonitor" in source.read_text(errors="replace"),
-       "monitor_imports_psutil":mon.exists() and bool(re.search(r"(?m)^import psutil\\s*$",mon.read_text(errors="replace"))),
-       "psutil_in_declared_requirements":req.exists() and bool(re.search(r"(?im)^\\s*psutil(?:[<>=!~]|\\s|$)",req.read_text(errors="replace")))
+       "monitor_imports_psutil":mon.exists() and "import psutil" in mon.read_text(errors="replace"),
+       "psutil_in_declared_requirements":req.exists() and any(x.strip().lower().startswith("psutil") for x in req.read_text(errors="replace").splitlines())
     }
     sb=DockerSandbox(Path.cwd(),"P01-only-API-import-precondition",a.repo,Path.cwd()/"sandboxes"/"P01"/"only_api_import",
                      SandboxConfig(network_profile="isolated",timeout_seconds=240))

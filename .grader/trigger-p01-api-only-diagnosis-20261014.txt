@@ -1,1 +1,1 @@
-Read-only isolated import check on P01 c43aae3d source; original four query PASS untouched; no academic grade change.
+Retry isolated P01 import precondition only: set PYTHONPATH=. and fix static requirement matching. Previous attempt 38626175737 failed before executing any student code.

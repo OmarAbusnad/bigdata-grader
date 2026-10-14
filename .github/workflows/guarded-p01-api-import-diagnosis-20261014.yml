@@ -53,7 +53,7 @@ jobs:
         run: python build_runtime_image.py
       - name: Probe one API import precondition, not actual student queries
         run: |
-          python -u tools/targeted_p01_api_import_diagnosis.py \
+          PYTHONPATH=. python -u tools/targeted_p01_api_import_diagnosis.py \
             --repo workspaces/P01/repo \
             --out project-results/P01/forensics/LATER_SHA_API_IMPORT_DIAGNOSIS_20261014.json
       - name: Upload independent proof even if Git write fails
