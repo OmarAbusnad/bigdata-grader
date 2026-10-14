@@ -49,9 +49,17 @@ jobs:
              "Frozen SHA differs from originally graded P50 — abort before execution"
           )
           assert Path("frozen_project/P50.repo.tar.gz").stat().st_size == int(frozen.get("snapshot_bytes") or -1)
-          assertions = (original.get("runtime") or {}).get("assertions") or {}
-          query_assert = assertions.get("final.queries.runtime") or {}
-          assert query_assert.get("verdict") != "PASS", "Query runtime already PASS — no rerun"
+          assertions = (original.get("runtime") or {}).get("assertions") or []
+          if isinstance(assertions, dict):
+              query_assert = assertions.get("final.queries.runtime") or {}
+          else:
+              matches = [a for a in assertions
+                         if isinstance(a, dict) and a.get("key") == "final.queries.runtime"]
+              assert len(matches) == 1, "Original query criterion missing or ambiguous"
+              query_assert = matches[0]
+          assert query_assert.get("verdict") in ("FAIL", "INCONCLUSIVE"), (
+              "Query runtime already PASS or not eligible — no rerun"
+          )
           print("FROZEN_P50_SOURCE_VERIFIED=" + expected)
       - name: Extract P50 frozen repository
         shell: bash
