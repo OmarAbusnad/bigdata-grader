@@ -74,7 +74,7 @@
         "spark_pipeline.command": "PASS (historical later assessment; no retest permitted)"
       },
       "notes": "Later exact source SHA independently archived. At guard of 38625479332 exact same-SHA original report spark_pipeline.command was already PASS; test was correctly blocked before student execution. Preserve original PASS. Grading run 38317234359 and no academic grade changes.",
-      "evidence_report": "P26_SNAPSHOT_BLOCKER.md",
+      "evidence_report": "project-results/P26/forensics/LATER_SHA_SPARK_PASS_PRESERVED_20261014.json",
       "snapshot_proof_run": 38624013769,
       "snapshot_artifact_id": 11924310344,
       "snapshot_artifact_name": "later-exact-source-P26-38624013769",
@@ -162,7 +162,7 @@
         "orders_in_period": "INCONCLUSIVE_API_IMPORT_BLOCKED"
       },
       "notes": "Exact later SHA source. One originally invalid period-query probe attempted; API unavailable. Separate isolated import run 38626460727 definitively proves student-declared dependency psutil is missing from requirements.txt, so query execution is blocked by STUDENT_DEPENDENCY_FAILURE; no independent bad query logic established. Four historical successful queries untouched. Grades unchanged.",
-      "evidence_report": "P01_LATER_SHA_GUARD.md",
+      "evidence_report": "project-results/P01/forensics/LATER_SHA_API_IMPORT_DIAGNOSIS_20261014.json",
       "artifact_id": 11923447689,
       "artifact_name": "p01-later-only-orders-in-period-38625479332",
       "diagnostic_run": 38626460727,
