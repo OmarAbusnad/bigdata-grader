@@ -1,1 +1,1 @@
-2026-10-14: finalize read-only exact-SHA evidence readiness with P69/P70 plus 6 additional later assessed artifacts; never infer zero marks from missing phases or overwrite PASS.
+2026-10-14: regenerate all 70 project read-only grade readiness, AND assertion-by-assertion open causal triage queue with preserved PASS and no academic grades.

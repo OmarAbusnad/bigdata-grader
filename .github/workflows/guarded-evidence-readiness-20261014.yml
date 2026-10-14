@@ -62,6 +62,18 @@ jobs:
             --late-root .audit/late \
             --base-ledger .audit/base/ledger.json \
             --out project-results/2026-10-14/reconciliation
+      - name: Produce per-assertion SHA-specific OPEN triage queue for 70 projects
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/build_case_level_evidence_queue.py \
+            --ledger .audit/base/ledger.json \
+            --manifest docs/verified-late-source-manifest-20261014.json \
+            --late-root .audit/late \
+            --p01-root .audit/P01 \
+            --p26-root .audit/P26 \
+            --register project-results/2026-10-14/targeted/EVIDENCE_REGISTER.json \
+            --out project-results/2026-10-14/reconciliation
       - name: Upload independent audit evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -70,6 +82,7 @@ jobs:
           path: |
             project-results/2026-10-14/reconciliation
             project-results/P*/forensics/RECONCILIATION_READINESS_20261014.json
+            project-results/P*/forensics/OPEN_ASSERTION_TRIAGE_20261014.json
           if-no-files-found: warn
           retention-days: 90
       - name: Commit non-sensitive project evidence and pending grade queue
@@ -78,7 +91,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add project-results/2026-10-14/reconciliation project-results/P*/forensics/RECONCILIATION_READINESS_20261014.json
+          git add project-results/2026-10-14/reconciliation project-results/P*/forensics/RECONCILIATION_READINESS_20261014.json project-results/P*/forensics/OPEN_ASSERTION_TRIAGE_20261014.json
           if ! git diff --cached --quiet; then
             git commit -m 'evidence: write exact-SHA preliminary grade reconciliation per project'
             git push origin HEAD:${{ github.ref_name }}
