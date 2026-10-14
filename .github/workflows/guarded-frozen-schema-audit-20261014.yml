@@ -26,6 +26,7 @@ jobs:
           done
       - name: Read-only exact source audit; no student execution
         run: |
+          set -euo pipefail
           python -u tools/frozen_source_schema_audit.py --root forensic_inputs --out project-results --projects P41 P52 | tee frozen_source_audit_summary.json
       - name: Upload independent result before Git push
         if: always()

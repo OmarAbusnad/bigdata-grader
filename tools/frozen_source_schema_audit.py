@@ -21,7 +21,9 @@ def scan_bytes(path, data, found):
         return
     if any(x in path.lower() for x in ("/.git/", "/__pycache__/", "/datasets/hidden", "/.env", "/venv", "/site-packages/", "/node_modules/", "/dist/", "/build/")):
         return
-    if path.lower().endswith("schema_validation.py") and len(found["schema"]) < MAX_HITS:\n        found["schema"].append({"path": path[:240], "line": 1, "indicator": "schema_validation.py:filename_only"})\n    text = data.decode("utf-8-sig", errors="replace")
+    if path.lower().endswith("schema_validation.py") and len(found["schema"]) < MAX_HITS:
+        found["schema"].append({"path": path[:240], "line": 1, "indicator": "schema_validation.py:filename_only"})
+    text = data.decode("utf-8-sig", errors="replace")
     for i, line in enumerate(text.splitlines(), 1):
         for kind, regex in (("schema", SCHEMA), ("audit", AUDIT)):
             if regex.search(line) and len(found[kind]) < MAX_HITS:
@@ -115,7 +117,8 @@ def audit(project, root, out):
 
 if __name__ == "__main__":
     parser=argparse.ArgumentParser()
-    parser.add_argument("--root", type=pathlib.Path, required=True)\n    parser.add_argument("--projects", nargs="+", choices=PROJECTS, default=list(PROJECTS))
+    parser.add_argument("--root", type=pathlib.Path, required=True)
+    parser.add_argument("--projects", nargs="+", choices=PROJECTS, default=list(PROJECTS))
     parser.add_argument("--out", type=pathlib.Path, required=True)
     args=parser.parse_args()
     print(json.dumps([audit(p, args.root, args.out) for p in args.projects], ensure_ascii=False, indent=2))
