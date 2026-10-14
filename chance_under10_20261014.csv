@@ -1,0 +1,11 @@
+project_id,students,student_nos,project_title,repo_url,repo_full_name,stage,track,ref,grading_mode,historical_policy
+P02,"ابرار مروان محمد قاسم الدبعي",,,https://github.com/AbrarMarwan/BigData_pipline,AbrarMarwan/BigData_pipline,midterm,,f5558c250922f306e0389c7c915edc5c78e9ba05,all,preserve_per_SHA_history_no_auto_grades
+P17,"ابرار ابراهيم يحيى عبدالرحمن الاحفش",,,https://github.com/abrarebrahim898-png/Project.big-data,abrarebrahim898-png/Project.big-data,midterm,,7009d6feca44db1a07b7add02c023e562af4ffb1,all,preserve_per_SHA_history_no_auto_grades
+P29,"محمد عبدالرحمن حسين سند",,,https://github.com/kingmohammeds1122-cmd/hybrid-data-pipeline-midterm,kingmohammeds1122-cmd/hybrid-data-pipeline-midterm,midterm,,b024c95078585a55e65c53d4ccb68b44f08f95a8,all,preserve_per_SHA_history_no_auto_grades
+P61,"عمر علي صغير العبدلي",,,https://github.com/oma4-ai/midterm-data-pipeline,oma4-ai/midterm-data-pipeline,midterm,,07a9a6ebef5ead60c87f9ed6e0a78fefc7e8ae51,all,preserve_per_SHA_history_no_auto_grades
+P68,"بلال الشامي",,,https://github.com/Bilal-AlShami/bigdata-hybrid-pipeline,Bilal-AlShami/bigdata-hybrid-pipeline,midterm,,1c0b2b4652e51c33209f6a89e7a580100276f591,midterm,preserve_per_SHA_history_no_auto_grades
+P69,"رؤى منتصر محسن المدي",,,https://github.com/newump2017-coder/Final-project-bigdata,newump2017-coder/Final-project-bigdata,final,,cfce6b1d0b0b8fcae26a6b6f2e805c10479539cf,final,preserve_per_SHA_history_no_auto_grades
+P51,"ريناد عبد الخالق يحيى الحاشدي",,,https://github.com/renadalhashdi/big-data-elt-pipeline,renadalhashdi/big-data-elt-pipeline,midterm,,6a534b0bd6d53b36e418f1ec6806cdcadce0c792,all,preserve_per_SHA_history_no_auto_grades
+P33,"مناف فهمي احمد البناء",,,https://github.com/manafalbana710-hash/midterm-data-pipeline2,manafalbana710-hash/midterm-data-pipeline2,midterm,,c56c9f5e2ef67de7a60941becba266c2f6002230,all,preserve_per_SHA_history_no_auto_grades
+P67,"حمزة يفوز",,,https://github.com/HamzaAhmedYafooz/big_data_hybrid_pipline,HamzaAhmedYafooz/big_data_hybrid_pipline,midterm,,3ba01316104fc4415dff6e9627bc32f0b9794c95,all,preserve_per_SHA_history_no_auto_grades
+P23,"عبدالرحمن الصوفي؛ عتيق غانم؛ عزام الشاكري",,,https://github.com/ateeqdesktop-dot/midterm-data-pipeline,ateeqdesktop-dot/midterm-data-pipeline,midterm,,2d01cb0a3a04b40e66a65f032dfc7c78a6a62c21,all,preserve_per_SHA_history_no_auto_grades
