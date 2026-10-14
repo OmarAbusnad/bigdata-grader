@@ -20,16 +20,123 @@
     "batch.audit_trail": "NOT_RECORDED"
   },
   "source_scan": {
-    "safe_text_files_examined": 0,
-    "nested_archives_examined": 0,
+    "safe_text_files_examined": 25,
+    "nested_archives_examined": 1,
     "nested_zip_evidence": [
       "repo/saad hassan.zip"
     ],
-    "schema_indicators": [],
-    "audit_indicators": []
+    "schema_indicators": [
+      {
+        "path": "repo/saad hassan.zip::saad hassan/README.md",
+        "line": 103,
+        "indicator": "schema_validation"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/src/elt_pipeline.py",
+        "line": 1,
+        "indicator": "schema_validation"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/src/mongo_setup.py",
+        "line": 78,
+        "indicator": "create_collection"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/src/schema_validation.py",
+        "line": 1,
+        "indicator": "schema_validation.py:filename_only"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/tests/test_schema_only.py",
+        "line": 3,
+        "indicator": "schema_validation"
+      }
+    ],
+    "audit_indicators": [
+      {
+        "path": "repo/saad hassan.zip::saad hassan/docs/architecture.md",
+        "line": 276,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/docs/architecture.md",
+        "line": 277,
+        "indicator": "corrected_value"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/docs/architecture.md",
+        "line": 289,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/docs/architecture.md",
+        "line": 290,
+        "indicator": "corrected_value"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/README.md",
+        "line": 270,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/README.md",
+        "line": 271,
+        "indicator": "corrected_value"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/README.md",
+        "line": 283,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/README.md",
+        "line": 284,
+        "indicator": "corrected_value"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/src/batch_loader.py",
+        "line": 185,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/src/batch_loader.py",
+        "line": 186,
+        "indicator": "corrected_value"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/src/batch_loader.py",
+        "line": 187,
+        "indicator": "corrected_value"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/src/correction_rules.py",
+        "line": 123,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/src/correction_rules.py",
+        "line": 124,
+        "indicator": "corrected_value"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/src/correction_rules.py",
+        "line": 129,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/src/correction_rules.py",
+        "line": 133,
+        "indicator": "original_value"
+      },
+      {
+        "path": "repo/saad hassan.zip::saad hassan/src/correction_rules.py",
+        "line": 134,
+        "indicator": "corrected_value"
+      }
+    ]
   },
-  "schema_decision": "NO_STATIC_INDICATORS_RUNTIME_UNVERIFIED",
-  "audit_decision": "NO_STATIC_INDICATORS_RUNTIME_UNVERIFIED",
+  "schema_decision": "SOURCE_INDICATORS_FOUND_RUNTIME_UNVERIFIED",
+  "audit_decision": "SOURCE_INDICATORS_FOUND_RUNTIME_UNVERIFIED",
   "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
   "next_step": "Use exact frozen SHA and recorded source contract to define isolated validator accept/reject and redacted per-sample audit probes; do not infer student FAIL/PASS from keyword markers."
 }
