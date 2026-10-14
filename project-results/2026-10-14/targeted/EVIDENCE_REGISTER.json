@@ -70,9 +70,16 @@
       "original_run": 38317234359,
       "focused_run": null,
       "artifact_id": null,
-      "outcomes": {},
-      "notes": "do not reuse initial earlier P26 freeze; must snapshot exact later grade source",
-      "evidence_report": "P26_SNAPSHOT_BLOCKER.md"
+      "outcomes": {
+        "spark_pipeline.command": "PASS (historical later assessment; no retest permitted)"
+      },
+      "notes": "Later exact source SHA independently archived. At guard of 38625479332 exact same-SHA original report spark_pipeline.command was already PASS; test was correctly blocked before student execution. Preserve original PASS. Grading run 38317234359 and no academic grade changes.",
+      "evidence_report": "P26_SNAPSHOT_BLOCKER.md",
+      "snapshot_proof_run": 38624013769,
+      "snapshot_artifact_id": 11924310344,
+      "snapshot_artifact_name": "later-exact-source-P26-38624013769",
+      "original_assertion_source": "late-grading-P26-38317234359/reports/P26/result.json",
+      "guard_run": 38625479332
     },
     {
       "project_id": "P39",
