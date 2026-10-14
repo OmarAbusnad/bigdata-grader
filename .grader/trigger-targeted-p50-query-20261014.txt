@@ -1,3 +1,3 @@
-14 Oct 2026 guarded P50 high_value_orders-only retest.
-Expected frozen SHA e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3.
-Do not retest four historical successful queries. No academic grade changes.
+2026-10-14 second guarded P50 high_value_orders-only attempt; fix original assertions list/dict check.
+Expected student SHA e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3. Original final.queries.runtime INCONCLUSIVE.
+Do not execute any previously passing query or update grades.
