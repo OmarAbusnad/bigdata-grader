@@ -154,6 +154,19 @@
       "outcomes": {},
       "notes": "newer grade source SHA mismatches earlier freeze SHA f1a440...; must obtain exact later source before any retest",
       "evidence_report": "P01_LATER_SHA_GUARD.md"
+    },
+    {
+      "project_id": "P59",
+      "frozen_sha": "33cb41e1fe61209929e15e070d73ebe614d47fba",
+      "original_run": 37874152827,
+      "focused_run": 38616724766,
+      "artifact_id": 11919647985,
+      "artifact_name": "p59-order-id-only-38616724766",
+      "outcomes": {
+        "order_id": "PASS"
+      },
+      "notes": "HTTP200, found expected order with declared order_id param; four historically successful named queries not rerun",
+      "evidence_report": "P59_ORDER_ID_QUERY_RECOVERY.json"
     }
   ]
 }
