@@ -1,0 +1,40 @@
+{
+  "project_id": "P54",
+  "student_frozen_sha": "81d9b76c452f27c8941e6da34e00c20071993e49",
+  "original_run_id": 37874152827,
+  "original_artifact": "unified-P54-37874152827",
+  "source_report": "reports/P54/result.json",
+  "overlay_type": "saved_evidence_reinterpretation_only",
+  "new_student_runtime_executions": 0,
+  "historical_passes_changed": 0,
+  "official_grade_modified": false,
+  "old_grader_version": "4.3-unified",
+  "reason": "MongoDB structured engine=python_batch is stronger than console comparison sentence mentioning Spark; no structured conflict",
+  "assertions": [
+    {
+      "key": "batch_pipeline.engine",
+      "prior": "FAIL",
+      "prior_actual": "pyspark",
+      "expected": "python_batch",
+      "adjudicated": "PASS",
+      "evidence": [
+        "mongodb:engine=python_batch",
+        "console-explicit:الحد الفاصل 20MB، فالقراءة التسلسلية بدفعات كافية وأسرع من كلفة إقلاع Spark."
+      ]
+    },
+    {
+      "key": "upsert_baseline.engine",
+      "prior": "FAIL",
+      "prior_actual": "pyspark",
+      "expected": "python_batch",
+      "adjudicated": "PASS",
+      "evidence": [
+        "mongodb:engine=python_batch",
+        "console-explicit:الحد الفاصل 20MB، فالقراءة التسلسلية بدفعات كافية وأسرع من كلفة إقلاع Spark."
+      ]
+    }
+  ],
+  "issue_url": "https://github.com/omrbosnd/bigdata-grader/issues/40",
+  "grader_patch_branch": "fix/consolidated-fair-grading-20261014",
+  "score_note": "two corrected assertion-level verdicts only; do not infer academic /25 change before approved rubric and ledger merge"
+}
