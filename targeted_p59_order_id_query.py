@@ -26,7 +26,7 @@ for _ in range(35):
     time.sleep(1)
 if result["server_ready"]:
     listing = request("GET", "/queries", timeout=10)
-    declared = (listing.get("body") or {}).get("available_queries") or []
+    declared = (listing.get("body") or {}).get("queries") or []
     result["declared"] = "order_id" in declared
     if result["declared"]:
         result["query"] = request(
