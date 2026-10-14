@@ -1,0 +1,1 @@
+2026-10-14: P21 only quarantined_by_reason with student-declared reason=INVALID_EMAIL. Original archived student SHA 30abeb6575d41c4f173af0bfcf9517f43f120156. Guard against mismatched original. Four historical successful query checks remain untouched. No grade update.
