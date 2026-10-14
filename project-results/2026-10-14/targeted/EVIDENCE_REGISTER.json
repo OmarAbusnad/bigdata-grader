@@ -53,19 +53,6 @@
       "evidence_report": "P50_HIGH_VALUE_QUERY_RECOVERY.md"
     },
     {
-      "project_id": "P54",
-      "frozen_sha": "81d9b76c452f27c8941e6da34e00c20071993e49",
-      "original_run": 37874152827,
-      "focused_run": null,
-      "artifact_id": null,
-      "outcomes": {
-        "batch_pipeline.engine": "PASS",
-        "upsert_baseline.engine": "PASS"
-      },
-      "notes": "source saved structured engine=python_batch; reinterpretation only, no student runtime",
-      "evidence_report": "P54_ENGINE_SAVED_EVIDENCE_OVERLAY.json"
-    },
-    {
       "project_id": "P04",
       "frozen_sha": "f2c2ffd8901d83ed9363f33fd1b49ba5360a9eda",
       "original_run": 37874152827,
@@ -86,6 +73,48 @@
       "outcomes": {},
       "notes": "do not reuse initial earlier P26 freeze; must snapshot exact later grade source",
       "evidence_report": "P26_SNAPSHOT_BLOCKER.md"
+    },
+    {
+      "project_id": "P39",
+      "frozen_sha": "ec844f735a04f351b8e9785d209ddfce74a0c829",
+      "original_run": 37874152827,
+      "focused_run": 38613275326,
+      "artifact_id": 11917713558,
+      "artifact_name": "targeted-p39-mutation-38613275326",
+      "outcomes": {
+        "upsert_count": "19544 vs 17600, discrepancy persists",
+        "upsert_rerun_count": "19544 unchanged",
+        "incremental_count": "20106 vs 18100, discrepancy persists",
+        "incremental_rerun_count": "20106 unchanged"
+      },
+      "notes": "Resolved grader missing no-reset call; now independent student counts mismatch persists; 0 duplicate keys; do not equate stable count with proof entire payload idempotent",
+      "evidence_report": "P39_MUTATION_SAME_SHA_EVIDENCE.json"
+    },
+    {
+      "project_id": "P21",
+      "frozen_sha": "30abeb6575d41c4f173af0bfcf9517f43f120156",
+      "original_run": 37874152827,
+      "focused_run": 38614189504,
+      "artifact_id": 11917779503,
+      "artifact_name": "p21-quarantine-reason-only-38614189504",
+      "outcomes": {
+        "quarantined_by_reason": "PASS"
+      },
+      "notes": "HTTP200 with reason INVALID_EMAIL, one matching, zero spurious; other four query PASS preserved",
+      "evidence_report": "P21_QUARANTINE_QUERY_RECOVERY.json"
+    },
+    {
+      "project_id": "P54",
+      "frozen_sha": "81d9b76c452f27c8941e6da34e00c20071993e49",
+      "original_run": 37874152827,
+      "focused_run": 38614629459,
+      "artifact_id": 11919855085,
+      "artifact_name": "p54-sales-period-only-38614629459",
+      "outcomes": {
+        "sales_by_period": "PASS"
+      },
+      "notes": "HTTP200 on BSON date fixture with required start/end; no previously passing queries retested",
+      "evidence_report": "P54_SALES_BY_PERIOD_RECOVERY.json"
     }
   ]
 }
