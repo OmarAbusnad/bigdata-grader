@@ -1,0 +1,91 @@
+{
+  "title": "Big Data grading focused recovery evidence ledger",
+  "date": "2026-10-14",
+  "branch": "fix/consolidated-fair-grading-20261014",
+  "pr_url": "https://github.com/omrbosnd/bigdata-grader/pull/42",
+  "artifact_retention_note": "GitHub Actions artifacts may expire after 90 days; this committed register preserves non-sensitive verdict facts and immutable source refs, not hidden dataset or full raw artifacts.",
+  "academic_grade_updates": 0,
+  "historical_pass_rule": "union PASS verdicts by (project, phase, assertion, EXACT student frozen SHA); never override a historical PASS with later failure",
+  "cases": [
+    {
+      "project_id": "P59",
+      "frozen_sha": "33cb41e1fe61209929e15e070d73ebe614d47fba",
+      "original_run": 37874152827,
+      "focused_run": 38607512434,
+      "artifact_id": 11917245547,
+      "artifact_name": "targeted-final-refresh-P59-38607512434",
+      "outcomes": {
+        "final.mv.refresh": "PASS",
+        "final.mv.incremental": "PASS"
+      },
+      "notes": "targeted full/incremental materialized view refresh; no prior passing tests rerun",
+      "evidence_report": "P59_MV_RECOVERY.md"
+    },
+    {
+      "project_id": "P05",
+      "frozen_sha": "a4544a31f94b1924bfad9c34494e77879976fded",
+      "original_run": 37874152827,
+      "focused_run": 38608767447,
+      "artifact_id": 11916808130,
+      "artifact_name": "p05-spark-only-proven-guarded-38608767447",
+      "outcomes": {
+        "spark_pipeline.command": "PASS"
+      },
+      "notes": "Spark executed and persisted raw records; unrelated final API import issue still student error",
+      "evidence_report": "P05_SPARK_RECOVERY.md"
+    },
+    {
+      "project_id": "P50",
+      "frozen_sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "original_run": 37874152827,
+      "focused_run": 38609876440,
+      "artifact_id": 11917640064,
+      "artifact_name": "p50-high-value-only-38609876440",
+      "outcomes": {
+        "high_value_orders": "PASS"
+      },
+      "metrics": {
+        "http_status": 200,
+        "observed_count": 7,
+        "expected_count": 7
+      },
+      "notes": "fifth named query recovered; other four historical PASS not retested",
+      "evidence_report": "P50_HIGH_VALUE_QUERY_RECOVERY.md"
+    },
+    {
+      "project_id": "P54",
+      "frozen_sha": "81d9b76c452f27c8941e6da34e00c20071993e49",
+      "original_run": 37874152827,
+      "focused_run": null,
+      "artifact_id": null,
+      "outcomes": {
+        "batch_pipeline.engine": "PASS",
+        "upsert_baseline.engine": "PASS"
+      },
+      "notes": "source saved structured engine=python_batch; reinterpretation only, no student runtime",
+      "evidence_report": "P54_ENGINE_SAVED_EVIDENCE_OVERLAY.json"
+    },
+    {
+      "project_id": "P04",
+      "frozen_sha": "f2c2ffd8901d83ed9363f33fd1b49ba5360a9eda",
+      "original_run": 37874152827,
+      "focused_run": 38607973641,
+      "artifact_id": null,
+      "outcomes": {
+        "spark_pipeline.command": "NOT_RETESTED"
+      },
+      "notes": "guard blocked pre-execution; source Spark>=4 with Connector10.4 incompatible",
+      "evidence_report": "P04_SPARK_ATTRIBUTION.md"
+    },
+    {
+      "project_id": "P26",
+      "frozen_sha": "fc4f5d9924fe9a59f09e4167d323eaf4672ccca2",
+      "original_run": 38317234359,
+      "focused_run": null,
+      "artifact_id": null,
+      "outcomes": {},
+      "notes": "do not reuse initial earlier P26 freeze; must snapshot exact later grade source",
+      "evidence_report": "P26_SNAPSHOT_BLOCKER.md"
+    }
+  ]
+}
