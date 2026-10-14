@@ -1,0 +1,155 @@
+name: Guarded Exact-Late P01 Query and P26 Spark Only
+on:
+  push:
+    paths:
+      - '.grader/trigger-exact-late-failed-only-20261014.txt'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  p01-only-orders-in-period:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - name: Restore PROVEN exact later P01 source snapshot
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          run-id: '38624013769'
+          name: later-exact-source-P01-38624013769
+          path: late_source
+      - name: Restore accepted P01 grading report (NOT old freeze)
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          run-id: '38424927615'
+          name: diagnostic-undeclared-deps-P01-38424927615
+          path: accepted_evidence
+      - name: Guard SHA256, exact assessed SHA, and previously failed assertion
+        shell: python
+        run: |
+          import json,hashlib,pathlib
+          expected="c43aae3d5e9c0d96731640206752f886f2618497"
+          provenance=json.loads(pathlib.Path("late_source/provenance.json").read_text())
+          assert provenance.get("exact_student_sha")==expected and provenance.get("project_id")=="P01"
+          archive=pathlib.Path("late_source/repo.tar.gz")
+          digest=hashlib.sha256(archive.read_bytes()).hexdigest()
+          assert digest==pathlib.Path("late_source/archive.sha256").read_text().split()[0]
+          original=json.loads(pathlib.Path("accepted_evidence/reports_final/P01/result.json").read_text())
+          assert original.get("project_id")=="P01" and original.get("commit_sha")==expected
+          assertions=(original.get("runtime") or {}).get("assertions") or {}
+          if isinstance(assertions,list):
+              selected=[v for v in assertions if isinstance(v,dict) and v.get("key")=="final.queries.runtime"]
+              assert len(selected)==1
+              assertion=selected[0]
+          else:
+              assertion=assertions.get("final.queries.runtime") or {}
+          assert assertion.get("verdict") in ("FAIL","INCONCLUSIVE"), "No retry permitted for historical PASS"
+          print("EXACT_P01_LAST_SHA_GUARD_OK",expected)
+      - name: Extract ONLY verified exact-SHA P01 source
+        run: |
+          set -euo pipefail
+          mkdir -p workspaces/P01/repo
+          tar -xzf late_source/repo.tar.gz -C workspaces/P01/repo
+          test -f workspaces/P01/repo/src/api.py
+      - name: Build isolated grader runtime base
+        run: python build_runtime_image.py
+      - name: Execute ONLY formerly malformed orders_in_period request
+        run: |
+          python -u targeted_p01_orders_period.py --repo workspaces/P01/repo --out reports_targeted_final/P01/orders_in_period.json
+      - name: Retain independent evidence; no mark changes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p01-later-only-orders-in-period-${{ github.run_id }}
+          path: reports_targeted_final/P01/
+          if-no-files-found: warn
+          retention-days: 90
+  p26-only-failed-spark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - name: Restore PROVEN exact later P26 source snapshot
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          run-id: '38624013769'
+          name: later-exact-source-P26-38624013769
+          path: late_source
+      - name: Restore accepted P26 later assessed report
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          run-id: '38317234359'
+          name: late-grading-P26-38317234359
+          path: accepted_evidence
+      - name: Guard SHA256, exact SHA, and unsuccessful Spark assertion
+        shell: python
+        run: |
+          import json,hashlib,pathlib
+          expected="fc4f5d9924fe9a59f09e4167d323eaf4672ccca2"
+          provenance=json.loads(pathlib.Path("late_source/provenance.json").read_text())
+          assert provenance.get("exact_student_sha")==expected and provenance.get("project_id")=="P26"
+          archive=pathlib.Path("late_source/repo.tar.gz")
+          assert hashlib.sha256(archive.read_bytes()).hexdigest()==pathlib.Path("late_source/archive.sha256").read_text().split()[0]
+          original=json.loads(pathlib.Path("accepted_evidence/reports/P26/result.json").read_text())
+          assert original.get("project_id")=="P26" and original.get("commit_sha")==expected
+          assertions=(original.get("runtime") or {}).get("assertions") or {}
+          if isinstance(assertions,list):
+              selected=[x for x in assertions if isinstance(x,dict) and x.get("key")=="spark_pipeline.command"]
+              assert len(selected)==1
+              old=selected[0]
+          else:
+              old=assertions.get("spark_pipeline.command") or {}
+          assert old.get("verdict") in ("FAIL","INCONCLUSIVE"), "Historical Spark PASS cannot be rerun"
+          print("EXACT_P26_LATER_SHA_GUARD_OK",expected,old.get("verdict"))
+      - name: Extract only P26 later assessed source
+        run: |
+          set -euo pipefail
+          mkdir -p workspaces/P26/repo
+          tar -xzf late_source/repo.tar.gz -C workspaces/P26/repo
+          test -f workspaces/P26/repo/src/spark_loader.py
+      - name: Build isolated student runtime base
+        run: python build_runtime_image.py
+      - name: Prepare hidden Spark test input (required precondition)
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "${HIDDEN_SEED:-}" || { echo "BLOCKED: GRADER_HIDDEN_SEED missing"; exit 2; }
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Test ONLY previously incomplete P26 Spark command
+        env:
+          GRADER_PREWARM_SPARK: '1'
+        run: |
+          python -u targeted_spark_only.py \
+            --project P26 --repo workspaces/P26/repo \
+            --original-report accepted_evidence/reports/P26/result.json \
+            --hidden datasets/hidden \
+            --source-run 38317234359 \
+            --out reports_spark_recovery/P26/later_spark_only.json
+      - name: Preserve one isolated output artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p26-later-only-spark-${{ github.run_id }}
+          path: reports_spark_recovery/P26/
+          if-no-files-found: warn
+          retention-days: 90
