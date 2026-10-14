@@ -1,0 +1,1 @@
+Correct missing phase selection: test P68 final and P69 midterm on unchanged deadline-eligible exact SHA; preserve prior successful P68 midterm and P69 final; no grade edits. 2026-10-14.
