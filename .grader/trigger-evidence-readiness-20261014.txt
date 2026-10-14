@@ -1,0 +1,1 @@
+Prepare read-only 68+ project provisional evidence reconciliation; no scoring or student execution; keep historical PASS and accepted late SHAs separate.

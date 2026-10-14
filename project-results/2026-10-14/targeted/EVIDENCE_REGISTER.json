@@ -157,10 +157,18 @@
       "project_id": "P01",
       "frozen_sha": "c43aae3d5e9c0d96731640206752f886f2618497",
       "original_run": 38424927615,
-      "focused_run": null,
-      "outcomes": {},
-      "notes": "newer grade source SHA mismatches earlier freeze SHA f1a440...; must obtain exact later source before any retest",
-      "evidence_report": "P01_LATER_SHA_GUARD.md"
+      "focused_run": 38625479332,
+      "outcomes": {
+        "orders_in_period": "INCONCLUSIVE_API_IMPORT_BLOCKED"
+      },
+      "notes": "Exact later SHA source. One originally invalid period-query probe attempted; API unavailable. Separate isolated import run 38626460727 definitively proves student-declared dependency psutil is missing from requirements.txt, so query execution is blocked by STUDENT_DEPENDENCY_FAILURE; no independent bad query logic established. Four historical successful queries untouched. Grades unchanged.",
+      "evidence_report": "P01_LATER_SHA_GUARD.md",
+      "artifact_id": 11923447689,
+      "artifact_name": "p01-later-only-orders-in-period-38625479332",
+      "diagnostic_run": 38626460727,
+      "diagnostic_report": "project-results/P01/forensics/LATER_SHA_API_IMPORT_DIAGNOSIS_20261014.json",
+      "snapshot_run": 38624013769,
+      "snapshot_artifact_id": 11924095450
     },
     {
       "project_id": "P59",
