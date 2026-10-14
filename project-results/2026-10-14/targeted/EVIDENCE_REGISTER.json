@@ -128,6 +128,32 @@
       },
       "notes": "Saved evidence re-adjudication; MongoDB structured engine=python_batch outranks Spark mentioned only in explanatory prose; no code execution",
       "evidence_report": "P54_ENGINE_SAVED_EVIDENCE_OVERLAY.json"
+    },
+    {
+      "project_id": "P43",
+      "frozen_sha": "cbbc33924cccddfd77ae0e4cc5784c36db3d22c5",
+      "original_run": 37874152827,
+      "focused_run": 38615809081,
+      "artifact_id": 11919581803,
+      "artifact_name": "p43-five-named-only-38615809081",
+      "outcomes": {
+        "orders_by_city": "PASS",
+        "orders_by_status": "PASS",
+        "customer_orders": "PASS",
+        "orders_by_date_range": "PASS",
+        "high_value_orders": "PASS"
+      },
+      "notes": "Five originally malformed requests now correctly filtered with required API params; synthetic positive and negative fixtures; no grade changes",
+      "evidence_report": "P43_FIVE_NAMED_QUERIES_RECOVERY.json"
+    },
+    {
+      "project_id": "P01",
+      "frozen_sha": "c43aae3d5e9c0d96731640206752f886f2618497",
+      "original_run": 38424927615,
+      "focused_run": null,
+      "outcomes": {},
+      "notes": "newer grade source SHA mismatches earlier freeze SHA f1a440...; must obtain exact later source before any retest",
+      "evidence_report": "P01_LATER_SHA_GUARD.md"
     }
   ]
 }
