@@ -1,1 +1,1 @@
-Run one read-only same-SHA static source triage for unresolved Schema Validator/Audit Trail source evidence; no rerun, no marks.
+Targeted evidence-only rescan P41 to exclude bundled virtualenv false positives and P52 to inspect its 69,393,147-byte ZIP. Do not execute student tests or alter any grade.

@@ -5,7 +5,7 @@ PROJECTS = ("P16", "P41", "P44", "P47", "P50", "P52")
 SCHEMA = re.compile(r"\\$jsonSchema|validationAction|validationLevel|collMod|schema_validation|create_collection|validator\\s*=", re.I)
 AUDIT = re.compile(r"audit_trail|audit_log|audit_history|correction_log|original_value|corrected_value|correction_reason|audit_entries|audit_record|audit_events", re.I)
 MAX_TEXT_BYTES = 150_000
-MAX_NESTED_ZIP = 15_000_000
+MAX_NESTED_ZIP = 80_000_000
 MAX_HITS = 50
 
 def assertions(report):
@@ -19,9 +19,9 @@ def assertions(report):
 def scan_bytes(path, data, found):
     if len(data) > MAX_TEXT_BYTES or not path.lower().endswith((".py", ".md", ".txt", ".toml", ".json", ".yml", ".yaml")):
         return
-    if any(x in path.lower() for x in ("/.git/", "/__pycache__/", "/datasets/hidden", "/.env")):
+    if any(x in path.lower() for x in ("/.git/", "/__pycache__/", "/datasets/hidden", "/.env", "/venv", "/site-packages/", "/node_modules/", "/dist/", "/build/")):
         return
-    text = data.decode("utf-8-sig", errors="replace")
+    if path.lower().endswith("schema_validation.py") and len(found["schema"]) < MAX_HITS:\n        found["schema"].append({"path": path[:240], "line": 1, "indicator": "schema_validation.py:filename_only"})\n    text = data.decode("utf-8-sig", errors="replace")
     for i, line in enumerate(text.splitlines(), 1):
         for kind, regex in (("schema", SCHEMA), ("audit", AUDIT)):
             if regex.search(line) and len(found[kind]) < MAX_HITS:
@@ -85,7 +85,7 @@ def audit(project, root, out):
                         continue
                     try:
                         with zipfile.ZipFile(io.BytesIO(source.read(MAX_NESTED_ZIP+1))) as z:
-                            for nested in z.infolist():
+                            for nested in z.infolist()[:20000]:
                                 if nested.is_dir() or nested.file_size > MAX_TEXT_BYTES or nested.flag_bits & 1:
                                     continue
                                 nested_path = name + "::" + nested.filename
@@ -115,7 +115,7 @@ def audit(project, root, out):
 
 if __name__ == "__main__":
     parser=argparse.ArgumentParser()
-    parser.add_argument("--root", type=pathlib.Path, required=True)
+    parser.add_argument("--root", type=pathlib.Path, required=True)\n    parser.add_argument("--projects", nargs="+", choices=PROJECTS, default=list(PROJECTS))
     parser.add_argument("--out", type=pathlib.Path, required=True)
     args=parser.parse_args()
-    print(json.dumps([audit(p, args.root, args.out) for p in PROJECTS], ensure_ascii=False, indent=2))
+    print(json.dumps([audit(p, args.root, args.out) for p in args.projects], ensure_ascii=False, indent=2))

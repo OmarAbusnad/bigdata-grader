@@ -19,14 +19,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          for pid in P16 P41 P44 P47 P50 P52; do
+          for pid in P41 P52; do
             mkdir -p "forensic_inputs/$pid/frozen" "forensic_inputs/$pid/original"
             gh run download 37390623044 -n "frozen-$pid-37390623044" -D "forensic_inputs/$pid/frozen" || echo "UNAVAILABLE_FROZEN=$pid"
             gh run download 37874152827 -n "unified-$pid-37874152827" -D "forensic_inputs/$pid/original" || echo "UNAVAILABLE_ORIGINAL=$pid"
           done
       - name: Read-only exact source audit; no student execution
         run: |
-          python -u tools/frozen_source_schema_audit.py --root forensic_inputs --out project-results | tee frozen_source_audit_summary.json
+          python -u tools/frozen_source_schema_audit.py --root forensic_inputs --out project-results --projects P41 P52 | tee frozen_source_audit_summary.json
       - name: Upload independent result before Git push
         if: always()
         uses: actions/upload-artifact@v4
@@ -48,6 +48,6 @@ jobs:
           if git diff --cached --quiet; then
             echo 'No new forensic results'
           else
-            git commit -m 'evidence: save frozen-SHA schema and audit source triage for P16/P41/P44/P47/P50/P52'
+            git commit -m 'evidence: save frozen-SHA schema and audit source triage for P41/P52'
             git push origin HEAD:${{ github.ref_name }}
           fi
