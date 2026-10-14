@@ -1,1 +1,1 @@
-Batch02: recover P61/P68 midterm only if original frozen same-SHA artifact reports NameError without any passed assertions; no final replay.
+Batch03: P33 and P67 only; original immutable 38632370130 midterm had zero assertions and confirmed grader NameError; do not rerun successful finals.
