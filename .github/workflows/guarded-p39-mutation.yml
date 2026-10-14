@@ -1,0 +1,88 @@
+name: Guarded P39 Mutation-Only Recovery 2026-10-14
+on:
+  push:
+    paths:
+      - '.grader/trigger-targeted-p39-mutation.txt'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  p39-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install grader
+        run: python -m pip install -r requirements.txt
+      - name: Restore exact P39 frozen project
+        uses: actions/download-artifact@v4
+        with:
+          name: frozen-P39-37390623044
+          path: frozen_project
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '37390623044'
+      - name: Retrieve original P39 grading report
+        uses: actions/download-artifact@v4
+        with:
+          name: unified-P39-37874152827
+          path: original_report
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '37874152827'
+      - name: Verify frozen P39 identity, SHA, archive, and old failed criterion
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          sha = "ec844f735a04f351b8e9785d209ddfce74a0c829"
+          freeze = json.loads(Path("frozen_project/P39.metadata.json").read_text(encoding="utf-8"))
+          old = json.loads(Path("original_report/reports/P39/result.json").read_text(encoding="utf-8"))
+          assert freeze.get("project_id") == old.get("project_id") == "P39"
+          assert freeze.get("freeze_status") == "READY"
+          assert freeze.get("commit_sha") == old.get("commit_sha") == sha, "wrong P39 SHA"
+          archive = Path("frozen_project/P39.repo.tar.gz")
+          assert archive.is_file() and archive.stat().st_size == int(freeze.get("snapshot_bytes") or -1)
+          assertions = (old.get("runtime") or {}).get("assertions") or {}
+          if isinstance(assertions, list):
+              assertions = {a.get("key"): a for a in assertions if isinstance(a, dict)}
+          target = ["upsert.final_validated", "idempotency.validated_stable",
+                    "incremental.final_validated", "incremental.rerun_validated_stable"]
+          assert any((assertions.get(k) or {}).get("verdict") in {"FAIL", "INCONCLUSIVE"}
+                     for k in target), "No previously unsuccessful mutation criterion"
+          print("P39_FROZEN_AND_ORIGINAL_SHA_VERIFIED=" + sha)
+      - name: Extract immutable P39 repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p workspaces/P39
+          tar -xzf frozen_project/P39.repo.tar.gz -C workspaces/P39
+          test -f workspaces/P39/repo/src/main.py
+      - name: Build isolated student Docker base
+        run: python build_runtime_image.py
+      - name: Generate the exact historical deterministic data, host only
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "${HIDDEN_SEED:-}" || { echo "::error::Hidden fixture seed not available"; exit 2; }
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Recreate baseline precondition then only mutation tests with no-reset
+        run: |
+          python -u targeted_p39_mutation.py \
+            --repo workspaces/P39/repo \
+            --hidden datasets/hidden \
+            --original-report original_report/reports/P39/result.json \
+            --out reports_targeted_midterm/P39/mutation_only.json
+      - name: Preserve targeted result even when a student stage fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: targeted-p39-mutation-${{ github.run_id }}
+          path: reports_targeted_midterm/P39/
+          if-no-files-found: warn
+          retention-days: 90
