@@ -10,6 +10,13 @@
 | **P54** | Two incorrectly failed Batch engine verdicts from saved evidence | **PASS / PASS** via immutable MongoDB engine markers, no student rerun | [machine overlay](P54_ENGINE_SAVED_EVIDENCE_OVERLAY.json) · [Issue #40](https://github.com/omrbosnd/bigdata-grader/issues/40) |
 | **P04** | Spark candidate | **Guard stopped before student execution**; source requires Spark4 with Connector10.4 incompatible | [Run 38607973641](https://github.com/omrbosnd/bigdata-grader/actions/runs/38607973641) · [source proof](P04_SPARK_ATTRIBUTION.md) |
 | **P26** | Spark candidate | **Not rerun**; later assessed SHA differs from older frozen source | [source comparison](P26_SNAPSHOT_BLOCKER.md) |
+| **P39** | Upsert/Incremental with documented `--no-reset` | Original grader invocation fixed; **counts still mismatch** (19,544/17,600, 20,106/18,100); rerun counts stable, duplicates zero | [Run 38613275326](https://github.com/omrbosnd/bigdata-grader/actions/runs/38613275326) · [detailed result](P39_MUTATION_SAME_SHA_EVIDENCE.json) |
+| **P21** | `quarantined_by_reason` with required `reason` | **PASS**; HTTP 200, positive/negative quarantine filters checked | [Run 38614189504](https://github.com/omrbosnd/bigdata-grader/actions/runs/38614189504) · [evidence](P21_QUARANTINE_QUERY_RECOVERY.json) |
+| **P54** | `sales_by_period` with required `start/end` | **PASS**; typed date-range filter checked | [Run 38614629459](https://github.com/omrbosnd/bigdata-grader/actions/runs/38614629459) · [evidence](P54_SALES_BY_PERIOD_RECOVERY.json) |
+| **P28** | Five formerly malformed named queries | **5 × PASS**, HTTP 200 with matching filtered records | [Run 38615059156](https://github.com/omrbosnd/bigdata-grader/actions/runs/38615059156) · [evidence](P28_FIVE_NAMED_QUERIES_RECOVERY.json) |
+
+### Permanent evidence register
+[Machine-readable evidence register](EVIDENCE_REGISTER.json) retains frozen source SHA, original run IDs, focused run IDs, artifact IDs and verdicts. GitHub Actions ZIP archives have finite retention, so this committed summary remains in repository history.
 
 ## Known separate student errors not silently forgiven
 
@@ -20,8 +27,8 @@
 
 ## Remaining steps
 
-1. Under [Issue #37](https://github.com/omrbosnd/bigdata-grader/issues/37), verify the malformed query responses for other affected frozen projects with scoped tests only; do not re-run their prior successful queries.
-2. Under [Issue #41](https://github.com/omrbosnd/bigdata-grader/issues/41), test P39 Upsert/Incremental using documented `--no-reset` flag without changing a previous PASS.
+1. Under [Issue #37](https://github.com/omrbosnd/bigdata-grader/issues/37), finish still-unproved project-specific named query contracts (P01 latest submission, P43 targeted run, P59 order_id); preserve all earlier successful queries.
+2. Under [Issue #41](https://github.com/omrbosnd/bigdata-grader/issues/41), review P39's corrected-count evidence: no-reset works and same-file count is stable, but validated counts still diverge from instructor Oracle.
 3. Complete evidence determination for Schema Validator and Audit Trail ([#35](https://github.com/omrbosnd/bigdata-grader/issues/35), [#36](https://github.com/omrbosnd/bigdata-grader/issues/36)).
 4. Human review and merge of PR #42, then fold verified overlays into scoring under ACTIVE rubric, preserving original artifacts and manual discussion marks.
 
