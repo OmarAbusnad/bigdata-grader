@@ -26,6 +26,20 @@ jobs:
           set -euo pipefail
           gh run download 38424927615 -n diagnostic-undeclared-deps-P01-38424927615 -D .audit/P01
           gh run download 38317234359 -n late-grading-P26-38317234359 -D .audit/P26
+      - name: Restore exact committed later assessed report sources
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh run download 38424927615 -n diagnostic-undeclared-deps-P02-38424927615 -D .audit/late/P02
+          gh run download 38317234359 -n late-grading-P24-38317234359 -D .audit/late/P24
+          gh run download 38317234359 -n late-grading-P40-38317234359 -D .audit/late/P40
+          gh run download 38317234359 -n late-grading-P50-38317234359 -D .audit/late/P50
+          gh run download 38424927615 -n diagnostic-undeclared-deps-P67-38424927615 -D .audit/late/P67
+          gh run download 38317234359 -n late-grading-P68-38317234359 -D .audit/late/P68
+          gh run download 38317234359 -n late-grading-P69-38317234359 -D .audit/late/P69
+          gh run download 38317234359 -n late-grading-P70-38317234359 -D .audit/late/P70
       - name: Verify ACTIVE rubrics; preserve historical PASS and separate later SHAs
         run: |
           python tools/compile_reconciliation_readiness.py \
@@ -39,6 +53,15 @@ jobs:
             --p26-mid .audit/P26/reports/P26/result.json \
             --p26-final .audit/P26/reports_final/P26/result.json \
             --output project-results/2026-10-14/reconciliation
+      - name: Correct version-selected late reports and missing-phase semantics (no student execution)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/merge_late_grade_readiness.py \
+            --manifest docs/verified-late-source-manifest-20261014.json \
+            --late-root .audit/late \
+            --base-ledger .audit/base/ledger.json \
+            --out project-results/2026-10-14/reconciliation
       - name: Upload independent audit evidence
         if: always()
         uses: actions/upload-artifact@v4

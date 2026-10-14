@@ -1,1 +1,1 @@
-Re-run read-only reconciliation after resolving CLI namespace p01_mid not p01_midterm in 38627455281, without any grading/student execution.
+2026-10-14: finalize read-only exact-SHA evidence readiness with P69/P70 plus 6 additional later assessed artifacts; never infer zero marks from missing phases or overwrite PASS.
