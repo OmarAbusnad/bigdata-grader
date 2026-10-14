@@ -1,18 +1,25 @@
-# P02 frozen-source Audit Trail targeted proof
-
-Frozen SHA: `f5558c250922f306e0389c7c915edc5c78e9ba05`.
-
-The midterm grader selects `oracle.sample('test_01', classes=['correctable'], n=18)`. All 18 are specifically correctable fixtures, **not clean unmodified examples**. Grader result after NameError repair [38633271725](https://github.com/omrbosnd/bigdata-grader/actions/runs/38633271725) reports:
-- `batch.cleaning_samples`: PASS 17/18.
-- `batch.audit_trail`: INCONCLUSIVE 10/18 (56%). Detailed evidence: 10 embedded audits, 7 documents present and matching Oracle cleaning but with no audit (`external_audit_status: NO_MATCH`), 1 expected document absent in validated.
-- Grader policy: PASS >=70%, FAIL <40%, middle band INCONCLUSIVE.
-- `src/quality_rules.py` writes audit correction records for date/email/phone/currency/financial values but:
-  1. Strips leading/trailing whitespace in `order_id` and `status` (and other text fields) without correction event.
-  2. Never changes string `items_json.qty` to integer, or string `unit_price` to numeric.
-  3. Fails to strip `YER` suffix from financial string, quaratines it instead of correcting.
-  4. Does not restore missing order prefix `طلب-` from `order_id`.
-  5. Does not recalculate total from items + delivery where needed.
-- `src/elt_pipeline.py` persists the `data` including `corrections` using `UpdateOne({'order_id':...},{'$set':data},upsert=True)`; no evidence that grader stripped this field on persistence.
-- Teacher's original fixture generator `datasets/generate_hidden_tests.py` has correctable cases `order_id_extra_spaces`, `status_extra_spaces`, `qty_as_string_in_items`, `unit_price_as_string_in_items`, `price_with_currency_suffix` etc.
-
-Run independent proof only against exact frozen SHA, no secrets, no student edits. Do not guess which of seven sample hashes maps to which case without hidden manifest; source-defect categories can be reproduced independently.
+# P02 — تحقق تنفيذي مستقل من Audit Trail على SHA المجمد
+- الطالب: أبرار مروان، المشروع **P02**
+- المصدر **كما هو دون تعديل**: `AbrarMarwan/BigData_pipline@f5558c250922f306e0389c7c915edc5c78e9ba05`
+- الاختبار المستقل المكتمل: [Run 38650810518](https://github.com/omrbosnd/bigdata-grader/actions/runs/38650810518), artifact ID **11934223409**، ملف `p02_frozen_audit_probes.json`.
+- استخدم الاختبار دالة الطالب الحقيقية `src.quality_rules.validate_and_clean_record` على عينات منضبطة منشأة لغرض إعادة الإنتاج، لا عينات المدرس المخفية. لا تغييرات على المستودع الأصلي ولا على الدرجات.
+## نتائج إعادة الإنتاج
+| مدخل الاختبار | نتيجة معالجة الطالب | Audit |
+|---|---|---|
+| بيانات سليمة مرجعية | valid | 0 (طبيعي) |
+| `order_id` حوله مسافات | تمت إزالة المسافات | **0، رغم حصول تعديل** |
+| `status` حولها مسافات | تمت إزالة المسافات | **0، رغم حصول تعديل** |
+| `items_json.qty` النصية | بقيت `str`، ولم تُحوّل | 0 |
+| `items_json.unit_price` النصية | بقيت `str`، ولم تُحوّل | 0 |
+| البريد `@@` | تصحيح ناجح | **1 حدث** |
+| رقم هاتف `+967` | توحيد ناجح | **1 حدث** |
+| العملة `ريال يمني` | توحيد إلى `YER` | **1 حدث** |
+| الأرقام العربية `٣٠٠.٠` | تطبيع | **1 حدث** |
+| مبلغ `200.0 YER` | عُزل بدل إزالة لاحقة العملة | 0 |
+## مقارنة بالاختبار الأصلي
+- [Run 38633271725](https://github.com/omrbosnd/bigdata-grader/actions/runs/38633271725) سجل `batch.cleaning_samples = PASS 17/18` و`batch.audit_trail = INCONCLUSIVE 10/18`.
+- المصحح يختار العينات بوضوح `oracle.sample('test_01',classes=['correctable'],n=18)`: **جميع الحالات الـ18 تحوي تغييرات مقصودة**. ليس صحيحًا تفسير الحالات الثماني المتبقية بأنها عينات نظيفة دون حاجة إلى Audit.
+- بين الحالات الثماني: **7** تم العثور فيها على المستند المنظف وكانت مطابقة للتنظيف المتوقع لكن لا تحتوي سجل تدقيق، **1** لم يوجد مستند `validated` متوقع. لا تتوفر في Artifact نسخة من الحالات المخفية لتعيين سبب كل حالة بدقة؛ لا ندعي أن كل حالة من السبعة تعود حتمًا إلى مسافات الحقول.
+- معيار المصحح: PASS >=70%، FAIL أقل من 40%، وINCONCLUSIVE بينهما. 10/18=55.56% يلائم INCONCLUSIVE.
+## الاستنتاج الأكاديمي
+هناك **إخفاقات حقيقية قابلة لإعادة الإنتاج في شيفرة الطالب** تمنع منح كامل نقاط Audit Trail. إشارة INCONCLUSIVE ليست دليلًا على مصحح خاطئ أو PASS مستحق. سياسة صفر للمحكوم INCONCLUSIVE التي اعتمدها المدرس تجعل وزن اختبار Audit صفرًا في الكشف الحالي، لكن يمكن منح جزء من معيار Audit إذا كان Rubric الأكاديمي يسمح بذلك؛ ليس قرارًا آليًا. لا تغيير درجات تلقائي.

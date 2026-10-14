@@ -1,0 +1,93 @@
+{
+  "project_id": "P02",
+  "source_sha": "f5558c250922f306e0389c7c915edc5c78e9ba05",
+  "run": "https://github.com/omrbosnd/bigdata-grader/actions/runs/38650810518",
+  "artifact_id": 11934223409,
+  "no_student_edits": true,
+  "independent_probes": [
+    {
+      "case": "clean_reference",
+      "source_verdict": "valid",
+      "corrections": 0,
+      "result": "EXPECTED_BASELINE"
+    },
+    {
+      "case": "order_id_extra_spaces",
+      "source_verdict": "valid",
+      "order_id_changed": true,
+      "corrections": 0,
+      "result": "ACTUAL_MODIFICATION_NOT_AUDITED"
+    },
+    {
+      "case": "status_extra_spaces",
+      "source_verdict": "valid",
+      "status_changed": true,
+      "corrections": 0,
+      "result": "ACTUAL_MODIFICATION_NOT_AUDITED"
+    },
+    {
+      "case": "qty_as_string_in_items",
+      "source_verdict": "valid",
+      "qty_type_after": "str",
+      "corrections": 0,
+      "result": "CORRECTABLE_RULE_NOT_IMPLEMENTED"
+    },
+    {
+      "case": "unit_price_as_string_in_items",
+      "source_verdict": "valid",
+      "unit_price_type_after": "str",
+      "corrections": 0,
+      "result": "CORRECTABLE_RULE_NOT_IMPLEMENTED"
+    },
+    {
+      "case": "email_double_at",
+      "source_verdict": "corrected",
+      "corrections": 1,
+      "result": "AUDIT_PASS"
+    },
+    {
+      "case": "phone_with_country_code",
+      "source_verdict": "corrected",
+      "corrections": 1,
+      "result": "AUDIT_PASS"
+    },
+    {
+      "case": "currency_arabic_name",
+      "source_verdict": "corrected",
+      "corrections": 1,
+      "result": "AUDIT_PASS"
+    },
+    {
+      "case": "arabic_digits_total_amount",
+      "source_verdict": "corrected",
+      "corrections": 1,
+      "result": "AUDIT_PASS"
+    },
+    {
+      "case": "price_with_currency_suffix",
+      "source_verdict": "quarantine",
+      "errors": [
+        "INVALID_NUMERIC_PAYMENT_AMOUNT"
+      ],
+      "result": "CORRECTABLE_SOURCE_CASE_QUARANTINED"
+    }
+  ],
+  "original_grader_result": {
+    "run": 38633271725,
+    "audit": {
+      "status": "INCONCLUSIVE",
+      "present": 10,
+      "total": 18,
+      "pass_threshold": 0.7,
+      "fail_below": 0.4
+    },
+    "detail": {
+      "audit_present": 10,
+      "clean_match_but_no_audit": 7,
+      "expected_validated_missing": 1
+    },
+    "selected_oracle_class": "correctable"
+  },
+  "interpretation": "Reproduced independently on exact frozen SHA. Audit missing on actual data modifications; not a pure grader false negative. Original 18 chosen are all correctable. Exact mapping of 7 hidden samples to specific transformations not established by the redacted artifact; do not claim it.",
+  "grade_changed": false
+}
