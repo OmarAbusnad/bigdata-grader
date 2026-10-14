@@ -1,0 +1,102 @@
+name: Guarded Exact Later Student Source Snapshots 2026-10-14
+on:
+  push:
+    paths:
+      - '.grader/trigger-late-exact-snapshot-20261014.txt'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  snapshot-exact-accepted-sha:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: P01
+            student_repo: 6980-rehab/midterm-data-pipeline-
+            student_sha: c43aae3d5e9c0d96731640206752f886f2618497
+            grading_run: '38424927615'
+            grading_artifact: diagnostic-undeclared-deps-P01-38424927615
+          - project: P26
+            student_repo: engmwaly/Project-BigData-Data-Pipeline
+            student_sha: fc4f5d9924fe9a59f09e4167d323eaf4672ccca2
+            grading_run: '38317234359'
+            grading_artifact: late-grading-P26-38317234359
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore matching later original assessment evidence
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          run-id: ${{ matrix.grading_run }}
+          name: ${{ matrix.grading_artifact }}
+          path: accepted_evidence
+      - name: Guard original JSON evidence SHA before source checkout
+        shell: python
+        env:
+          EXPECTED_SHA: ${{ matrix.student_sha }}
+          EXPECTED_PROJECT: ${{ matrix.project }}
+        run: |
+          import json, os, pathlib
+          expected = os.environ["EXPECTED_SHA"]
+          project = os.environ["EXPECTED_PROJECT"]
+          matched = []
+          def walk(node):
+              if isinstance(node, dict):
+                  for key, val in node.items():
+                      if key in ("commit_sha", "student_commit_sha", "freeze_metadata_sha", "student_sha") and isinstance(val, str):
+                          yield (key, val)
+                      yield from walk(val)
+              elif isinstance(node, list):
+                  for val in node:
+                      yield from walk(val)
+          for f in pathlib.Path("accepted_evidence").rglob("*.json"):
+              try:
+                  payload = json.loads(f.read_text(encoding="utf-8-sig"))
+              except (ValueError, UnicodeError):
+                  continue
+              for key, value in walk(payload):
+                  if value == expected:
+                      matched.append(f.name + ":" + key)
+          if not matched:
+              raise SystemExit("BLOCKED: later grading artifact does not prove exact accepted SHA for " + project)
+          print("EXACT_ACCEPTED_SHA_PROVEN=" + expected)
+          print("MATCHED_REPORT_FIELDS=" + ", ".join(matched[:12]))
+      - name: Checkout only exact student commit, never HEAD
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.student_repo }}
+          ref: ${{ matrix.student_sha }}
+          path: student_source
+          persist-credentials: false
+      - name: Archive immutable source and SHA256 provenance (no tests)
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ matrix.student_sha }}
+          PROJECT: ${{ matrix.project }}
+          STUDENT_REPO: ${{ matrix.student_repo }}
+          GRADING_RUN: ${{ matrix.grading_run }}
+        run: |
+          set -euo pipefail
+          observed="$(git -C student_source rev-parse HEAD)"
+          test "$observed" = "$EXPECTED_SHA" || { echo "FATAL source SHA mismatch"; exit 1; }
+          mkdir -p "immutable-snapshot/$PROJECT"
+          git -C student_source archive --format=tar HEAD | gzip -n > "immutable-snapshot/$PROJECT/repo.tar.gz"
+          sha256sum "immutable-snapshot/$PROJECT/repo.tar.gz" > "immutable-snapshot/$PROJECT/archive.sha256"
+          python - <<'PY'
+          import json, os, pathlib
+          p=pathlib.Path("immutable-snapshot")/os.environ["PROJECT"]/"provenance.json"
+          p.write_text(json.dumps({"project_id":os.environ["PROJECT"],"student_repo":os.environ["STUDENT_REPO"],"exact_student_sha":os.environ["EXPECTED_SHA"],"original_grading_run":int(os.environ["GRADING_RUN"]),"verified_checkout":True,"contains_functional_retest":False,"grades_modified":False},indent=2)+"\n",encoding="utf-8")
+          PY
+          echo "SNAPSHOT_PROVENANCE_OK project=$PROJECT sha=$EXPECTED_SHA"
+      - name: Upload exact-source proof, not student grades
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: later-exact-source-${{ matrix.project }}-${{ github.run_id }}
+          path: immutable-snapshot/${{ matrix.project }}/
+          if-no-files-found: warn
+          retention-days: 90
