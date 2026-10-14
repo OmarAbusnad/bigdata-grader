@@ -115,6 +115,19 @@
       },
       "notes": "HTTP200 on BSON date fixture with required start/end; no previously passing queries retested",
       "evidence_report": "P54_SALES_BY_PERIOD_RECOVERY.json"
+    },
+    {
+      "project_id": "P54",
+      "frozen_sha": "81d9b76c452f27c8941e6da34e00c20071993e49",
+      "original_run": 37874152827,
+      "focused_run": null,
+      "artifact_id": null,
+      "outcomes": {
+        "batch_pipeline.engine": "PASS",
+        "upsert_baseline.engine": "PASS"
+      },
+      "notes": "Saved evidence re-adjudication; MongoDB structured engine=python_batch outranks Spark mentioned only in explanatory prose; no code execution",
+      "evidence_report": "P54_ENGINE_SAVED_EVIDENCE_OVERLAY.json"
     }
   ]
 }
