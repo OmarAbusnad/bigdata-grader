@@ -21,6 +21,8 @@
 | **P43** | Five formerly invalid named queries | **5 × PASS** with correctly supplied city/status/customer/date/amount parameters | [Run 38615809081](https://github.com/omrbosnd/bigdata-grader/actions/runs/38615809081) · [evidence](P43_FIVE_NAMED_QUERIES_RECOVERY.json) |
 | **P01** | Latest `orders_in_period` query needs source-verification first | **NOT RERUN**: older frozen SHA differs from later graded SHA | [snapshot guard](P01_LATER_SHA_GUARD.md) |
 
+| **P59** | Missing `order_id` in fifth named query | **PASS**, HTTP 200 and matched exact seeded order; prior four queries untouched | [Run 38616724766](https://github.com/omrbosnd/bigdata-grader/actions/runs/38616724766) · [evidence](P59_ORDER_ID_QUERY_RECOVERY.json) |
+
 ## Known separate student errors not silently forgiven
 
 - P05 final API module import failure is **independent** of recovered Spark.
@@ -30,7 +32,7 @@
 
 ## Remaining steps
 
-1. Under [Issue #37](https://github.com/omrbosnd/bigdata-grader/issues/37), finish still-unproved project-specific named query contracts (P01 latest submission, P59 order_id); preserve all earlier successful queries.
+1. Under [Issue #37](https://github.com/omrbosnd/bigdata-grader/issues/37), finish still-unproved project-specific named query contracts (P01 later source revision); preserve all earlier successful queries.
 2. Under [Issue #41](https://github.com/omrbosnd/bigdata-grader/issues/41), review P39's corrected-count evidence: no-reset works and same-file count is stable, but validated counts still diverge from instructor Oracle.
 3. Complete evidence determination for Schema Validator and Audit Trail ([#35](https://github.com/omrbosnd/bigdata-grader/issues/35), [#36](https://github.com/omrbosnd/bigdata-grader/issues/36)).
 4. Human review and merge of PR #42, then fold verified overlays into scoring under ACTIVE rubric, preserving original artifacts and manual discussion marks.
