@@ -178,5 +178,178 @@
   "academic_grade_changes": 0,
   "student_code_executions": 0,
   "publish_grades_allowed": false,
-  "aggregate_policy": "Passing a single named query does not automatically pass whole final.queries.runtime; source SHAs cannot mix."
+  "aggregate_policy": "Passing a single named query does not automatically pass whole final.queries.runtime; source SHAs cannot mix.",
+  "late_verified_source_reports": [
+    {
+      "project_id": "P02",
+      "source_artifact": "diagnostic-undeclared-deps-P02-38424927615",
+      "original_run": 38424927615,
+      "exact_sha": "a627555a6c2d03378efb1de85d581951016f308b",
+      "same_sha_as_baseline": true,
+      "phases": {
+        "midterm": 24,
+        "final": 22
+      },
+      "missing_phases": [],
+      "old_sha_superseded": null,
+      "academic_grade_change": 0
+    },
+    {
+      "project_id": "P24",
+      "source_artifact": "late-grading-P24-38317234359",
+      "original_run": 38317234359,
+      "exact_sha": "2ea070985b82edf2cd560d188b1b2a4d410f9df2",
+      "same_sha_as_baseline": false,
+      "phases": {
+        "midterm": 29,
+        "final": 25
+      },
+      "missing_phases": [],
+      "old_sha_superseded": "3c612111e9b836777788342fde66e05484fb31d5",
+      "academic_grade_change": 0
+    },
+    {
+      "project_id": "P40",
+      "source_artifact": "late-grading-P40-38317234359",
+      "original_run": 38317234359,
+      "exact_sha": "ce51dee3dff5a4abd589d1c5dcab88dfaae4020b",
+      "same_sha_as_baseline": false,
+      "phases": {
+        "midterm": 24,
+        "final": 25
+      },
+      "missing_phases": [],
+      "old_sha_superseded": "4050535924d1e7b6cdf3940e8edf1969f5325560",
+      "academic_grade_change": 0
+    },
+    {
+      "project_id": "P50",
+      "source_artifact": "late-grading-P50-38317234359",
+      "original_run": 38317234359,
+      "exact_sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "same_sha_as_baseline": true,
+      "phases": {
+        "final": 25
+      },
+      "missing_phases": [],
+      "old_sha_superseded": null,
+      "academic_grade_change": 0
+    },
+    {
+      "project_id": "P67",
+      "source_artifact": "diagnostic-undeclared-deps-P67-38424927615",
+      "original_run": 38424927615,
+      "exact_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "same_sha_as_baseline": false,
+      "phases": {
+        "midterm": 24,
+        "final": 25
+      },
+      "missing_phases": [],
+      "old_sha_superseded": "67de8890bc9e21d6f3dd6db89c646cd43d2bce41",
+      "academic_grade_change": 0
+    },
+    {
+      "project_id": "P68",
+      "source_artifact": "late-grading-P68-38317234359",
+      "original_run": 38317234359,
+      "exact_sha": "ee03bbe63d17c5c84e8320103e1ecf57ac4aaf46",
+      "same_sha_as_baseline": false,
+      "phases": {
+        "midterm": 24
+      },
+      "missing_phases": [
+        "final"
+      ],
+      "old_sha_superseded": "0c05bc9f7c5449d751c883cc6fbd0dfe52cc3d83",
+      "academic_grade_change": 0
+    },
+    {
+      "project_id": "P69",
+      "source_artifact": "late-grading-P69-38317234359",
+      "original_run": 38317234359,
+      "exact_sha": "db75dd75794b9c752b519b4ad8f9ee69838d6784",
+      "same_sha_as_baseline": false,
+      "phases": {
+        "final": 22
+      },
+      "missing_phases": [
+        "midterm"
+      ],
+      "old_sha_superseded": null,
+      "academic_grade_change": 0
+    },
+    {
+      "project_id": "P70",
+      "source_artifact": "late-grading-P70-38317234359",
+      "original_run": 38317234359,
+      "exact_sha": "e42ffb8ac88f34ad10b508a95a4bde14aa8bad85",
+      "same_sha_as_baseline": false,
+      "phases": {
+        "midterm": 29,
+        "final": 25
+      },
+      "missing_phases": [],
+      "old_sha_superseded": null,
+      "academic_grade_change": 0
+    }
+  ],
+  "late_same_sha_pass_overwrites_prevented": [
+    {
+      "project": "P50",
+      "phase": "final",
+      "key": "final.aggregations.runtime",
+      "sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "later_verdict": "INCONCLUSIVE"
+    },
+    {
+      "project": "P50",
+      "phase": "final",
+      "key": "final.indexes.explain",
+      "sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "later_verdict": "INCONCLUSIVE"
+    },
+    {
+      "project": "P50",
+      "phase": "final",
+      "key": "final.mv.collections",
+      "sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "later_verdict": "FAIL"
+    }
+  ],
+  "late_same_sha_pass_review_candidates": [
+    {
+      "project": "P50",
+      "phase": "final",
+      "key": "final.api.ingest",
+      "sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "prior": "INCONCLUSIVE",
+      "proposed": "PASS",
+      "officially_applied": false
+    },
+    {
+      "project": "P50",
+      "phase": "final",
+      "key": "final.jobs.count",
+      "sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "prior": "FAIL",
+      "proposed": "PASS",
+      "officially_applied": false
+    },
+    {
+      "project": "P50",
+      "phase": "final",
+      "key": "final.jobs.manual_run",
+      "sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "prior": "FAIL",
+      "proposed": "PASS",
+      "officially_applied": false
+    }
+  ],
+  "late_report_source_count": 8,
+  "not_graded_not_zero_projects": [
+    "P68",
+    "P69"
+  ],
+  "coverage_warning": "Baseline 68-project ledger and later version-selected P01/P26+8 additional late artifacts; NOT an authorized scored ledger or approved marks. Blank phase is NOT_ASSESSED, not 0 points."
 }

@@ -1,7 +1,7 @@
 {
   "project_id": "P50",
   "selected_student_sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
-  "assessed_source_run": 38196458648,
+  "assessed_source_run": 38317234359,
   "verdicts": {
     "midterm": {
       "PASS": 18,
@@ -9,9 +9,8 @@
       "INCONCLUSIVE": 5
     },
     "final": {
-      "PASS": 20,
-      "INCONCLUSIVE": 3,
-      "FAIL": 2
+      "PASS": 23,
+      "INCONCLUSIVE": 2
     }
   },
   "candidate_same_sha_corrections": 0,
@@ -22,5 +21,13 @@
   "official_new_points": null,
   "delta": null,
   "human_discussion": "REQUIRES_INSTRUCTOR",
-  "grades_approved": false
+  "grades_approved": false,
+  "phase_coverage": {
+    "midterm": "ASSESSED",
+    "final": "ASSESSED"
+  },
+  "phase_provenance": {
+    "midterm": 38196458648,
+    "final": 38317234359
+  }
 }

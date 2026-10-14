@@ -1,7 +1,7 @@
 {
   "project_id": "P02",
   "selected_student_sha": "a627555a6c2d03378efb1de85d581951016f308b",
-  "assessed_source_run": 38196458648,
+  "assessed_source_run": 38424927615,
   "verdicts": {
     "midterm": {
       "FAIL": 1,
@@ -21,5 +21,13 @@
   "official_new_points": null,
   "delta": null,
   "human_discussion": "REQUIRES_INSTRUCTOR",
-  "grades_approved": false
+  "grades_approved": false,
+  "phase_coverage": {
+    "midterm": "ASSESSED",
+    "final": "ASSESSED"
+  },
+  "phase_provenance": {
+    "midterm": 38424927615,
+    "final": 38424927615
+  }
 }

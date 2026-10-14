@@ -1,17 +1,13 @@
 {
   "project_id": "P68",
-  "selected_student_sha": "0c05bc9f7c5449d751c883cc6fbd0dfe52cc3d83",
-  "assessed_source_run": 38196458648,
+  "selected_student_sha": "ee03bbe63d17c5c84e8320103e1ecf57ac4aaf46",
+  "assessed_source_run": 38317234359,
   "verdicts": {
     "midterm": {
       "FAIL": 1,
-      "INCONCLUSIVE": 27
+      "INCONCLUSIVE": 23
     },
-    "final": {
-      "PASS": 1,
-      "FAIL": 1,
-      "INCONCLUSIVE": 20
-    }
+    "final": {}
   },
   "candidate_same_sha_corrections": 0,
   "unverified_source": false,
@@ -21,5 +17,13 @@
   "official_new_points": null,
   "delta": null,
   "human_discussion": "REQUIRES_INSTRUCTOR",
-  "grades_approved": false
+  "grades_approved": false,
+  "phase_coverage": {
+    "midterm": "ASSESSED",
+    "final": "NOT_ASSESSED"
+  },
+  "phase_provenance": {
+    "midterm": 38317234359,
+    "final": null
+  }
 }
