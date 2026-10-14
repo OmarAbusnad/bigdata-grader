@@ -1,0 +1,40 @@
+{
+  "project_id": "P51",
+  "student_name": "ريناد عبد الخالق يحيى الحاشدي",
+  "deadline_utc": "2026-10-14T12:00:00Z",
+  "accepted_commit_sha": "6a534b0bd6d53b36e418f1ec6806cdcadce0c792",
+  "old_assessed_sha": "80ddebd490b003bbc92e696235cb9aadfed1bddb",
+  "original_repository": "renadalhashdi/big-data-elt-pipeline",
+  "commit_date_utc": "2026-10-13T21:49:35Z",
+  "original_chance_issue": "https://github.com/renadalhashdi/big-data-elt-pipeline/issues/1",
+  "original_chance_run_url": "https://github.com/omrbosnd/bigdata-grader/actions/runs/38632370130",
+  "original_chance_artifact_id": 11926548561,
+  "original_chance_artifact_name": "under10-deadline-P51-38632370130",
+  "midterm_result": {
+    "status": "STUDENT_MIDTERM_COMMAND_STARTUP_BLOCKED",
+    "counts": {
+      "PASS": 0,
+      "FAIL": 1,
+      "INCONCLUSIVE": 23
+    },
+    "root_cause": "SOURCE_CONTRACT_AND_COMMAND_LOG_REVIEW_REQUIRED",
+    "repair_run": null
+  },
+  "final_result": {
+    "PASS": 16,
+    "FAIL": 2,
+    "INCONCLUSIVE": 7
+  },
+  "source_history_guard": "ACCEPTED_DEADLINE_NEW_SHA",
+  "original_student_commit_unchanged": true,
+  "prior_sha_evidence_preserved": true,
+  "current_sha_final_success_not_reexecuted": true,
+  "grader_nameerror_issue": "https://github.com/omrbosnd/bigdata-grader/issues/45",
+  "source_review_issue": "https://github.com/omrbosnd/bigdata-grader/issues/44",
+  "grade_points": null,
+  "discussion_points": null,
+  "assessment_not_official": true,
+  "grade_sheet_updated": false,
+  "stage_counts_are_not_rubric_points": true,
+  "causal_attribution_of_remaining_FAIL": "NEEDS_EVIDENCE_AND_INSTRUCTOR_APPROVAL"
+}

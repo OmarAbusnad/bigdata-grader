@@ -1,0 +1,47 @@
+{
+  "project_id": "P02",
+  "student_name": "ابرار مروان محمد قاسم الدبعي",
+  "deadline_utc": "2026-10-14T12:00:00Z",
+  "accepted_commit_sha": "f5558c250922f306e0389c7c915edc5c78e9ba05",
+  "old_assessed_sha": "a627555a6c2d03378efb1de85d581951016f308b",
+  "original_repository": "AbrarMarwan/BigData_pipline",
+  "commit_date_utc": "2026-10-13T18:40:55Z",
+  "original_chance_issue": "https://github.com/AbrarMarwan/BigData_pipline/issues/2",
+  "original_chance_run_url": "https://github.com/omrbosnd/bigdata-grader/actions/runs/38632370130",
+  "original_chance_artifact_id": 11926891059,
+  "original_chance_artifact_name": "under10-deadline-P02-38632370130",
+  "midterm_result": {
+    "status": "GRADER_JSON_ERROR_RETRIED",
+    "repair_run": 38633271725,
+    "repair_artifact": 11926413478,
+    "counts": {
+      "PASS": 24,
+      "FAIL": 2,
+      "INCONCLUSIVE": 3
+    },
+    "remaining": [
+      "batch.quarantine_count",
+      "upsert.final_validated",
+      "batch.schema_validator_runtime",
+      "batch.audit_trail",
+      "batch.validated_count"
+    ]
+  },
+  "final_result": {
+    "PASS": 24,
+    "FAIL": 0,
+    "INCONCLUSIVE": 1
+  },
+  "source_history_guard": "ACCEPTED_DEADLINE_NEW_SHA",
+  "original_student_commit_unchanged": true,
+  "prior_sha_evidence_preserved": true,
+  "current_sha_final_success_not_reexecuted": true,
+  "grader_nameerror_issue": "https://github.com/omrbosnd/bigdata-grader/issues/45",
+  "source_review_issue": "https://github.com/omrbosnd/bigdata-grader/issues/44",
+  "grade_points": null,
+  "discussion_points": null,
+  "assessment_not_official": true,
+  "grade_sheet_updated": false,
+  "stage_counts_are_not_rubric_points": true,
+  "causal_attribution_of_remaining_FAIL": "NEEDS_EVIDENCE_AND_INSTRUCTOR_APPROVAL"
+}

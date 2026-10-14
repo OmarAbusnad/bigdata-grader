@@ -1,0 +1,34 @@
+{
+  "project_id": "P33",
+  "student_name": "مناف فهمي احمد البناء",
+  "deadline_utc": "2026-10-14T12:00:00Z",
+  "accepted_commit_sha": "c56c9f5e2ef67de7a60941becba266c2f6002230",
+  "old_assessed_sha": "0da89f2f995b936ce22dc31561747aa9dd822531",
+  "original_repository": "manafalbana710-hash/midterm-data-pipeline2",
+  "commit_date_utc": "2026-10-13T23:49:37Z",
+  "original_chance_issue": "https://github.com/manafalbana710-hash/midterm-data-pipeline2/issues/1",
+  "original_chance_run_url": "https://github.com/omrbosnd/bigdata-grader/actions/runs/38632370130",
+  "original_chance_artifact_id": 11926523962,
+  "original_chance_artifact_name": "under10-deadline-P33-38632370130",
+  "midterm_result": {
+    "status": "GRADER_JSON_ERROR_RETRY_RUNNING",
+    "repair_run": 38634082957
+  },
+  "final_result": {
+    "PASS": 24,
+    "FAIL": 0,
+    "INCONCLUSIVE": 1
+  },
+  "source_history_guard": "NO_COMMON_GIT_ANCESTOR_MANUAL_REVIEW_REQUIRED",
+  "original_student_commit_unchanged": true,
+  "prior_sha_evidence_preserved": true,
+  "current_sha_final_success_not_reexecuted": true,
+  "grader_nameerror_issue": "https://github.com/omrbosnd/bigdata-grader/issues/45",
+  "source_review_issue": "https://github.com/omrbosnd/bigdata-grader/issues/44",
+  "grade_points": null,
+  "discussion_points": null,
+  "assessment_not_official": true,
+  "grade_sheet_updated": false,
+  "stage_counts_are_not_rubric_points": true,
+  "causal_attribution_of_remaining_FAIL": "NEEDS_EVIDENCE_AND_INSTRUCTOR_APPROVAL"
+}
