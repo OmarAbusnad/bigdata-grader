@@ -1,14 +1,39 @@
-# P02/P15/P18/P46 frozen-source forensic review (2026-10-15)
+# تحقق مصدر Git المجمد — P02 / P15 / P18 / P46
+**التاريخ:** 15 أكتوبر 2026. **النتائج:** تحقق من أحكام تشغيل أصلية + شيفرة الطالب عند SHA محدد + فحص حي مستقل لـP46 فقط. لم تُعدل شيفرات الطلاب أو درجاتهم المنشورة.
 
-All source refs below are immutable student SHAs, not HEAD, and all prior successes remain preserved. This document describes static verification and original grader evidence; it does not assert that a newly written runtime probe has passed before its GitHub Actions result is available.
+## P46 أيهم — يوجد خطأ مصحح فعلي
+- الطالب `AihamAlqasem/Enterprise-Grade-Data-Ingestion-ELT-Pipeline@c66ac3f53de2db27359ce2345b02e67b1cea9a33`.
+- المصحح في التشغيل [38088837812](https://github.com/omrbosnd/bigdata-grader/actions/runs/38088837812) سجّل `final.jobs.manual_run FAIL` مع **0/0 طلبات**، ثم `final.jobs.logging FAIL` نتيجة عدم وجود سجلات.
+- المسبّب: `grader/final_runtime.py` يشتق أسماء المهام من `GET /jobs`، لكن مشروع الطالب يعيد **سجل التنفيذ** (فارغ في البداية) لا القائمة؛ الأسماء `update_views` و`generate_report` موجودة صراحة في `src/api.py` و`src/scheduled_jobs.py` و`readme.md`.
+- الاختبار الحي المستقل [38649411726](https://github.com/omrbosnd/bigdata-grader/actions/runs/38649411726)، artifact ID **11933453330**، تحقق SHA، Python 3.11 وMongoDB 7.0 منفصلين: `POST /jobs/update_views/run` و`POST /jobs/generate_report/run` أعادا **HTTP 200**، وسُجلت عمليتان `Success` في `jobs_log` تتضمنان `start_time,end_time,status,details`، وتولدت `daily_sales_mv` و`reports/latest_payment_report.json` بصورة فعلية.
+- **القرار:** لا يصح اعتبار `final.jobs.manual_run` فشل طالب. وقد تحقق التسجيل عمليًا؛ `grader/final_compliance.py` يقبل `details` بديلًا عن `result`. وفقا للوزن المرجعي: `manual_run` = 0.25، و`logging` = 0.25، أي **استرداد محتمل مؤيد بالاختبار 0.50/25** بعد تحديث سجل الأحكام وإعادة الحساب. `final.jobs.count` و`final.jobs.schedule` يحتاجان تقييمًا مستقلًا: API لا تُعرّف أسماء الوظائف في GET /jobs، ولا يبدأ Scheduler تلقائيًا عند بدء API. لا تُمنح نقاطهما تلقائيًا.
+- [Issue #46](https://github.com/omrbosnd/bigdata-grader/issues/46) لتعميم اكتشاف المهام وتصحيح السجل.
 
-| Project | Frozen SHA | Original grader evidence | Code discrepancy / assessment |
-| --- | --- | --- | --- |
-| P15 Balqees | 4144a24b6331f7a411ec3ec2d78e9bfb6948edb3 | latest regrade 38088837812, P15 midterm | Spark loader config requires `org.mongodb.spark:mongo-spark-connector_2.12:11.1.0`, whereas MongoDB Spark Connector 11.1.0 targets Scala 2.13; the repository uses `pyspark>=3.5` without upper bound. Isolated network Maven failure is true, but source-declared coordinate compatibility is an independent student-side obstacle. The student's quarantine collection is `quarantine_orders` in `config/settings.py`, whereas the grader/spec inspect `orders_quarantine`; source naming mismatch is material, but raw record classifier and actual quarantine counts need per-collection verification before attributing the exact discrepancy. |
-| P18 Ayman | 2024f325c24c3626c30193ab27945d9440093c25 | latest regrade 38088837812, P18 midterm | `src/spark_loader.py` uses `get_spark_classpath()` from local `jars/` while the Git tree has no `jars/` files, leaving Spark MongoDB provider missing. `requirements.txt` chooses `pyspark>=4.2.0` with no bundled connector. Student dependency/configuration issue independently explains ClassNotFoundException. Aggregated validated/quarantine/upsert mismatches are real observed counts but need oracle-specific comparison to prove root-cause. |
-| P46 Aiham | c66ac3f53de2db27359ce2345b02e67b1cea9a33 | latest regrade 38088837812, P46 final | API `GET /jobs` returns only job execution history, which is initially empty; grader `grader/final_runtime.py` relies on names discovered from that response and never probes `update_views` or `generate_report`, though student `src/api.py`, `src/scheduled_jobs.py` and README explicitly define them. Thus old `final.jobs.manual_run=FAIL` cannot prove nonfunctionality of manual endpoints. Exact-SHA live focused MongoDB probe is required. A lack of enumerated jobs/schedule on GET /jobs may still be student API contract deviation, and automatic scheduler does not start with the API. |
-| P02 Abrar | f5558c250922f306e0389c7c915edc5c78e9ba05 | 38633271725 midterm plus 38632370130 final | Final is 24 PASS and 1 manual discussion INCONCLUSIVE. Midterm Quarantine actual 2,294 versus expected 3,000 and Upsert validated 728 versus 600 (per generated fixture). Executed Python Batch returned 0, but `src/quality_rules.py` contains multiple validation and quarantine branches; not a startup/import issue. Audit is 10/18 (56%) and validator absent from live MongoDB evidence: verify expectation versus frozen code/fixtures before calling audit or validator a student FAIL. |
+## P15 بلقيس — خلل اعتماديات الطالب مثبت، مع أثر بيئة مصحح متداخل
+- المصدر `TheBalqees26Jamil/hybrid-orders-pipeline@4144a24b6331f7a411ec3ec2d78e9bfb6948edb3`.
+- تنفيذ [38088837812](https://github.com/omrbosnd/bigdata-grader/actions/runs/38088837812) أخفق في Spark لأن Maven لا يستطيع جلب الموصل من شبكة الاختبار المعزولة؛ لا يجوز الاستناد إلى رسالة الشبكة وحدها لإثبات خلل الطالب.
+- لكن `config/settings.py` يحدد `org.mongodb.spark:mongo-spark-connector_2.12:11.1.0`، و`requirements.txt` يحدد `pyspark>=3.5` بلا سقف. الإصدار 11.1.0 مطابق لنسخة Scala 2.13 (Spark 4)، بينما إصدار Mongo Spark Connector 10.x هو المتاح لـScala 2.12 (Spark 3.5) في قائمة الإصدارات الرسمية. بذلك يوجد **خلل قابل لإعادة الإثبات في مواصفة الاعتماديات المجمدة**، وليس مجرد شبكة.
+- `config/settings.py` و`src/mongo_setup.py` يوجهان quarantine إلى `quarantine_orders` بينما عقد التقييم ونص متطلبات المساق يستخدمان `orders_quarantine`. النتيجة القديمة `0` هي رصد لمجموعة **مختلفة**، فلا تصلح لإثبات أن خوارزمية Quarantine أنتجت صفرًا. مع ذلك اسم المجموعة غير مطابق للعقد. لم يُقَس عدد `quarantine_orders` الحقيقي؛ لا ننسب مقدار فرق 3,000 كله إلى فشل التصنيف.
+- في المجموعة الصحيحة `orders_validated` شوهد 18,206 مقابل 17,000 متوقع، و`upsert.final_validated` 810 مقابل 600؛ اختلافات مثبتة بالقياس، سببها التفصيلي يحتاج اختبار عينات.
 
-Sources:
-- Official MongoDB 11.x dependency docs: https://www.mongodb.com/docs/spark-connector/current/getting-started/
-- Original grading runs: https://github.com/omrbosnd/bigdata-grader/actions/runs/38088837812 and https://github.com/omrbosnd/bigdata-grader/actions/runs/38633271725.
+## P18 أيمن — الاعتماديات الناقصة من المصدر المجمد تثبت فشل الطالب في Spark
+- `aimanqais1/big-data-pipeline-project@2024f325c24c3626c30193ab27945d9440093c25`.
+- `src/spark_loader.py` يستدعي `get_spark_classpath()` الذي لا يجلب شيئًا سوى `jars/*.jar` المحلي من `config/settings.py`. فحص شجرة SHA لم يجد مجلد `jars` أو أي ملف JAR. `requirements.txt` يحدد `pyspark>=4.2.0` لكن لا يثبّت Mongo Spark Connector تلقائيًا.
+- فشل `ClassNotFoundException: mongodb.DefaultSource` في [38088837812](https://github.com/omrbosnd/bigdata-grader/actions/runs/38088837812) متسق تمامًا مع هذا النقص المحدد في المشروع. لا توجد أدلة كافية لتصنيف هذا الفشل خطأ مصحح. Batch أيضًا حقق 18,250 validated و1,750 quarantine مقابل 17,000 و3,000 متوقعة؛ فحوص كمية منفصلة يجب الإبقاء عليها ما لم يُثبت خلل Oracle.
+
+## P02 أبرار — اختلاف حسابات فعلي وغياب Validator من الشيفرة
+- `AbrarMarwan/BigData_pipline@f5558c250922f306e0389c7c915edc5c78e9ba05`. آخر نصفي مصحح [38633271725](https://github.com/omrbosnd/bigdata-grader/actions/runs/38633271725)؛ النهائي 24 PASS في [38632370130](https://github.com/omrbosnd/bigdata-grader/actions/runs/38632370130).
+- Batch خرج صفر exit code؛ عدد `orders_raw` 20,000، `orders_validated` 17,706، `orders_quarantine` 2,294 مقابل العدد المرجعي Quarantine 3,000. Upsert final validated بلغ 728 مقابل 600؛ لا يوجد دليل على فشل بدء التشغيل. المصدر `src/quality_rules.py` يتضمن قواعد عزل فعلية، ولكنها تعطي نسبًا مختلفة على بيانات الاختبار.
+- `src/mongo_setup.py` ينشئ المجموعات والفهارس الفريدة فقط، **ولا ينشئ `$jsonSchema` Validator**: غيابه مؤكد من كود SHA ومن اختبار MongoDB الحي القديم.
+- Audit Trail في مصحح هذه النسخة 10/18؛ بعض أحداث التصحيح مفقودة من أدلة الاختبار. يظل وصف `INCONCLUSIVE` أدق من نسبة جميع النواقص إلى الطالب بلا فحص عينات كامل.
+
+## ضوابط القرار
+1. لم تكن إعادة التحقق شاملةً لكل وظائف المشاريع؛ إثبات أصل الاختبار المحدد فقط. لا يوصف خطأ الشبكة بأنه خطأ الطالب دون إثبات خطأ اعتماديات من SHA.
+2. نجاح GitHub Actions يعني نجاح تشغيل المختبر لا نجاح جميع الاختبارات الأكاديمية.
+3. لا تمس درجات المعايير الأخرى ولا تحول INCONCLUSIVE إلى FAIL مثبت بسبب سياسة الصفر.
+4. لم تتغير الدرجات الرسمية؛ تصحيح P46 يتطلب إدخال PASS الجديدة في ledger ثم إعادة الحساب بنفس أوزان ملف الطالب.
+
+## المراجع
+- [MongoDB Spark Connector 11.x](https://www.mongodb.com/docs/spark-connector/current/getting-started/)
+- [MongoDB Spark Connector 10.x](https://www.mongodb.com/docs/spark-connector/v10.x/getting-started/)
+- [Maven 2.12 available versions](https://www.javadoc.io/versions/org.mongodb.spark/mongo-spark-connector_2.12)
