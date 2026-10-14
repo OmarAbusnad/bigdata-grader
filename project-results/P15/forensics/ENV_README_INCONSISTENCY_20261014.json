@@ -1,0 +1,19 @@
+{
+  "pid": "P15",
+  "repo": "TheBalqees26Jamil/hybrid-orders-pipeline",
+  "sha": "4144a24b6331f7a411ec3ec2d78e9bfb6948edb3",
+  "readme_line": 287,
+  "settings_path": "config/settings.py",
+  "missing_env_example": true,
+  "readme_instructs_copy": true,
+  "settings_defaults": true,
+  "root": "STUDENT_DOCUMENTATION_INCONSISTENCY_ONLY",
+  "runtime_mandatory": false,
+  "source_readme_url": "https://github.com/TheBalqees26Jamil/hybrid-orders-pipeline/blob/4144a24b6331f7a411ec3ec2d78e9bfb6948edb3/README.md#L287",
+  "source_sha_verified_with_selected_assessed_report": true,
+  "student_code_executed": false,
+  "student_code_modified": false,
+  "academic_grade_changed": false,
+  "grader_rule": "No universal .env.example gate; documentation error is separate from runtime requirements and other README/tests criteria",
+  "issue_url": "https://github.com/omrbosnd/bigdata-grader/issues/34"
+}

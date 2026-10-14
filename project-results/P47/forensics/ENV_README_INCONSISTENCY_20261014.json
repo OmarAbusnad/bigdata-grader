@@ -1,0 +1,19 @@
+{
+  "pid": "P47",
+  "repo": "Badee271/midterm-data-pipeline",
+  "sha": "16637583c1cb0937d10e8afa3f029dcc5a36bf62",
+  "readme_line": 41,
+  "settings_path": "config/settings.py",
+  "missing_env_example": true,
+  "readme_instructs_copy": true,
+  "settings_defaults": true,
+  "root": "STUDENT_DOCUMENTATION_INCONSISTENCY_ONLY",
+  "runtime_mandatory": false,
+  "source_readme_url": "https://github.com/Badee271/midterm-data-pipeline/blob/16637583c1cb0937d10e8afa3f029dcc5a36bf62/README.md#L41",
+  "source_sha_verified_with_selected_assessed_report": true,
+  "student_code_executed": false,
+  "student_code_modified": false,
+  "academic_grade_changed": false,
+  "grader_rule": "No universal .env.example gate; documentation error is separate from runtime requirements and other README/tests criteria",
+  "issue_url": "https://github.com/omrbosnd/bigdata-grader/issues/34"
+}
