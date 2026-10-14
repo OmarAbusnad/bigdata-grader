@@ -7,15 +7,31 @@ permissions:
   contents: read
   actions: read
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate bounded recovery batch, source SHA, and previous grader evidence
+        id: pick
+        shell: python
+        run: |
+          import json,os,pathlib
+          requested=json.loads(pathlib.Path('.grader/chance-json-recovery-batch-20261014.json').read_text())
+          sources=json.loads(pathlib.Path('docs/under10_chance_deadline_sources_20261014.json').read_text())
+          eligible={x['id']:x for x in sources['rows'] if x['changed'] and x['mode']!='final'}
+          assert requested and len(requested)==len(set(requested)) and set(requested)<=set(eligible)
+          assert all(eligible[p]['cutoff_sha']!=eligible[p]['assessed_sha'] for p in requested)
+          m={'include':[{'project_id':p,'expected_sha':eligible[p]['cutoff_sha']} for p in requested]}
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('matrix='+json.dumps(m,separators=(',',':'))+'\n')
+          print(json.dumps(m))
   only-proven-failed-midterm-no-final-retouched:
+    needs: plan
     strategy:
       fail-fast: false
       max-parallel: 3
-      matrix:
-        include:
-          - {project_id: P02, expected_sha: f5558c250922f306e0389c7c915edc5c78e9ba05}
-          - {project_id: P17, expected_sha: 7009d6feca44db1a07b7add02c023e562af4ffb1}
-          - {project_id: P29, expected_sha: b024c95078585a55e65c53d4ccb68b44f08f95a8}
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ubuntu-latest
     timeout-minutes: 150
     env:
@@ -55,7 +71,7 @@ jobs:
           assert runtime.get("status")=="INFRA_OR_RUNTIME_ERROR"
           assert runtime.get("error")=="NameError: name 'json' is not defined"
           assert not (runtime.get("assertions") or []), "Never replay already assessed midterm assertions"
-          assert pid in {"P02","P17","P29"}
+          assert pid in {"P02","P17","P29","P61","P68","P51","P33","P67","P23"}
           print("PROVEN_GRADER_NAMEERROR_RETRY_ONLY",pid,sha)
       - name: Clone exact source SHA again and verify before execution
         shell: bash
