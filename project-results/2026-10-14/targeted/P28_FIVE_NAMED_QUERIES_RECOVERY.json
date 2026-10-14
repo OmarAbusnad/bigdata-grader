@@ -1,0 +1,51 @@
+{
+  "project_id": "P28",
+  "student_frozen_sha": "20f40dafa79b47a7d78f3cecf428d24345ccc05a",
+  "original_run": 37874152827,
+  "focused_run": 38615059156,
+  "raw_artifact_id": 11920355459,
+  "raw_artifact_name": "p28-five-named-only-38615059156",
+  "source_guard": "PASS",
+  "scope": [
+    "customer_orders",
+    "city_orders",
+    "status_orders",
+    "date_orders",
+    "quality_orders"
+  ],
+  "outcomes": {
+    "customer_orders": {
+      "verdict": "PASS",
+      "http": 200,
+      "returned_count": 1,
+      "matched_expected_record": true
+    },
+    "city_orders": {
+      "verdict": "PASS",
+      "http": 200,
+      "returned_count": 1,
+      "matched_expected_record": true
+    },
+    "status_orders": {
+      "verdict": "PASS",
+      "http": 200,
+      "returned_count": 1,
+      "matched_expected_record": true
+    },
+    "date_orders": {
+      "verdict": "PASS",
+      "http": 200,
+      "returned_count": 1,
+      "matched_expected_record": true
+    },
+    "quality_orders": {
+      "verdict": "PASS",
+      "http": 200,
+      "returned_count": 1,
+      "matched_expected_record": true
+    }
+  },
+  "interpretation": "All five query requests formerly returned 422 because grader omitted value/start/end. Correct arguments and deterministic contrasting MongoDB fixture now verify each filter and success. No other endpoint or previously successful assertion re-evaluated.",
+  "academic_grade_updated": false,
+  "historical_passes_preserved": true
+}
