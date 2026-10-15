@@ -1,0 +1,100 @@
+name: P44 Latest SHA Midterm And Final Regrade 2026-10-16
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/targeted-p44-latest-20261016.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  p44:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+      STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Prepare one exact-SHA P44 submission preserving historical evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          with open("submission_groups.csv", encoding="utf-8-sig", newline="") as f:
+              rows = list(csv.DictReader(f))
+          row = next(x for x in rows if x.get("project_id") == "P44")
+          row.update({
+              "repo_url": "https://github.com/tarep2021-hue/hybrid-elt-bigdata-pipeline",
+              "repo_full_name": "tarep2021-hue/hybrid-elt-bigdata-pipeline",
+              "ref": "0dc6d045d91784b4ff723c6fb6cf81cb11d7e5fb",
+              "stage": "final",
+              "grading_mode": "all",
+              "historical_policy": "retain_prior_evidence",
+          })
+          cols = list(row.keys())
+          with open("p44_new_submission.csv", "w", encoding="utf-8", newline="") as f:
+              w = csv.DictWriter(f, fieldnames=cols)
+              w.writeheader()
+              w.writerow(row)
+          print(f"P44 -> {row['repo_full_name']}@{row['ref']}")
+          PY
+      - name: Freeze only new student repository at exact SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python freeze_submissions.py --submissions p44_new_submission.csv --project P44 --output-dir frozen
+          python freeze_submissions.py --submissions p44_new_submission.csv --build-manifest --artifacts-dir frozen --output frozen_submissions.csv
+          python - <<'PY'
+          import csv
+          rows = list(csv.DictReader(open("frozen_submissions.csv", encoding="utf-8-sig")))
+          row = next(x for x in rows if x['project_id'] == "P44")
+          assert row['freeze_status'] == "READY", row.get('freeze_error')
+          assert row['commit_sha'] == "0dc6d045d91784b4ff723c6fb6cf81cb11d7e5fb", row['commit_sha']
+          print(f"Frozen new P44 SHA: {row['commit_sha']}")
+          PY
+      - name: Build isolated student runtime image
+        run: python build_runtime_image.py
+      - name: Regenerate identical hidden instructor fixtures
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "${HIDDEN_SEED:-}"
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Run full midterm and final grading on new SHA
+        run: |
+          python -u evaluate_project.py \
+            --project P44 \
+            --submissions frozen_submissions.csv \
+            --workspace workspaces/P44/repo \
+            --mode all \
+            --plan-b \
+            --network-profile isolated
+      - name: Upload P44 exact-SHA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: targeted-P44-new-sha-${{ github.run_id }}
+          path: |
+            frozen/P44.metadata.json
+            frozen_submissions.csv
+            reports_unified/P44/
+            reports/P44/
+            reports_final/P44/
+          if-no-files-found: warn
+          retention-days: 90
