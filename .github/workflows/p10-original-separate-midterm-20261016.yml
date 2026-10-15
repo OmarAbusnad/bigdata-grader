@@ -1,0 +1,64 @@
+name: P10 Najm Separate Midterm Original Repository Full Evaluation
+on:
+  push:
+    paths:
+      - '.grader/trigger-p10-original-midterm-20261016.txt'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  p10-midterm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Fetch and freeze exact P10 midterm source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p workspaces/P10
+          git clone -q https://github.com/Najmadeenalwealdi/Project-for-big-data.git workspaces/P10/repo
+          git -C workspaces/P10/repo checkout -q --detach f97c8d99e11e314ce43b42722d7537bd8c949b66
+          test "$(git -C workspaces/P10/repo rev-parse HEAD)" = 'f97c8d99e11e314ce43b42722d7537bd8c949b66'
+          grep -F 'python src/main.py --file data/orders_sample_100000.csv' workspaces/P10/repo/README.md
+          python - <<'PY'
+          import csv
+          with open('frozen_submissions.csv','w',encoding='utf-8-sig',newline='') as f:
+            fields=['project_id','students','student_nos','repo_url','commit_sha','ref','workspace_subdir','freeze_status']
+            w=csv.DictWriter(f,fieldnames=fields);w.writeheader()
+            w.writerow({'project_id':'P10','students':'نجم الدين حيدر طه حزام الوليدي','student_nos':'','repo_url':'https://github.com/Najmadeenalwealdi/Project-for-big-data','commit_sha':'f97c8d99e11e314ce43b42722d7537bd8c949b66','ref':'f97c8d99e11e314ce43b42722d7537bd8c949b66','workspace_subdir':'','freeze_status':'READY'})
+          PY
+      - name: Prepare base runtime
+        run: python build_runtime_image.py
+      - name: Prepare deterministic original fixture set
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        shell: bash
+        run: |
+          test -n "${HIDDEN_SEED:-}"
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Evaluate complete P10 midterm original repository
+        run: |
+          python -u evaluate_project.py --project P10 \
+            --submissions frozen_submissions.csv --workspace workspaces/P10/repo \
+            --mode midterm --plan-b --no-ai --allow-low-confidence \
+            --network-profile isolated --timeout 1400
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p10-najm-separate-original-midterm-${{ github.run_id }}
+          path: |
+            frozen_submissions.csv
+            reports/P10/
+            reports_unified/P10/
+          if-no-files-found: warn
+          retention-days: 90
