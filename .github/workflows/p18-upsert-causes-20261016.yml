@@ -1,0 +1,101 @@
+name: P18 Exact SHA Upsert & Incremental Root Causes
+on:
+  push:
+    paths:
+      - '.grader/trigger-p18-upsert-oracle-20261016.txt'
+permissions:
+  contents: read
+jobs:
+  p18-upsert-causal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Freeze P18 original accepted Git revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q https://github.com/aimanqais1/big-data-pipeline-project.git student
+          git -C student checkout -q --detach 2024f325c24c3626c30193ab27945d9440093c25
+          test "$(git -C student rev-parse HEAD)" = "2024f325c24c3626c30193ab27945d9440093c25"
+      - name: Generate exact original secret-seeded teacher dataset
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        shell: bash
+        run: |
+          test -n "$HIDDEN_SEED"
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Replay all student classifications and explain inserts separately from database
+        shell: bash
+        run: |
+          python - <<'PY'
+          import csv,sys,json,collections,pathlib
+          sys.path.insert(0,str(pathlib.Path('student').resolve()))
+          from src.quality_rules import process_and_classify_record
+          root=pathlib.Path('datasets/hidden')
+          manifest=collections.defaultdict(dict)
+          with (root/'teacher_manifest.csv').open(encoding='utf-8-sig',newline='') as f:
+              for m in csv.DictReader(f):
+                  if m['csv_row_number']:
+                      manifest[m['dataset']][int(m['csv_row_number'])]=m
+          stages=[
+            ('TEST_01_BATCH_PIPELINE','test_01_small_batch_pipeline.csv'),
+            ('TEST_03_UPSERT_IDEMPOTENCY','test_03_upsert_idempotency.csv'),
+            ('TEST_04_INCREMENTAL_PLAN_B','test_04_incremental_plan_b.csv')
+          ]
+          ids=set(); stages_out=[]
+          for ds,file in stages:
+              tally=collections.Counter(); by_reasons=collections.defaultdict(collections.Counter)
+              seen_this_stage=set()
+              with (root/file).open(encoding='utf-8-sig',newline='') as f:
+                  for lineno,row in enumerate(csv.DictReader(f),2):
+                      meta=manifest[ds].get(lineno)
+                      if not meta:raise RuntimeError('Missing manifest row',ds,lineno)
+                      doc=process_and_classify_record({'raw_record':row,'id_run':ds,'source_file':file,'source_row_number':lineno})
+                      verdict=doc.get('classification')
+                      exp_action=meta['expected_action']
+                      ct=meta['error_type'] or '(no-case)'
+                      grp=by_reasons[(exp_action,ct)]
+                      grp['rows']+=1
+                      if verdict=='quarantined':
+                          tally['quarantine']+=1
+                          grp['quarantined']+=1
+                          continue
+                      k=doc.get('id_order')
+                      if not k: raise RuntimeError('missing id_order for validated source',lineno)
+                      if k not in ids:
+                          tally['new_keys']+=1
+                          grp['new_keys']+=1
+                      else:
+                          tally['matched_existing_keys']+=1
+                          grp['matched_existing_keys']+=1
+                      if exp_action not in ['insert','insert_validated'] and k not in ids:
+                          grp['UNEXPECTED_NEW_KEYS']+=1
+                      if exp_action=='quarantine':
+                          grp['QUARANTINE_AS_VALIDATED']+=1
+                      if k != meta['expected_order_id']:
+                          grp['NONCANONICAL_KEY']+=1
+                      ids.add(k)
+              output={'dataset':ds,'stats':dict(tally),'cumulative_validated_distinct':len(ids),
+                 'causal_by_case':[{'expected_action':k[0],'case':k[1],**dict(v)} for k,v in sorted(by_reasons.items()) if v.get('UNEXPECTED_NEW_KEYS') or v.get('QUARANTINE_AS_VALIDATED') or v.get('NONCANONICAL_KEY')]}
+              stages_out.append(output)
+              print('STAGE',ds,'TOTALS',json.dumps(output['stats']),'distinct',len(ids))
+              print('CAUSES',json.dumps(output['causal_by_case'],ensure_ascii=False))
+          result={'project':'P18','frozen_sha':'2024f325c24c3626c30193ab27945d9440093c25','code_modified':False,
+                  'method':'deterministic keyed id_order replay of actual student record classifier over exact teacher labeled input; independent from MongoDB',
+                  'stages':stages_out}
+          pathlib.Path('p18_exact_sha_upsert_causal.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
+          assert stages_out[0]['cumulative_validated_distinct']==18250
+          assert stages_out[1]['cumulative_validated_distinct']==18994
+          assert stages_out[2]['cumulative_validated_distinct']==19539
+          PY
+      - name: Archive proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p18-exact-sha-upsert-causal-${{ github.run_id }}
+          path: p18_exact_sha_upsert_causal.json
+          retention-days: 90
