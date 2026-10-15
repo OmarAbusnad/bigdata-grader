@@ -1,1 +1,1 @@
-P10 student final repo includes updated midterm code; grade the latest Phase 1 at c43fb24256bd9edb890be36f5ae7766df0a3696e, nested pro. 2026-10-16
+2026-10-16 P10 nested pro rerun: resolve path from root (manifest workspace_subdir=pro). No student source edits.
