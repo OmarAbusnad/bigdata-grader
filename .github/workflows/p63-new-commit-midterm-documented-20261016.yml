@@ -1,0 +1,83 @@
+name: P63 New SHA Midterm Documented No-API Command
+on:
+  push:
+    paths:
+      - '.grader/trigger-p63-doc-command-20261016.txt'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  p63-midterm-documented-command:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader
+        run: python -m pip install -r requirements.txt
+      - name: Exact P63 student source and teacher-verified documented command
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p workspaces/P63
+          git clone -q https://github.com/mohammedalhaj113837-hue/hybrid-elt-bigdata-pipeline.git workspaces/P63/repo
+          git -C workspaces/P63/repo checkout -q --detach 1031e76a8482abe14b95ffd8449b9cd850b9d291
+          test "$(git -C workspaces/P63/repo rev-parse HEAD)" = '1031e76a8482abe14b95ffd8449b9cd850b9d291'
+          grep -F 'python -m pipeline.run_pipeline --no-api' workspaces/P63/repo/README.md
+          grep -F '"--no-api" in sys.argv' workspaces/P63/repo/pipeline/run_pipeline.py
+          python - <<'PY'
+          import csv
+          with open('frozen_submissions.csv','w',encoding='utf-8-sig',newline='') as f:
+            cols=['project_id','students','student_nos','repo_url','commit_sha','ref','workspace_subdir','freeze_status']
+            w=csv.DictWriter(f,fieldnames=cols);w.writeheader()
+            w.writerow({'project_id':'P63','students':'محمد انور علي احمد الحاج','student_nos':'','repo_url':'https://github.com/mohammedalhaj113837-hue/hybrid-elt-bigdata-pipeline','commit_sha':'1031e76a8482abe14b95ffd8449b9cd850b9d291','ref':'1031e76a8482abe14b95ffd8449b9cd850b9d291','workspace_subdir':'','freeze_status':'READY'})
+          PY
+      - name: Write instructor execution-plan resolution matching student README exactly
+        shell: bash
+        run: |
+          mkdir -p /tmp/p63
+          cat > /tmp/p63/execute.yml <<'YAML'
+          entrypoint: pipeline/run_pipeline.py
+          ingest_command: "python -m pipeline.run_pipeline --no-api"
+          database_name: midterm_data_pipeline2
+          business_key: order_id
+          threshold_mb: 200
+          threshold_configurable: false
+          database_configurable: false
+          collections:
+            raw: orders_raw
+            validated: orders_validated
+            quarantine: orders_quarantine
+          YAML
+      - name: Build grader runtime image
+        run: python build_runtime_image.py
+      - name: Generate same hidden test data with teacher seed
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        shell: bash
+        run: |
+          test -n "${HIDDEN_SEED:-}"
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Grade midterm with documented terminating pipeline command
+        run: |
+          python -u evaluate_project.py --project P63 \
+            --submissions frozen_submissions.csv \
+            --workspace workspaces/P63/repo --mode midterm --plan-b \
+            --override /tmp/p63/execute.yml --no-ai --allow-low-confidence \
+            --network-profile isolated --timeout 900
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p63-new-commit-documented-command-midterm-${{ github.run_id }}
+          path: |
+            frozen_submissions.csv
+            reports/P63/
+            reports_unified/P63/
+          if-no-files-found: warn
+          retention-days: 90
