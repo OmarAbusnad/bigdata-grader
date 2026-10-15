@@ -1,0 +1,64 @@
+name: P29 Exact-SHA Midterm Full Grader Rerun
+on:
+  push:
+    paths:
+      - '.grader/trigger-p29-midterm-complete-20261015.txt'
+permissions:
+  contents: read
+jobs:
+  p29-midterm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 105
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Restore exact original frozen P29 source; no new student changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet https://github.com/kingmohammeds1122-cmd/hybrid-data-pipeline-midterm.git workspaces/P29/repo
+          git -C workspaces/P29/repo checkout --detach -q b024c95078585a55e65c53d4ccb68b44f08f95a8
+          test "$(git -C workspaces/P29/repo rev-parse HEAD)" = 'b024c95078585a55e65c53d4ccb68b44f08f95a8'
+          python - <<'PY'
+          import csv
+          with open('frozen_submissions.csv','w',encoding='utf-8-sig',newline='') as f:
+            w=csv.DictWriter(f,fieldnames=['project_id','students','student_nos','repo_url','commit_sha','ref','workspace_subdir','freeze_status'])
+            w.writeheader()
+            w.writerow({'project_id':'P29','students':'محمد عبدالرحمن حسين سند','student_nos':'','repo_url':'https://github.com/kingmohammeds1122-cmd/hybrid-data-pipeline-midterm','commit_sha':'b024c95078585a55e65c53d4ccb68b44f08f95a8','ref':'b024c95078585a55e65c53d4ccb68b44f08f95a8','workspace_subdir':'','freeze_status':'READY'})
+          print('P29 EXACT FROZEN SHA VERIFIED')
+          PY
+      - name: Build isolated grader base image
+        run: python build_runtime_image.py
+      - name: Prepare original deterministic midterm fixtures
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$HIDDEN_SEED"
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Full P29 midterm only regrade, no final and no edits to student source
+        run: |
+          python -u evaluate_project.py --project P29 \
+            --submissions frozen_submissions.csv \
+            --workspace workspaces/P29/repo \
+            --mode midterm --plan-b --allow-low-confidence --no-ai \
+            --network-profile isolated --timeout 1500
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p29-exact-sha-midterm-regrade-${{ github.run_id }}
+          path: |
+            frozen_submissions.csv
+            reports_unified/P29/
+            reports/P29/
+          if-no-files-found: warn
+          retention-days: 90
