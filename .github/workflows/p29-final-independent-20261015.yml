@@ -1,0 +1,85 @@
+name: P29 Frozen SHA Final API Independent Rerun
+on:
+  push:
+    paths:
+      - '.grader/trigger-p29-final-independent-20261015.txt'
+permissions:
+  contents: read
+jobs:
+  p29-final-real-mongo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mongo:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ping:1}).ok' || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Clone exact frozen accepted student revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q https://github.com/kingmohammeds1122-cmd/hybrid-data-pipeline-midterm.git student
+          git -C student checkout -q --detach b024c95078585a55e65c53d4ccb68b44f08f95a8
+          test "$(git -C student rev-parse HEAD)" = "b024c95078585a55e65c53d4ccb68b44f08f95a8"
+          echo FROZEN_P29_SOURCE_VERIFIED
+      - name: Install existing P29 requirements plus missing API runtime in EVALUATOR ONLY
+        run: |
+          python -m pip install -r student/requirements.txt
+          python -m pip install 'fastapi>=0.110,<1' 'uvicorn>=0.29,<1' 'httpx>=0.27,<1'
+      - name: Execute no-edit student FastAPI against new MongoDB and seeded fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd student
+          python -m uvicorn src.api:app --host 127.0.0.1 --port 8000 >/tmp/p29-uvicorn.log 2>&1 &
+          API_PID=$!
+          trap 'kill "$API_PID" 2>/dev/null || true; tail -80 /tmp/p29-uvicorn.log' EXIT
+          python - <<'PY'
+          import json,os,time,pathlib
+          import httpx,pymongo
+          url='http://127.0.0.1:8000'
+          db=pymongo.MongoClient('mongodb://localhost:27017/',serverSelectionTimeoutMS=8000)['midterm_data_pipeline']
+          for i in range(35):
+            try:
+              r=httpx.get(url+'/health',timeout=2)
+              if r.status_code==200: break
+            except Exception: pass
+            time.sleep(1)
+          else: raise AssertionError('Final API did not become ready with evaluator-provided dependencies')
+          db.orders_validated.insert_many([
+              {'order_id':'P29-A','customer_id':'CUST_001','status':'Completed','city':"Sana'a",'order_date':'2026-01-01','total_amount':6000.0,'items':[{'sku':'A','item_name':'A','quantity':2,'subtotal':6000.0}]},
+              {'order_id':'P29-B','customer_id':'CUST_002','status':'Pending','city':'Aden','order_date':'2026-01-02','total_amount':1500.0,'items':[{'sku':'B','item_name':'B','quantity':1,'subtotal':1500.0}]}])
+          outcomes=[]
+          def test(method,path):
+              try:
+                  resp=httpx.request(method,url+path,timeout=30)
+                  body=resp.json()
+                  rec={'method':method,'path':path,'status':resp.status_code,'response':body,'ok':resp.status_code==200 and not str(body.get('status') if isinstance(body,dict) else '').upper()=='FAILED'}
+              except Exception as e:
+                  rec={'method':method,'path':path,'status':None,'error':str(e),'ok':False}
+              outcomes.append(rec)
+              print('CHECK',method,path,rec['status'],rec['ok'])
+              return rec
+          for method,path in [('GET','/health'),('POST','/indexes'),('GET','/queries'),('GET','/queries/customer_orders'),('GET','/queries/orders_by_status'),('GET','/queries/high_value_orders'),('GET','/queries/orders_by_city'),('GET','/queries/orders_by_date_range'),('GET','/aggregations'),('GET','/aggregations/sales_by_city'),('GET','/aggregations/top_products'),('GET','/aggregations/top_customers'),('GET','/aggregations/sales_by_period'),('GET','/aggregations/orders_by_status'),('POST','/refresh-mv'),('GET','/jobs'),('POST','/jobs/refresh_materialized_views/run'),('POST','/jobs/generate_periodic_report/run'),('GET','/jobs'),('POST','/ingest')]:
+              test(method,path)
+          logs=list(db.jobs_log.find({}, {'_id':0}))
+          collections=db.list_collection_names()
+          report={'project':'P29','frozen_sha':'b024c95078585a55e65c53d4ccb68b44f08f95a8','student_code_modified':False,'evaluator_only_runtime_installed':['fastapi','uvicorn','httpx'],'requests':outcomes,'persisted_job_logs':[{**x,'started_at':str(x.get('started_at')),'ended_at':str(x.get('ended_at'))} for x in logs],'mongo_collections':collections,'counts':{'requests':len(outcomes),'passed':sum(x['ok'] for x in outcomes),'failed':sum(not x['ok'] for x in outcomes)}}
+          pathlib.Path('../p29_final_independent_rerun.json').write_text(json.dumps(report,ensure_ascii=False,indent=2,default=str)+'\n',encoding='utf-8')
+          print('FINAL_P29_SUMMARY='+json.dumps(report['counts']))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p29-frozen-final-independent-${{ github.run_id }}
+          path: p29_final_independent_rerun.json
+          if-no-files-found: warn
+          retention-days: 90
