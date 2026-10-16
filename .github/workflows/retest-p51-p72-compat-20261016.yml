@@ -1,0 +1,117 @@
+name: BigData Generic Import and Fixed CSV Recovery 2026-10-16
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/retest-p51-p72-compat-20261016.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  retest:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project_id: P51
+            repo: renadalhashdi/big-data-elt-pipeline
+            sha: 2f0c81d8341b862d300def33fd5bc89d60a327ab
+            students: ريناد عبد الخالق يحيى الحاشدي
+          - project_id: P72
+            repo: ZakariaQaria/big-data-project
+            sha: 4f83f6f7a64db072f2d4d3ef6689e5ea52001c32
+            students: زكريا يحيى علي قاريه
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+      STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 17df15caeffd60dfcdd325875143ef95a4891902
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader
+        run: python -m pip install -r requirements.txt
+      - name: Apply two generic grader environment-only compat repairs with regression proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('grader/sandbox.py')
+          s=p.read_text(encoding='utf-8')
+          old='            "-e", "MONGODB_URI=mongodb://mongo:27017",'
+          assert s.count(old)==1
+          s=s.replace(old,old+'\n            "-e", "PYTHONPATH=/workspace:/workspace/src",')
+          p.write_text(s,encoding='utf-8')
+          p=Path('grader/input_staging.py')
+          s=p.read_text(encoding='utf-8')
+          old='_PATTERNS = ('
+          assert s.count(old)==1
+          s=s.replace(old,old+'\n    r"FileNotFoundError:\\s*(?:CSV\\s+not\\s+found|No such file or directory):\\s*([A-Za-z0-9_./-]+\\.csv)",')
+          p.write_text(s,encoding='utf-8')
+          from grader.input_staging import missing_csv_path
+          assert missing_csv_path('FileNotFoundError: CSV not found: data/orders_400MB.csv')=='data/orders_400MB.csv'
+          assert missing_csv_path('FileNotFoundError: CSV not found: ../../etc/bad.csv') is None
+          assert missing_csv_path('FileNotFoundError: CSV not found: /etc/bad.csv') is None
+          print('Generic import-path and safe filename staging regression proofs PASS')
+          PY
+      - name: Prepare exact submission
+        env:
+          PROJECT: ${{ matrix.project_id }}
+          REPO: ${{ matrix.repo }}
+          SHA: ${{ matrix.sha }}
+          STUDENTS: ${{ matrix.students }}
+        run: |
+          python - <<'PY'
+          import csv,os
+          with open('submission_groups.csv',newline='',encoding='utf-8-sig') as f:
+              rows=list(csv.DictReader(f))
+          p=os.environ['PROJECT']
+          row=next((x.copy() for x in rows if x['project_id']==p),None)
+          if row is None:row={k:'' for k in rows[0]}
+          row.update({'project_id':p,'students':os.environ['STUDENTS'],'repo_url':'https://github.com/'+os.environ['REPO'],'repo_full_name':os.environ['REPO'],'ref':os.environ['SHA'],'stage':'final'})
+          with open('one.csv','w',encoding='utf-8',newline='') as f:
+              w=csv.DictWriter(f,fieldnames=list(row));w.writeheader();w.writerow(row)
+          PY
+          python freeze_submissions.py --submissions one.csv --project "${{ matrix.project_id }}" --output-dir frozen
+          python freeze_submissions.py --submissions one.csv --build-manifest --artifacts-dir frozen --output frozen_submissions.csv
+          python - <<'PY'
+          import csv,os
+          row=next(csv.DictReader(open('frozen_submissions.csv',encoding='utf-8-sig')))
+          assert row['freeze_status']=='READY'
+          assert row['commit_sha']==os.environ['SHA']
+          PY
+      - name: Build isolated student runtime
+        run: python build_runtime_image.py
+      - name: Prepare hidden fixtures
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "$HIDDEN_SEED"
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Run only midterm to recover previously blocked assertions
+        run: |
+          python -u evaluate_project.py --project "${{ matrix.project_id }}" \
+            --submissions frozen_submissions.csv \
+            --workspace "workspaces/${{ matrix.project_id }}/repo" \
+            --mode midterm --plan-b --network-profile isolated
+      - name: Save diagnostic and scored evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compatible-midterm-${{ matrix.project_id }}-${{ github.run_id }}
+          path: |
+            frozen/${{ matrix.project_id }}.metadata.json
+            frozen_submissions.csv
+            reports/${{ matrix.project_id }}/
+            reports_unified/${{ matrix.project_id }}/
+          if-no-files-found: warn
+          retention-days: 90
