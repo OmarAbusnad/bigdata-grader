@@ -67,7 +67,7 @@ jobs:
           python - <<'PY'
           import csv,os
           with open('submission_groups.csv',encoding='utf-8-sig',newline='') as f:rows=list(csv.DictReader(f))
-          fields=list(rows[0])
+          fields=list(rows[0]) + [k for k in ('ref','grading_mode','historical_policy') if k not in rows[0]]
           row={k:'' for k in fields}
           row.update({
               'project_id':os.environ['PROJECT'],
