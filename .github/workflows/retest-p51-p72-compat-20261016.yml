@@ -53,7 +53,7 @@ jobs:
           p.write_text(s,encoding='utf-8')
           p=Path('grader/input_staging.py')
           s=p.read_text(encoding='utf-8')
-          old='_PATTERNS = ('
+          old='\n_PATTERNS = ('
           assert s.count(old)==1
           s=s.replace(old,old+'\n    r"FileNotFoundError: *CSV +not +found: *([A-Za-z0-9_./-]+[.]csv)",')
           p.write_text(s,encoding='utf-8')
