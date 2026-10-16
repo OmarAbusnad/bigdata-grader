@@ -55,7 +55,7 @@ jobs:
           s=p.read_text(encoding='utf-8')
           old='_PATTERNS = ('
           assert s.count(old)==1
-          s=s.replace(old,old+'\n    r"FileNotFoundError:\\s*(?:CSV\\s+not\\s+found|No such file or directory):\\s*([A-Za-z0-9_./-]+\\.csv)",')
+          s=s.replace(old,old+'\n    r"FileNotFoundError: *CSV +not +found: *([A-Za-z0-9_./-]+[.]csv)",')
           p.write_text(s,encoding='utf-8')
           from grader.input_staging import missing_csv_path
           assert missing_csv_path('FileNotFoundError: CSV not found: data/orders_400MB.csv')=='data/orders_400MB.csv'
