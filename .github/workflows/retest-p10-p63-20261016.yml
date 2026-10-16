@@ -1,0 +1,134 @@
+name: BigData P10 P63 Latest Source Isolated Evaluation 2026-10-16
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/retest-p10-p63-20261016.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  grade:
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - project_id: P10M
+            actual_project: P10
+            repo: Najmadeenalwealdi/Project-for-big-data
+            sha: f97c8d99e11e314ce43b42722d7537bd8c949b66
+            subdir: ''
+            student: نجم الدين حيدر طه حزام الوليدي
+            mode: midterm
+          - project_id: P10F
+            actual_project: P10
+            repo: Najmadeenalwealdi/finall-project-for-big-data
+            sha: c43fb24256bd9edb890be36f5ae7766df0a3696e
+            subdir: pro
+            student: نجم الدين حيدر طه حزام الوليدي
+            mode: all
+          - project_id: P63
+            actual_project: P63
+            repo: mohammedalhaj113837-hue/hybrid-elt-bigdata-pipeline
+            sha: 1031e76a8482abe14b95ffd8449b9cd850b9d291
+            subdir: ''
+            student: محمد انور علي احمد الحاج
+            mode: all
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+      STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 17df15caeffd60dfcdd325875143ef95a4891902
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader
+        run: python -m pip install -r requirements.txt
+      - name: Create exact-SHA grading input with submitted nested workspace preserved
+        env:
+          PROJECT: ${{ matrix.project_id }}
+          STUDENT: ${{ matrix.student }}
+          REPO: ${{ matrix.repo }}
+          SHA: ${{ matrix.sha }}
+          SUBDIR: ${{ matrix.subdir }}
+          MODE: ${{ matrix.mode }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv,os
+          with open('submission_groups.csv',encoding='utf-8-sig',newline='') as f:rows=list(csv.DictReader(f))
+          fields=list(rows[0])
+          row={k:'' for k in fields}
+          row.update({
+              'project_id':os.environ['PROJECT'],
+              'students':os.environ['STUDENT'],
+              'repo_url':'https://github.com/'+os.environ['REPO']+('/tree/main/'+os.environ['SUBDIR'] if os.environ['SUBDIR'] else ''),
+              'repo_full_name':os.environ['REPO'],
+              'ref':os.environ['SHA'],
+              'stage':'final' if os.environ['MODE']=='all' else 'midterm',
+              'grading_mode':os.environ['MODE'],
+              'historical_policy':'retain_prior_evidence'
+          })
+          with open('single_submission.csv','w',encoding='utf-8',newline='') as f:
+              w=csv.DictWriter(f,fieldnames=fields);w.writeheader();w.writerow(row)
+          print('Frozen target',row['project_id'],row['repo_url'],row['ref'])
+          PY
+      - name: Freeze at student SHA and validate source/subdirectory
+        env:
+          PROJECT: ${{ matrix.project_id }}
+          SHA: ${{ matrix.sha }}
+          SUBDIR: ${{ matrix.subdir }}
+        run: |
+          set -euo pipefail
+          python freeze_submissions.py --submissions single_submission.csv --project "$PROJECT" --output-dir frozen
+          python freeze_submissions.py --submissions single_submission.csv --build-manifest --artifacts-dir frozen --output frozen_submissions.csv
+          python - <<'PY'
+          import csv,os
+          x=next(csv.DictReader(open('frozen_submissions.csv',encoding='utf-8-sig')))
+          assert x['freeze_status']=='READY',x
+          assert x['commit_sha']==os.environ['SHA'],x
+          assert (x.get('workspace_subdir') or '')==os.environ['SUBDIR'],x
+          print('Source verified',x['project_id'],x['commit_sha'],x['workspace_subdir'])
+          PY
+      - name: Build base isolated runtime
+        run: python build_runtime_image.py
+      - name: Regenerate teacher hidden data
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          set -euo pipefail
+          test -n "$HIDDEN_SEED"
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Execute independent midterm and final suites on actual source
+        env:
+          PROJECT: ${{ matrix.project_id }}
+          MODE: ${{ matrix.mode }}
+        run: |
+          python -u evaluate_project.py \
+            --project "$PROJECT" \
+            --submissions frozen_submissions.csv \
+            --workspace "workspaces/$PROJECT/repo" \
+            --mode "$MODE" --plan-b --network-profile isolated
+      - name: Upload source-grade evidence regardless of suite outcome
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: actual-latest-${{ matrix.project_id }}-${{ github.run_id }}
+          path: |
+            frozen/${{ matrix.project_id }}.metadata.json
+            frozen_submissions.csv
+            reports_unified/${{ matrix.project_id }}/
+            reports/${{ matrix.project_id }}/
+            reports_final/${{ matrix.project_id }}/
+          if-no-files-found: warn
+          retention-days: 90
