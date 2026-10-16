@@ -1,0 +1,101 @@
+name: P44 Forensic Isolation 2026-10-16
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/p44-forensic-check-20261016.yml']
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/consolidated-fair-grading-20261014
+          path: grader
+      - uses: actions/checkout@v4
+        with:
+          repository: tarep2021-hue/hybrid-elt-bigdata-pipeline
+          ref: 0dc6d045d91784b4ff723c6fb6cf81cb11d7e5fb
+          path: student
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate same hidden fixture and validate student source
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "$HIDDEN_SEED"
+          python grader/datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+          test "$(git -C student rev-parse HEAD)" = "0dc6d045d91784b4ff723c6fb6cf81cb11d7e5fb"
+          mkdir -p proof/in proof/probe
+      - name: Prepare constrained student classifier script
+        run: |
+          cat > proof/probe/student_probe.py <<'PY'
+          import csv,json,sys
+          sys.path.insert(0,"/student")
+          from src.quality_rules import apply_rules
+          names=["test_01_small_batch_pipeline","test_03_upsert_idempotency"]
+          for name in names:
+              with open("/tests/"+name+".csv",encoding="utf-8-sig",newline="") as f,open("/out/"+name+".jsonl","w",encoding="utf-8") as dest:
+                  for idx,row in enumerate(csv.DictReader(f),start=2):
+                      try:
+                          status,doc,details=apply_rules(dict(row))
+                          v=dict(line=idx,status=status,key=doc.get("order_id") if status!="quarantine" else None,audit=bool(doc.get("corrections")) if status!="quarantine" else False,error_codes=[d.get("error_code") for d in details] if status=="quarantine" else [])
+                      except Exception as e:
+                          v=dict(line=idx,status="EXCEPTION",exception=type(e).__name__)
+                      dest.write(json.dumps(v,ensure_ascii=False)+"\n")
+          PY
+      - name: Run student logic only, isolated Docker, no teacher oracle
+        run: |
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --memory 1g --cpus 2 --user "$(id -u):$(id -g)" --tmpfs /tmp:rw,nosuid,noexec -e PYTHONDONTWRITEBYTECODE=1 -v "$PWD/student:/student:ro" -v "$PWD/grader/datasets/hidden:/tests:ro" -v "$PWD/proof/probe:/probe:ro" -v "$PWD/proof/in:/out:rw" python:3.12-slim python /probe/student_probe.py
+      - name: Host-only compare with teacher manifest; output aggregates not secrets
+        run: |
+          cat > proof/reconcile.py <<'PY'
+          import csv,json,collections,pathlib
+          P=pathlib.Path('proof')
+          manifest=list(csv.DictReader(open('grader/datasets/hidden/teacher_manifest.csv',encoding='utf-8-sig',newline='')))
+          names=[('TEST_01_BATCH_PIPELINE','test_01_small_batch_pipeline'),('TEST_03_UPSERT_IDEMPOTENCY','test_03_upsert_idempotency')]
+          out={'project':'P44','sha':'0dc6d045d91784b4ff723c6fb6cf81cb11d7e5fb'}
+          data={}
+          for ds,name in names:
+              rows={}
+              for line in open(P/'in'/f'{name}.jsonl',encoding='utf-8'): 
+                  x=json.loads(line);rows[str(x['line'])]=x
+              data[ds]=rows
+              groups=collections.defaultdict(collections.Counter)
+              for m in manifest:
+                  if m['dataset']!=ds or not m['csv_row_number']:continue
+                  v=rows[m['csv_row_number']]
+                  grp=m['error_type'] or m['expected_class']
+                  c=groups[grp];c['rows']+=1;c['observed_'+v['status']]+=1;c['audit_present']+=int(v.get('audit',False))
+                  expected_valid=m['expected_action']!='quarantine'
+                  actual_valid=v['status'] not in ('quarantine','EXCEPTION')
+                  if expected_valid!=actual_valid:c['classification_mismatch']+=1
+                  if expected_valid and actual_valid and v['key']!=m['expected_order_id']:c['wrong_key']+=1
+                  for error in v.get('error_codes',[]):c['err_'+str(error)]+=1
+              out[ds]={'status_counts':dict(collections.Counter(v['status'] for v in rows.values())),'by_case':{k:dict(v) for k,v in sorted(groups.items())}}
+          baseline={v['key'] for v in data[names[0][0]].values() if v['status'] not in ('quarantine','EXCEPTION')}
+          unexpected=collections.Counter();new=0
+          for m in manifest:
+              if m['dataset']!=names[1][0] or not m['csv_row_number']: continue
+              v=data[names[1][0]][m['csv_row_number']]
+              if v['status'] in ('quarantine','EXCEPTION'):continue
+              if v['key'] not in baseline:
+                  new+=1
+                  if m['expected_action']!='insert': unexpected[m['expected_action']]+=1
+          out['upsert']={'new_key_candidates':new,'unexpected_new_keys':dict(unexpected)}
+          (P/'P44_AGGREGATE_ROOT_CAUSE.json').write_text(json.dumps(out,ensure_ascii=False,indent=2),encoding='utf-8')
+          for ds,_ in names: print(ds,out[ds]['status_counts'])
+          print('upsert',out['upsert'])
+          PY
+          python proof/reconcile.py
+          rm -rf proof/in proof/probe proof/reconcile.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: P44-root-cause-${{ github.run_id }}
+          path: proof/P44_AGGREGATE_ROOT_CAUSE.json
+          retention-days: 90
