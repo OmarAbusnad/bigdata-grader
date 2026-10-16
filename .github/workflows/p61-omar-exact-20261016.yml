@@ -1,0 +1,77 @@
+name: P61 Omar Abdali Exact SHA Midterm and Final 2026-10-16
+on:
+  push:
+    paths:
+      - '.github/workflows/p61-omar-exact-20261016.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  grade-p61:
+    name: P61 Omar ${{ matrix.mode }} exact SHA
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [midterm, final]
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install evaluator requirements
+        run: python -m pip install -r requirements.txt
+      - name: Fetch P61 exact source SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p workspaces/P61
+          git clone -q https://github.com/oma4-ai/midterm-data-pipeline.git workspaces/P61/repo
+          git -C workspaces/P61/repo checkout -q --detach 07a9a6ebef5ead60c87f9ed6e0a78fefc7e8ae51
+          test "$(git -C workspaces/P61/repo rev-parse HEAD)" = '07a9a6ebef5ead60c87f9ed6e0a78fefc7e8ae51'
+          python - <<'PY'
+          import csv
+          with open('frozen_submissions.csv','w',encoding='utf-8-sig',newline='') as f:
+              cols=['project_id','students','student_nos','repo_url','commit_sha','ref','workspace_subdir','freeze_status']
+              w=csv.DictWriter(f,fieldnames=cols)
+              w.writeheader()
+              w.writerow({'project_id':'P61','students':'عمر علي صغير العبدلي','student_nos':'','repo_url':'https://github.com/oma4-ai/midterm-data-pipeline','commit_sha':'07a9a6ebef5ead60c87f9ed6e0a78fefc7e8ae51','ref':'07a9a6ebef5ead60c87f9ed6e0a78fefc7e8ae51','workspace_subdir':'','freeze_status':'READY'})
+          print('P61_FIXED_SHA=07a9a6ebef5ead60c87f9ed6e0a78fefc7e8ae51')
+          PY
+      - name: Build isolated grader execution image
+        run: python build_runtime_image.py
+      - name: Prepare identical hidden test fixtures
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${HIDDEN_SEED:-}"
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Evaluate P61 ${{ matrix.mode }} at exact SHA
+        run: |
+          python -u evaluate_project.py --project P61 \
+            --submissions frozen_submissions.csv \
+            --workspace workspaces/P61/repo --mode "${{ matrix.mode }}" \
+            --plan-b --allow-low-confidence --no-ai \
+            --network-profile isolated --timeout 1100
+      - name: Upload independent P61 ${{ matrix.mode }} evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p61-omar-${{ matrix.mode }}-${{ github.run_id }}
+          path: |
+            frozen_submissions.csv
+            reports/P61/
+            reports_unified/P61/
+            reports_final/P61/
+          if-no-files-found: warn
+          retention-days: 90
