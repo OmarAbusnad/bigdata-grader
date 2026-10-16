@@ -1,0 +1,117 @@
+name: Targeted P51 Rindad and P71 Al-Dhafer Grading 2026-10-16
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/targeted-p51-p71-20261016.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  grade:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project_id: P51
+            repo: renadalhashdi/big-data-elt-pipeline
+            sha: 6a534b0bd6d53b36e418f1ec6806cdcadce0c792
+            student: Renad
+          - project_id: P71
+            repo: Mohammedaldhafer/midterm-data-pipeline
+            sha: f635d9842f053e0749e85a92bcf36e31ea9a98ea
+            student: Dhafer
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+      STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 17df15caeffd60dfcdd325875143ef95a4891902
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Grader requirements
+        run: python -m pip install -r requirements.txt
+      - name: Materialize exact-SHA input for one project, do not alter student source
+        env:
+          TARGET_PROJECT: ${{ matrix.project_id }}
+          TARGET_REPO: ${{ matrix.repo }}
+          TARGET_SHA: ${{ matrix.sha }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv,os
+          with open('submission_groups.csv',newline='',encoding='utf-8-sig') as f:
+              rows=list(csv.DictReader(f))
+          project=os.environ['TARGET_PROJECT']
+          if project=='P51':
+              row=next(x for x in rows if x['project_id']==project).copy()
+          else:
+              assert project=='P71' and all(x['project_id']!='P71' for x in rows)
+              row={k:'' for k in rows[0]}
+              row.update({'project_id':'P71','students':'محمد الظافر','student_nos':'','project_title':'','track':''})
+          row.update({'repo_url':'https://github.com/'+os.environ['TARGET_REPO'],'repo_full_name':os.environ['TARGET_REPO'],'ref':os.environ['TARGET_SHA'],'stage':'final','grading_mode':'all','historical_policy':'retain_prior_evidence'})
+          with open('single_submission.csv','w',newline='',encoding='utf-8') as f:
+              w=csv.DictWriter(f,fieldnames=list(row));w.writeheader();w.writerow(row)
+          print(f"Frozen submission target: {project} -> {row['repo_full_name']} @ {row['ref']}")
+          PY
+      - name: Freeze SHA, verify output
+        env:
+          TARGET_PROJECT: ${{ matrix.project_id }}
+          TARGET_SHA: ${{ matrix.sha }}
+        run: |
+          set -euo pipefail
+          python freeze_submissions.py --submissions single_submission.csv --project "$TARGET_PROJECT" --output-dir frozen
+          python freeze_submissions.py --submissions single_submission.csv --build-manifest --artifacts-dir frozen --output frozen_submissions.csv
+          python - <<'PY'
+          import csv,os
+          rows=list(csv.DictReader(open('frozen_submissions.csv',encoding='utf-8-sig')))
+          matches=[r for r in rows if r['project_id']==os.environ['TARGET_PROJECT']]
+          assert len(matches)==1
+          r=matches[0]
+          assert r['freeze_status']=='READY',(r.get('freeze_status'),r.get('freeze_error'))
+          assert r['commit_sha']==os.environ['TARGET_SHA'],(r['commit_sha'],os.environ['TARGET_SHA'])
+          print('Frozen exact student commit:',r['commit_sha'])
+          PY
+      - name: Build isolated student runtime
+        run: python build_runtime_image.py
+      - name: Recreate identical teacher-hidden datasets
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          set -euo pipefail
+          test -n "$HIDDEN_SEED"
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Run actual isolated midterm plus final against one target SHA
+        env:
+          TARGET_PROJECT: ${{ matrix.project_id }}
+        run: |
+          python -u evaluate_project.py \
+            --project "$TARGET_PROJECT" \
+            --submissions frozen_submissions.csv \
+            --workspace "workspaces/$TARGET_PROJECT/repo" \
+            --mode all \
+            --plan-b \
+            --network-profile isolated
+      - name: Upload machine evidence with raw grade breakdown
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regrade-${{ matrix.project_id }}-${{ github.run_id }}
+          path: |
+            frozen/${{ matrix.project_id }}.metadata.json
+            frozen_submissions.csv
+            reports_unified/${{ matrix.project_id }}/
+            reports/${{ matrix.project_id }}/
+            reports_final/${{ matrix.project_id }}/
+          if-no-files-found: warn
+          retention-days: 90
