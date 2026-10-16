@@ -1,0 +1,81 @@
+name: Targeted P71 MongoDB Correct-Database Midterm 2026-10-16
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/targeted-p71-correct-db-20261016.yml']
+permissions:
+  contents: read
+jobs:
+  p71:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+      STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 17df15caeffd60dfcdd325875143ef95a4891902
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader deps
+        run: python -m pip install -r requirements.txt
+      - name: Freeze P71 at original tested SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          row=dict(project_id='P71',students='محمد الظافر',student_nos='',project_title='',repo_url='https://github.com/Mohammedaldhafer/midterm-data-pipeline',repo_full_name='Mohammedaldhafer/midterm-data-pipeline',stage='midterm',track='',ref='f635d9842f053e0749e85a92bcf36e31ea9a98ea',grading_mode='midterm',historical_policy='retain_prior_evidence')
+          with open('p71.csv','w',encoding='utf-8',newline='') as f:
+              w=csv.DictWriter(f,fieldnames=list(row));w.writeheader();w.writerow(row)
+          PY
+          python freeze_submissions.py --submissions p71.csv --project P71 --output-dir frozen
+          python freeze_submissions.py --submissions p71.csv --build-manifest --artifacts-dir frozen --output frozen_submissions.csv
+          python - <<'PY'
+          import csv
+          row=next(csv.DictReader(open('frozen_submissions.csv',encoding='utf-8-sig')))
+          assert row['freeze_status']=='READY'
+          assert row['commit_sha']=='f635d9842f053e0749e85a92bcf36e31ea9a98ea'
+          PY
+          cat > p71-correct-db.yaml <<'YAML'
+          database_name: midterm_data_pipeline
+          database_configurable: false
+          YAML
+      - name: Build isolated runtime
+        run: python build_runtime_image.py
+      - name: Generate instructor inputs identical seed
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "$HIDDEN_SEED"
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Re-evaluate ONLY midterm with evidenced original DB
+        run: |
+          python -u evaluate_project.py \
+            --project P71 \
+            --submissions frozen_submissions.csv \
+            --workspace workspaces/P71/repo \
+            --mode midterm \
+            --override p71-correct-db.yaml \
+            --plan-b \
+            --network-profile isolated
+      - name: Upload focused tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: P71-correct-DB-midterm-${{ github.run_id }}
+          path: |
+            frozen/P71.metadata.json
+            frozen_submissions.csv
+            p71-correct-db.yaml
+            reports_unified/P71/
+            reports/P71/
+          if-no-files-found: warn
+          retention-days: 90
