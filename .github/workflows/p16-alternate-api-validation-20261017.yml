@@ -1,0 +1,114 @@
+name: P16 Alternate Analytics API Independent Probe 2026-10-17
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/p16-alternate-api-validation-20261017.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prove-actual-functions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ping:1}).ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Fetch exact immutable student source, unchanged
+        uses: actions/checkout@v4
+        with:
+          repository: abdalsalam77/midterm-data-pipeline
+          ref: ceb185926741304c90dac2216e5341213ca7dc6d
+          path: student
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Supplemental API deps for diagnostic only, not attribution of student installation points
+        run: |
+          python -m pip install pymongo python-dotenv fastapi uvicorn schedule
+          echo 'Original requirements lacked fastapi uvicorn schedule; supplied by instructor test environment ONLY' > dependency_note.txt
+      - name: Run student own alternate endpoints against seeded isolated MongoDB
+        env:
+          MONGO_URI: mongodb://127.0.0.1:27017
+          MONGO_DATABASE: midterm_data_pipeline
+        run: |
+          set -euo pipefail
+          cd student
+          python -m uvicorn src.api:app --host 127.0.0.1 --port 8000 > ../p16-api-server.log 2>&1 &
+          echo $! > ../p16-api.pid
+          cd ..
+          python - <<'PY'
+          import json,time,urllib.request,urllib.error,os
+          from pymongo import MongoClient
+          from datetime import datetime, timezone
+          c=MongoClient('mongodb://127.0.0.1:27017',serverSelectionTimeoutMS=5000)
+          c.admin.command('ping')
+          db=c['midterm_data_pipeline']
+          db['orders_validated'].insert_many([
+              {'order_id':'PROBE-A','quality_status':'valid','city':'Sanaa','order_date':'2026-10-16','total_amount':120.0,'customer_id':'CUST-A'},
+              {'order_id':'PROBE-B','quality_status':'corrected','city':'Aden','order_date':'2026-10-16','total_amount':50.0,'customer_id':'CUST-B'},
+              {'order_id':'PROBE-C','quality_status':'valid','city':'Sanaa','order_date':'2026-10-17','total_amount':35.0,'customer_id':'CUST-C'}
+          ])
+          def api(path,method='GET'):
+              request=urllib.request.Request('http://127.0.0.1:8000'+path,data=b'' if method=='POST' else None,method=method)
+              try:
+                  with urllib.request.urlopen(request,timeout=15) as r:
+                      raw=r.read()
+                      try:body=json.loads(raw.decode('utf-8'))
+                      except Exception:body=raw.decode('utf-8',errors='replace')[:600]
+                      return {'code':r.status,'body':body}
+              except urllib.error.HTTPError as exc:
+                  return {'code':exc.code,'body':exc.read().decode('utf-8',errors='replace')[:600]}
+              except Exception as exc:return {'error':repr(exc)}
+          for i in range(35):
+              if api('/health').get('code')==200:break
+              time.sleep(1)
+          results={}
+          for label,path,method in [
+              ('health','/health','GET'),('indexes','/indexes','POST'),
+              ('queries','/queries','GET'),('explain','/explain','GET'),
+              ('aggregations','/aggregations','GET'),
+              ('mv_refresh_first','/materialized-views/refresh','POST'),
+              ('mv_refresh_second','/materialized-views/refresh','POST'),
+              ('analytics_report','/report','POST')]:
+              results[label]=api(path,method)
+              print(label,results[label].get('code'),str(results[label].get('body'))[:300],flush=True)
+          results['mongo']={
+              'source_validated':db['orders_validated'].count_documents({}),
+              'mv_daily_sales':db['mv_daily_sales'].count_documents({}),
+              'mv_city_summary':db['mv_city_summary'].count_documents({}),
+              'index_count':len(list(db['orders_validated'].list_indexes()))
+          }
+          results['query_groups']=list((results.get('queries',{}).get('body') or {}).keys()) if isinstance(results.get('queries',{}).get('body'),dict) else []
+          results['aggregation_groups']=list((results.get('aggregations',{}).get('body') or {}).keys()) if isinstance(results.get('aggregations',{}).get('body'),dict) else []
+          with open('p16-alternate-api-proof.json','w') as f:json.dump(results,f,ensure_ascii=False,indent=2,default=str)
+          print('QUERY_GROUPS',results['query_groups']);print('AGGREGATION_GROUPS',results['aggregation_groups']);print('MONGO_RESULT',results['mongo'])
+          PY
+          cd student
+          python - <<'PY' > ../p16-scheduler-smoke.log 2>&1
+          from src.scheduled_jobs import refresh_and_report
+          refresh_and_report()
+          print('Manual scheduler core invocation attempted')
+          PY
+          cd ..
+          echo API_REPORT_EXISTS=$(test -f student/reports/analytics_report.json && echo true || echo false)
+      - name: Upload independent truth evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p16-alternate-api-functional-proof-${{ github.run_id }}
+          path: |
+            p16-alternate-api-proof.json
+            p16-api-server.log
+            p16-scheduler-smoke.log
+            dependency_note.txt
+          if-no-files-found: warn
+          retention-days: 90
