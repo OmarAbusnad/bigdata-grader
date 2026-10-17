@@ -1,0 +1,83 @@
+name: P51 Renad Latest 2026-10-17 Independent Full Regrade
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/p51-renad-latest-full-20261017.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  grade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+      STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
+      PROJECT: P51
+      STUDENT_SHA: 5a47e9db59bc198ff1195f5fd789789148cbe10c
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ab9f4f032484a50df409d8f21a40a3df93b6f840
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader only
+        run: python -m pip install -r requirements.txt
+      - name: Freeze new student source and verify commit without changing student files
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv,os
+          with open('submission_groups.csv',encoding='utf-8-sig',newline='') as f:
+              rows=list(csv.DictReader(f))
+          row=next(x.copy() for x in rows if x['project_id']==os.environ['PROJECT'])
+          assert row['repo_full_name']=='renadalhashdi/big-data-elt-pipeline',row
+          row.update({'ref':os.environ['STUDENT_SHA'],'stage':'final','grading_mode':'all','historical_policy':'retain_prior_evidence'})
+          with open('one_submission.csv','w',encoding='utf-8',newline='') as f:
+              writer=csv.DictWriter(f,fieldnames=list(row));writer.writeheader();writer.writerow(row)
+          PY
+          python freeze_submissions.py --submissions one_submission.csv --project "$PROJECT" --output-dir frozen
+          python freeze_submissions.py --submissions one_submission.csv --build-manifest --artifacts-dir frozen --output frozen_submissions.csv
+          python - <<'PY'
+          import csv,os
+          x=next(csv.DictReader(open('frozen_submissions.csv',encoding='utf-8-sig')))
+          assert x['freeze_status']=='READY',x
+          assert x['commit_sha']==os.environ['STUDENT_SHA'],x
+          print('Verified student commit', x['commit_sha'])
+          PY
+      - name: Build isolated student dependency image
+        run: python build_runtime_image.py
+      - name: Reconstruct official hidden fixtures from grader seed
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          set -euo pipefail
+          test -n "$HIDDEN_SEED"
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Execute midterm and final suites without student modifications
+        run: |
+          python -u evaluate_project.py \
+            --project "$PROJECT" --submissions frozen_submissions.csv \
+            --workspace "workspaces/$PROJECT/repo" \
+            --mode all --plan-b --network-profile isolated
+      - name: Preserve runtime test evidence and recorded criteria
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p51-latest-frozen-${{ github.run_id }}
+          path: |
+            one_submission.csv
+            frozen/P51.metadata.json
+            frozen_submissions.csv
+            reports/P51/
+            reports_final/P51/
+            reports_unified/P51/
+          if-no-files-found: warn
+          retention-days: 90
