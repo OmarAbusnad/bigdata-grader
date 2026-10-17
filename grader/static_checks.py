@@ -67,15 +67,23 @@ def static_checks(repo_path: str | Path) -> dict:
         if 'tests' in p.parts and (p.name.startswith('test_') or p.name.endswith('_test.py'))
     ]
 
+    # Student repositories may have the Phase-2 extension in its own supported
+    # subdirectory. A root-only scan makes real documentation/dependencies vanish.
+    allowed_extension_dirs = ("final_extension", "final", "phase2", "phase_2", "phase-2", "pro")
+    candidate_roots = [repo] + [repo / name for name in allowed_extension_dirs if (repo / name).is_dir()]
     readme_candidates = [
-        p for p in repo.iterdir()
+        p for root in candidate_roots for p in root.iterdir()
         if p.is_file() and p.name.lower() == "readme.md"
     ]
-    readme_name = readme_candidates[0].name if readme_candidates else None
+    requirements_candidates = [
+        p for root in candidate_roots for p in root.iterdir()
+        if p.is_file() and (p.name.lower() == "requirements.txt" or p.name.lower() == "requirements-final.txt")
+    ]
+    readme_name = rel(readme_candidates[0]) if readme_candidates else None
 
     checks = {
         'has_readme': bool(readme_candidates),
-        'has_requirements': (repo / 'requirements.txt').exists(),
+        'has_requirements': bool(requirements_candidates),
         'has_batch_loader': bool(batch_files),
         'has_spark_loader': bool(spark_files),
         'mentions_orders_raw': bool(collection_evidence['orders_raw']),
@@ -88,7 +96,7 @@ def static_checks(repo_path: str | Path) -> dict:
 
     evidence = {
         'has_readme': [readme_name] if readme_name else [],
-        'has_requirements': ['requirements.txt'] if checks['has_requirements'] else [],
+        'has_requirements': [rel(p) for p in requirements_candidates],
         'has_batch_loader': [rel(p) for p in batch_files[:8]],
         'has_spark_loader': [rel(p) for p in spark_files[:8]],
         'mentions_orders_raw': collection_evidence['orders_raw'],
