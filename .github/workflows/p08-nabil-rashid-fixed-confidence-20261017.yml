@@ -1,0 +1,81 @@
+name: P08 Nabil Rashid After LLM Gate Repair 2026-10-17
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/p08-nabil-rashid-fixed-confidence-20261017.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  forensic-regrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+      STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
+      PROJECT: P08
+      STUDENT_SHA: dff0bbf63e7f82a3d468a21b7451f1a998930fa2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 9fd0aa13affd992185d6f3fca0296f32d016681d
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader
+        run: python -m pip install -r requirements.txt
+      - name: Pin and freeze original P08 repository without student code modification
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv,os
+          with open('submission_groups.csv',newline='',encoding='utf-8-sig') as f:rows=list(csv.DictReader(f))
+          row=next(x.copy() for x in rows if x['project_id']==os.environ['PROJECT'])
+          assert row['repo_full_name']=='Nabelhossensalh/-data_pipeline-',row
+          row.update({'ref':os.environ['STUDENT_SHA'],'stage':'final','grading_mode':'all','historical_policy':'retain_prior_evidence'})
+          with open('one_submission.csv','w',newline='',encoding='utf-8') as f:
+              w=csv.DictWriter(f,fieldnames=list(row));w.writeheader();w.writerow(row)
+          PY
+          python freeze_submissions.py --submissions one_submission.csv --project "$PROJECT" --output-dir frozen
+          python freeze_submissions.py --submissions one_submission.csv --build-manifest --artifacts-dir frozen --output frozen_submissions.csv
+          python - <<'PY'
+          import csv,os
+          d=next(csv.DictReader(open('frozen_submissions.csv',encoding='utf-8-sig')))
+          assert d['freeze_status']=='READY',d
+          assert d['commit_sha']==os.environ['STUDENT_SHA'],d
+          print('Verified student commit:',d['commit_sha'])
+          PY
+      - name: Build isolated grader Docker environment
+        run: python build_runtime_image.py
+      - name: Prepare teacher hidden test data
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "$HIDDEN_SEED"
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Execute midterm and final regression with grader provenance
+        run: |
+          python -u evaluate_project.py \
+            --project "$PROJECT" \
+            --submissions frozen_submissions.csv \
+            --workspace "workspaces/$PROJECT/repo" \
+            --mode all --plan-b --network-profile isolated
+      - name: Upload raw machine evidence and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p08-confidence-fixed-${{ github.run_id }}
+          path: |
+            frozen/P08.metadata.json
+            frozen_submissions.csv
+            reports/P08/
+            reports_final/P08/
+            reports_unified/P08/
+          if-no-files-found: warn
+          retention-days: 90
