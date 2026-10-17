@@ -1,0 +1,84 @@
+name: New Student Ibrahim Independent Final-Only Evaluation 2026-10-17
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/new-student-ibrahim-alolofi-final-only-20261017.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  independent-full-evaluation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+      STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
+      PROJECT: PNEWIBRAHIM
+      STUDENT_SHA: 7babe797c46b4a16a75f8183a14e2b090919c67d
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 11961a6e340e5c3d06787be23bfcd90ececdeec9
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader requirements
+        run: python -m pip install -r requirements.txt
+      - name: Create temporary one-student submission, pin original commit and freeze
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv, os
+          project=os.environ['PROJECT']
+          with open('submission_groups.csv',newline='',encoding='utf-8-sig') as f:
+              existing={row['project_id'] for row in csv.DictReader(f)}
+          assert project not in existing, 'Temporary project id collides with roster'
+          row=dict(project_id=project, students='إبراهيم العلفي', student_nos='', project_title='Independent new submission (not enrolled in roster)', repo_url='https://github.com/ENG-Ibrahim-Al-olofi-debug/midterm-data-pipeline', repo_full_name='ENG-Ibrahim-Al-olofi-debug/midterm-data-pipeline', stage='final',track='B',ref=os.environ['STUDENT_SHA'], grading_mode='all', historical_policy='independent_new_unregistered')
+          with open('one_submission.csv','w',newline='',encoding='utf-8') as f:
+              writer=csv.DictWriter(f,fieldnames=list(row))
+              writer.writeheader();writer.writerow(row)
+          PY
+          python freeze_submissions.py --submissions one_submission.csv --project "$PROJECT" --output-dir frozen
+          python freeze_submissions.py --submissions one_submission.csv --build-manifest --artifacts-dir frozen --output frozen_submissions.csv
+          python - <<'PY'
+          import csv,os
+          row=next(csv.DictReader(open('frozen_submissions.csv',encoding='utf-8-sig')))
+          assert row['freeze_status']=='READY',row
+          assert row['commit_sha']==os.environ['STUDENT_SHA'],row
+          print('Frozen commit: '+row['commit_sha'])
+          PY
+      - name: Build isolated grader Docker image
+        run: python build_runtime_image.py
+      - name: Prepare fresh hidden grading fixtures
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "$HIDDEN_SEED"
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Evaluate final separately without waiting for Spark midterm tests
+        run: |
+          python -u evaluate_project.py \
+            --project "$PROJECT" \
+            --submissions frozen_submissions.csv \
+            --workspace "workspaces/$PROJECT/repo" \
+            --mode final --plan-b --network-profile isolated
+      - name: Upload full grading machine evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: independent-new-ibrahim-final-${{ github.run_id }}
+          path: |
+            one_submission.csv
+            frozen/PNEWIBRAHIM.metadata.json
+            frozen_submissions.csv
+            reports/PNEWIBRAHIM/
+            reports_final/PNEWIBRAHIM/
+            reports_unified/PNEWIBRAHIM/
+          if-no-files-found: warn
+          retention-days: 90
