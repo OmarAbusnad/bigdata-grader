@@ -1,0 +1,22 @@
+{
+  "project_id": "P24",
+  "forensic_date": "2026-10-14",
+  "ownership": "GRADER_DISCOVERY_FAILURE",
+  "original_roster_repo": "cdvgf82-sys/sagralbrsh",
+  "accepted_late_repo": "mohsenalfahed2026-sketch/Sagralbrsh",
+  "accepted_student_sha": "2ea070985b82edf2cd560d188b1b2a4d410f9df2",
+  "original_assessed_run": 38317234359,
+  "original_artifact_id": 11776783197,
+  "source_reports": [
+    "reports/P24/result.json",
+    "reports_final/P24/result.json"
+  ],
+  "student_name_verified_consistent": true,
+  "commit_url": "https://github.com/mohsenalfahed2026-sketch/Sagralbrsh/commit/2ea070985b82edf2cd560d188b1b2a4d410f9df2",
+  "issue_url": "https://github.com/omrbosnd/bigdata-grader/issues/43",
+  "grader_roster_pointer_corrected": true,
+  "student_repository_modified": false,
+  "grade_modified": false,
+  "no_student_tests_reexecuted": true,
+  "note": "The later accepted assessed P24 reports identify the new repository and exact commit. Prior submission_groups.csv pointed to older repository which does not contain assessed SHA. Correct only grader roster metadata; never mix sources or silently regrade."
+}

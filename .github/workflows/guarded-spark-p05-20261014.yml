@@ -1,0 +1,87 @@
+name: Guarded P05 Spark-Only Recovery 2026-10-14
+on:
+  push:
+    paths:
+      - '.grader/trigger-targeted-spark-p05-20261014.txt'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  p05-spark-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install grader requirements
+        run: python -m pip install -r requirements.txt
+      - name: Retrieve immutable P05 freeze
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          run-id: '37390623044'
+          name: frozen-P05-37390623044
+          path: frozen_project
+      - name: Retrieve original P05 grading evidence
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          run-id: '37874152827'
+          name: unified-P05-37874152827
+          path: official_evidence
+      - name: Prove matching frozen and originally graded source before execution
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          expected = "a4544a31f94b1924bfad9c34494e77879976fded"
+          frozen = json.loads(Path("frozen_project/P05.metadata.json").read_text(encoding="utf-8"))
+          original = json.loads(Path("official_evidence/reports/P05/result.json").read_text(encoding="utf-8"))
+          assert frozen.get("project_id") == original.get("project_id") == "P05"
+          assert frozen.get("freeze_status") == "READY"
+          assert frozen.get("commit_sha") == original.get("commit_sha") == expected, (
+            "P05 source SHA mismatch — STOP, no student execution"
+          )
+          old = ((original.get("runtime") or {}).get("assertions") or {}).get("spark_pipeline.command") or {}
+          assert old.get("verdict") in ("FAIL", "INCONCLUSIVE"), "Already PASS — do not rerun"
+          archive = Path("frozen_project/P05.repo.tar.gz")
+          assert archive.is_file() and archive.stat().st_size == int(frozen.get("snapshot_bytes") or -1)
+          print("P05_ORIGINAL_SAME_SHA_VERIFIED=" + expected)
+      - name: Extract frozen student sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p workspaces/P05
+          tar -xzf frozen_project/P05.repo.tar.gz -C workspaces/P05
+          test -d workspaces/P05/repo
+      - name: Build isolated student base once
+        run: python build_runtime_image.py
+      - name: Recreate original deterministic hidden Spark input
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "${HIDDEN_SEED:-}" || { echo "::error::Hidden seed unavailable"; exit 2; }
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Retry ONLY original failed P05 Spark test02
+        run: |
+          python -u targeted_spark_only.py \
+            --project P05 \
+            --repo workspaces/P05/repo \
+            --hidden datasets/hidden \
+            --original-report official_evidence/reports/P05/result.json \
+            --out reports_spark_recovery/P05/spark_only.json
+      - name: Archive Spark-only evidence (do not update grades)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p05-spark-only-proven-guarded-${{ github.run_id }}
+          path: reports_spark_recovery/P05/
+          if-no-files-found: warn
+          retention-days: 90

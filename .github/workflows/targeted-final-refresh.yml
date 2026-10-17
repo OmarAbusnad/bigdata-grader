@@ -28,10 +28,30 @@ jobs:
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           run-id: '37390623044'
-      - name: Extract immutable snapshot
+      - name: Verify exact assessed frozen P59 revision before student execution
+        shell: python
         run: |
-          mkdir -p workspaces/P59/repo
+          import json
+          import hashlib
+          from pathlib import Path
+          expected = "33cb41e1fe61209929e15e070d73ebe614d47fba"
+          metadata = json.loads(Path("frozen_project/P59.metadata.json").read_text(encoding="utf-8"))
+          assert metadata.get("project_id") == "P59", "wrong frozen project"
+          assert metadata.get("freeze_status") == "READY", "frozen source not READY"
+          assert metadata.get("commit_sha") == expected, (
+              f"frozen SHA mismatch: {metadata.get('commit_sha')} != {expected}; no student execution"
+          )
+          archive = Path("frozen_project/P59.repo.tar.gz")
+          assert archive.is_file() and archive.stat().st_size > 0, "frozen archive missing"
+          print("FROZEN_P59_SHA_VERIFIED=" + expected)
+          print("FROZEN_P59_TAR_SHA256=" + hashlib.sha256(archive.read_bytes()).hexdigest())
+      - name: Extract immutable snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p workspaces/P59
           tar -xzf frozen_project/P59.repo.tar.gz -C workspaces/P59
+          test -f workspaces/P59/repo/src/api.py
       - name: Build isolated student runtime
         run: python build_runtime_image.py
       - name: Repeat ONLY failed P59 refresh tests; no passing assertions

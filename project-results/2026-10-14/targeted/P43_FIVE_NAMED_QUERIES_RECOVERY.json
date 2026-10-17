@@ -1,0 +1,56 @@
+{
+  "project_id": "P43",
+  "frozen_sha": "cbbc33924cccddfd77ae0e4cc5784c36db3d22c5",
+  "original_run": 37874152827,
+  "focused_run": 38615809081,
+  "raw_artifact_id": 11919581803,
+  "raw_artifact_name": "p43-five-named-only-38615809081",
+  "assertions": [
+    "orders_by_city",
+    "orders_by_status",
+    "customer_orders",
+    "orders_by_date_range",
+    "high_value_orders"
+  ],
+  "outcomes": {
+    "orders_by_city": {
+      "verdict": "PASS",
+      "http_status": 200,
+      "expected_records": 1,
+      "actual_records": 1,
+      "only_expected_fixture": true
+    },
+    "orders_by_status": {
+      "verdict": "PASS",
+      "http_status": 200,
+      "expected_records": 1,
+      "actual_records": 1,
+      "only_expected_fixture": true
+    },
+    "customer_orders": {
+      "verdict": "PASS",
+      "http_status": 200,
+      "expected_records": 1,
+      "actual_records": 1,
+      "only_expected_fixture": true
+    },
+    "orders_by_date_range": {
+      "verdict": "PASS",
+      "http_status": 200,
+      "expected_records": 1,
+      "actual_records": 1,
+      "only_expected_fixture": true
+    },
+    "high_value_orders": {
+      "verdict": "PASS",
+      "http_status": 200,
+      "expected_records": 1,
+      "actual_records": 1,
+      "only_expected_fixture": true
+    }
+  },
+  "reason": "All original named-query requests failed because required city/status/customer_id/start_date/end_date/min_total arguments were omitted. Scoped retry passes all five student-declared filters on matching and nonmatching synthetic rows.",
+  "prior_successes_untouched": true,
+  "student_source_unchanged": true,
+  "grades_unchanged": true
+}

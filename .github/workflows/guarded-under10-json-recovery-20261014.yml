@@ -1,0 +1,118 @@
+name: Under10 Specific Grader JSON NameError Midterm Recovery
+on:
+  push:
+    paths:
+      - '.grader/trigger-under10-json-recovery-20261014.txt'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate bounded recovery batch, source SHA, and previous grader evidence
+        id: pick
+        shell: python
+        run: |
+          import json,os,pathlib
+          requested=json.loads(pathlib.Path('.grader/chance-json-recovery-batch-20261014.json').read_text())
+          sources=json.loads(pathlib.Path('docs/under10_chance_deadline_sources_20261014.json').read_text())
+          eligible={x['id']:x for x in sources['rows'] if x['changed'] and x['mode']!='final'}
+          assert requested and len(requested)==len(set(requested)) and set(requested)<=set(eligible)
+          assert all(eligible[p]['cutoff_sha']!=eligible[p]['assessed_sha'] for p in requested)
+          m={'include':[{'project_id':p,'expected_sha':eligible[p]['cutoff_sha']} for p in requested]}
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('matrix='+json.dumps(m,separators=(',',':'))+'\n')
+          print(json.dumps(m))
+  only-proven-failed-midterm-no-final-retouched:
+    needs: plan
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+      STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader
+        run: python -m pip install -r requirements.txt
+      - name: Restore exact old failed-midterm report (immutable)
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          run-id: '38632370130'
+          name: under10-deadline-${{ matrix.project_id }}-38632370130
+          path: original
+      - name: Fail closed unless previously unexecuted midterm has JSON NameError
+        shell: python
+        run: |
+          import json,pathlib
+          pid="${{ matrix.project_id }}"
+          sha="${{ matrix.expected_sha }}"
+          v=json.loads((pathlib.Path("original/reports")/pid/"result.json").read_text())
+          m=json.loads((pathlib.Path("original/frozen")/(pid+".metadata.json")).read_text())
+          assert v["project_id"]==pid and v["commit_sha"]==sha
+          assert m["commit_sha"]==sha and m["freeze_status"]=="READY"
+          runtime=v.get("runtime") or {}
+          assert runtime.get("status")=="INFRA_OR_RUNTIME_ERROR"
+          assert runtime.get("error")=="NameError: name 'json' is not defined"
+          assert not (runtime.get("assertions") or []), "Never replay already assessed midterm assertions"
+          assert pid in {"P02","P17","P29","P61","P68","P51","P33","P67","P23"}
+          print("PROVEN_GRADER_NAMEERROR_RETRY_ONLY",pid,sha)
+      - name: Clone exact source SHA again and verify before execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          python freeze_submissions.py --submissions chance_under10_20261014.csv \
+            --project "${{ matrix.project_id }}" --output-dir frozen
+          python freeze_submissions.py --submissions chance_under10_20261014.csv \
+            --build-manifest --artifacts-dir frozen --output frozen_submissions.csv
+          python - <<'PY'
+          import json,pathlib
+          pid="${{ matrix.project_id }}"; expected="${{ matrix.expected_sha }}"
+          x=json.loads((pathlib.Path("frozen")/(pid+".metadata.json")).read_text())
+          assert x["freeze_status"]=="READY" and x["commit_sha"]==expected,x
+          PY
+      - name: Build fixed grader runtime image
+        run: python build_runtime_image.py
+      - name: Generate same hidden fixtures isolated from student
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${HIDDEN_SEED:-}" || exit 2
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Retest ONLY midterm formerly blocked by grader NameError
+        run: |
+          python -u evaluate_project.py \
+            --project "${{ matrix.project_id }}" \
+            --submissions frozen_submissions.csv \
+            --workspace "workspaces/${{ matrix.project_id }}/repo" \
+            --mode midterm \
+            --network-profile isolated
+      - name: Upload repair proof separate from original, without grades
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: under10-json-recovery-midterm-${{ matrix.project_id }}-${{ github.run_id }}
+          path: |
+            frozen/${{ matrix.project_id }}.metadata.json
+            reports_unified/${{ matrix.project_id }}/
+            reports/${{ matrix.project_id }}/
+          if-no-files-found: warn
+          retention-days: 90

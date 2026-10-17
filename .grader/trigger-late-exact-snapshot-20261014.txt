@@ -1,0 +1,1 @@
+Requested 2026-10-14: independently freeze latest accepted exact source commits for P01 and P26 only. This is NOT a functional rerun. Historical PASS and academic grades remain unchanged.

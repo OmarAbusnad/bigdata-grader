@@ -72,9 +72,12 @@ def derive_midterm_capabilities(runtime: dict | None, static: dict | None = None
     if not runtime or not isinstance(runtime.get('assertions'), dict):
         return {}
     a = runtime['assertions']
-    static = static or {}
-    docs_vals = [bool(static.get('has_readme')), bool(static.get('has_requirements')), bool(static.get('has_tests'))]
-    code_docs = sum(docs_vals) / len(docs_vals) if docs_vals else None
+    # Missing grader static evidence is NOT proof that a student omitted
+    # README, dependencies, or tests. Only explicit True/False findings count.
+    fields = ('has_readme', 'has_requirements', 'has_tests')
+    docs_vals = [static.get(k) for k in fields] if isinstance(static, dict) else []
+    code_docs = (sum(docs_vals) / len(docs_vals)
+                 if docs_vals and all(isinstance(v, bool) for v in docs_vals) else None)
     return {
         'architecture_router': _v_strict(a, ['batch_pipeline.engine', 'spark_pipeline.engine']),
         'python_batch': _v_strict(a, ['batch_pipeline.command', 'batch.raw_count', 'batch.validated_count', 'batch.quarantine_count', 'batch_pipeline.engine']),

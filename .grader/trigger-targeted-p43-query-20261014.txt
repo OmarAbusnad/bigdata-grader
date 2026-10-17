@@ -1,0 +1,1 @@
+2026-10-14 — P43 five failed query requests only. Freeze SHA cbbc33924cccddfd77ae0e4cc5784c36db3d22c5, verify original report; seed contrasting documents; send exact city/status/customer_id/start_date/end_date/min_total args. No grade changes.

@@ -1,0 +1,499 @@
+{
+  "project_id": "P67",
+  "exact_student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+  "phase_coverage": {
+    "midterm": "ASSESSED",
+    "final": "ASSESSED"
+  },
+  "passing_assertions_preserved": 22,
+  "open_cases": [
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "batch.audit_trail",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "AUDIT_SAMPLES_REQUIRE_REDACTED_COMPARISON",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/36",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "batch.cleaning_samples",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "batch.duplicates",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "batch.quarantine_count",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "batch.quarantine_errors",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "batch.raw_count",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "batch.schema_validator_runtime",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "SCHEMA_VALIDATOR_RUNTIME_UNVERIFIED",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/35",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "batch.unique_index_runtime",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "batch.validated_count",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "batch_pipeline.command",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "FAIL",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "batch_pipeline.engine",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "idempotency.duplicates",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "idempotency.validated_stable",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "spark.duplicates",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "DEPENDENT_ON_SPARK_STAGE_AND_ENVIRONMENT_TRIAGE",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/39",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "spark.quarantine_count",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "DEPENDENT_ON_SPARK_STAGE_AND_ENVIRONMENT_TRIAGE",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/39",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "spark.raw_count",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "DEPENDENT_ON_SPARK_STAGE_AND_ENVIRONMENT_TRIAGE",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/39",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "spark.validated_count",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "DEPENDENT_ON_SPARK_STAGE_AND_ENVIRONMENT_TRIAGE",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/39",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "spark_pipeline.command",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "spark_pipeline.engine",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "upsert.baseline_validated",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "upsert.final_validated",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "upsert.insert_samples",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "upsert.unchanged_samples",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "midterm",
+      "assertion_key": "upsert.update_samples",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "final",
+      "assertion_key": "final.dependencies",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "FAIL",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "CAUSE_NOT_YET_PROVEN",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/11",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "final",
+      "assertion_key": "final.discussion",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "INSTRUCTOR_MANUAL_SCORE_REQUIRED",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/30",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    },
+    {
+      "project_id": "P67",
+      "phase": "final",
+      "assertion_key": "final.github_readme",
+      "student_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "existing_verdict": "INCONCLUSIVE",
+      "source_run": 38424927615,
+      "original_source_kind": "exact_sha_assessed_report",
+      "root_cause_owner": "HUMAN_REVIEW_REQUIRED",
+      "cause_category": "STATIC_DOCUMENTATION_EVIDENCE_REVIEW",
+      "tracking_issue": "https://github.com/omrbosnd/bigdata-grader/issues/33",
+      "evidence_links": [
+        "https://github.com/omrbosnd/bigdata-grader/actions/runs/38424927615"
+      ],
+      "new_verdict_awarded": false,
+      "official_grade_changed": false,
+      "instructor_review_required": true
+    }
+  ],
+  "open_count": 27,
+  "official_marks_unchanged": true
+}

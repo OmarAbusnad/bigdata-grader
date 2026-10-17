@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -40,9 +41,43 @@ def _env(plan, threshold_mb: float, db_name: str | None = None) -> dict[str, str
     return env
 
 
-def _run_ingest(plan, repo: Path, file: Path, threshold: float, timeout: int, venv: str | Path | None, db_name: str | None = None):
+_INCREMENTAL_STAGES = frozenset({
+    'upsert_first', 'upsert_rerun', 'incremental_first', 'incremental_rerun',
+})
+
+
+def _documented_incremental_command(command: str, repo: Path, stage: str | None) -> str:
+    """Honor a safe documented CLI no-reset flag on only incremental stages.
+
+    Do not attempt arbitrary commands/flags from a student's README. The flag
+    must be documented *and* declared in the same frozen source entrypoint.
+    """
+    if stage not in _INCREMENTAL_STAGES or '--no-reset' in command:
+        return command
+    # Apply only to a directly invoked, known CLI entrypoint; no shell chains.
+    parts = command.split()
+    if len(parts) < 2 or parts[0] not in ('python', 'python3') or parts[1] != 'src/main.py':
+        return command
+    if any(operator in command for operator in ('&&', ';', '|', '>', '<')):
+        return command
+    readme = repo / 'README.md'
+    source = repo / 'src' / 'main.py'
+    if not readme.is_file() or not source.is_file():
+        return command
+    try:
+        docs = readme.read_text(encoding='utf-8-sig', errors='replace')
+        code = source.read_text(encoding='utf-8-sig', errors='replace')
+    except OSError:
+        return command
+    if '--no-reset' in docs and ("'--no-reset'" in code or '"--no-reset"' in code):
+        return command + ' --no-reset'
+    return command
+
+
+def _run_ingest(plan, repo: Path, file: Path, threshold: float, timeout: int, venv: str | Path | None, db_name: str | None = None, stage: str | None = None):
     effective_db = db_name or plan.database_name
     cmd = render_command(plan.ingest_command, file=file, threshold_mb=threshold, db_name=effective_db)
+    cmd = _documented_incremental_command(cmd, repo, stage)
     result = run_command(cmd, repo, timeout=timeout, env=_env(plan, threshold, effective_db), venv=venv)
     metrics, metrics_path = find_latest_metrics(repo)
     return cmd, result, metrics, metrics_path
@@ -87,28 +122,66 @@ def _ratio_assertion(key: str, label: str, passed: int, total: int, pass_at: flo
 
 
 def _verify_clean_samples(mongo: MongoChecker, cases: list[OracleCase]) -> tuple[AssertionResult, AssertionResult]:
-    checked = good = audit_good = 0
-    evidence: list[str] = []
+    checked = good = audit_good = audit_unverified = 0
+    cleaning_evidence: list[str] = []
     audit_evidence: list[str] = []
     for case in cases:
         if not case.expected_order_id or not case.expected_clean_record:
             continue
         checked += 1
         doc = mongo.find_validated(case.expected_order_id)
-        ok, notes = compare_clean_record(doc, case.expected_clean_record)
-        if ok:
+        cleaned_ok, notes = compare_clean_record(doc, case.expected_clean_record)
+        if cleaned_ok:
             good += 1
-        elif len(evidence) < 8:
-            evidence.append(f'{case.expected_order_id}: ' + ('; '.join(notes) if notes else 'not found'))
-        external_audit = getattr(mongo, 'external_audit', None)
-        if doc and (audit_entries(doc) or (callable(external_audit) and external_audit(case.expected_order_id))):
+        elif len(cleaning_evidence) < 8:
+            # Never disclose hidden fixture IDs or expected private fields.
+            cleaned_reason = '; '.join(notes) if notes else 'not found'
+            cleaning_evidence.append(f'sample={checked}: {cleaned_reason[:160]}')
+        source = 'none'
+        inspection = {'status': 'NOT_NEEDED'}
+        if doc is not None:
+            if audit_entries(doc):
+                source = 'embedded'
+            else:
+                inspector = getattr(mongo, 'inspect_external_audit', None)
+                if callable(inspector):
+                    inspection = inspector(case.expected_order_id)
+                    if inspection.get('status') == 'FOUND':
+                        source = 'external'
+                    elif inspection.get('status') == 'UNVERIFIED':
+                        audit_unverified += 1
+                else:
+                    fallback = getattr(mongo, 'external_audit', None)
+                    if callable(fallback) and fallback(case.expected_order_id):
+                        source = 'external'
+                    else:
+                        inspection = {'status': 'UNVERIFIED',
+                                      'reason': 'external_audit_probe_unavailable'}
+                        audit_unverified += 1
+        if source != 'none':
             audit_good += 1
-        elif len(audit_evidence) < 8:
-            audit_evidence.append(f'{case.expected_order_id}: no audit entries')
-    return (
-        _ratio_assertion('batch.cleaning_samples', 'عينات Cleaning مطابقة للـOracle', good, checked, pass_at=SAMPLE_PASS_AT, fail_below=SAMPLE_FAIL_BELOW, evidence=evidence),
-        _ratio_assertion('batch.audit_trail', 'Audit Trail موجود للحالات المصححة', audit_good, checked, pass_at=SAMPLE_PASS_AT, fail_below=SAMPLE_FAIL_BELOW, evidence=audit_evidence),
-    )
+        digest = hashlib.sha256(str(case.expected_order_id).encode('utf-8')).hexdigest()[:12]
+        audit_evidence.append(json.dumps({
+            'sample_ref': digest, 'validated_record_present': doc is not None,
+            'cleaning_match': cleaned_ok, 'audit_source': source,
+            'external_audit_status': inspection.get('status'),
+            'external_audit_reason': inspection.get('reason'),
+            'external_audit_collection': inspection.get('collection'),
+        }, ensure_ascii=False, sort_keys=True))
+    clean_result = _ratio_assertion(
+        'batch.cleaning_samples', 'عينات Cleaning مطابقة للـOracle',
+        good, checked, pass_at=SAMPLE_PASS_AT, fail_below=SAMPLE_FAIL_BELOW,
+        evidence=cleaning_evidence)
+    audit_result = _ratio_assertion(
+        'batch.audit_trail', 'Audit Trail موجود للحالات المصححة',
+        audit_good, checked, pass_at=SAMPLE_PASS_AT, fail_below=SAMPLE_FAIL_BELOW,
+        evidence=audit_evidence)
+    if audit_unverified and audit_result.verdict == 'FAIL':
+        audit_result.verdict = 'INCONCLUSIVE'
+        audit_result.note = (
+            f'{audit_unverified} audit collection queries were not verified; '
+            'the grader cannot prove a student failure.')
+    return clean_result, audit_result
 
 
 def _verify_quarantine_evidence(mongo: MongoChecker) -> AssertionResult:
@@ -240,7 +313,7 @@ def run_midterm_runtime(plan, repo_path: Path, hidden_dir: Path, oracle: HiddenO
         file_path = file_override or (hidden_dir / spec['file'])
         effective_threshold = threshold if threshold_override is None else threshold_override
         before = mongo.snapshot().to_dict()
-        cmd, result, metrics, metrics_path = _run_ingest(plan, repo_path, file_path, effective_threshold, timeout, venv, effective_db)
+        cmd, result, metrics, metrics_path = _run_ingest(plan, repo_path, file_path, effective_threshold, timeout, venv, effective_db, stage=case_name)
         after = mongo.snapshot().to_dict()
         engine, engine_ev = detect_engine(result.stdout, result.stderr, metrics, mongo.distinct_engine_values())
         if file_override:
@@ -272,8 +345,21 @@ def run_midterm_runtime(plan, repo_path: Path, hidden_dir: Path, oracle: HiddenO
     ]
     unique_ok, unique_ev = mongo.has_unique_business_index()
     batch.assertions.append(A('batch.unique_index_runtime', 'Unique Index موجود فعليًا على Business Key', 'PASS' if unique_ok else 'FAIL', True, unique_ok, unique_ev))
-    batch.assertions.append(A('batch.schema_validator_runtime', '$jsonSchema Validator موجود فعليًا على validated', 'PASS' if mongo.has_json_schema_validator() else 'INCONCLUSIVE', True, mongo.has_json_schema_validator(),
-                              note='INCONCLUSIVE لا يعني رسوبًا إذا لم يكن الـvalidator جزءًا إلزاميًا في rubric النهائية.'))
+    inspect = getattr(mongo, 'inspect_json_schema_validator', None)
+    schema_proof = inspect() if callable(inspect) else {
+        'status': 'PRESENT' if mongo.has_json_schema_validator() else 'UNVERIFIED',
+        'reason': 'validator_inspector_unavailable',
+    }
+    schema_ok = schema_proof['status'] == 'PRESENT'
+    batch.assertions.append(A(
+        'batch.schema_validator_runtime', '$jsonSchema Validator موجود فعليًا على validated',
+        'PASS' if schema_ok else 'INCONCLUSIVE', True, schema_ok,
+        evidence=[json.dumps(schema_proof, ensure_ascii=False, sort_keys=True)],
+        note=('Confirmed absent in live MongoDB; rubric must decide scoring.' if
+              schema_proof['status'] in {'ABSENT', 'COLLECTION_MISSING'} else
+              'Unverified validator probe; do not charge student.')
+             if not schema_ok else None,
+    ))
     clean_cases = oracle.sample('test_01', classes=['correctable'], n=18)
     clean_a, audit_a = _verify_clean_samples(mongo, clean_cases)
     batch.assertions += [clean_a, audit_a, _verify_quarantine_evidence(mongo)]

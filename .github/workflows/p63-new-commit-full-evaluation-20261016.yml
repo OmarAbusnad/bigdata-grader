@@ -1,0 +1,76 @@
+name: P63 Updated Submission Exact-SHA Full Evaluation
+on:
+  push:
+    paths:
+      - '.grader/trigger-p63-new-commit-20261016.txt'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  p63-both-phases:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Fetch and pin P63 exact student SHA and record provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p workspaces/P63
+          git clone --quiet https://github.com/mohammedalhaj113837-hue/hybrid-elt-bigdata-pipeline.git workspaces/P63/repo
+          git -C workspaces/P63/repo checkout -q --detach 1031e76a8482abe14b95ffd8449b9cd850b9d291
+          test "$(git -C workspaces/P63/repo rev-parse HEAD)" = '1031e76a8482abe14b95ffd8449b9cd850b9d291'
+          mkdir -p frozen/P63
+          python - <<'PY'
+          import csv, pathlib, datetime, json
+          sha='1031e76a8482abe14b95ffd8449b9cd850b9d291'
+          repo='https://github.com/mohammedalhaj113837-hue/hybrid-elt-bigdata-pipeline'
+          with open('frozen_submissions.csv','w',encoding='utf-8-sig',newline='') as f:
+              fieldnames=['project_id','students','student_nos','repo_url','commit_sha','ref','workspace_subdir','freeze_status']
+              w=csv.DictWriter(f,fieldnames=fieldnames)
+              w.writeheader()
+              w.writerow({'project_id':'P63','students':'محمد انور علي احمد الحاج','student_nos':'','repo_url':repo,'commit_sha':sha,'ref':sha,'workspace_subdir':'','freeze_status':'READY'})
+          pathlib.Path('frozen/P63/source_revision.json').write_text(json.dumps({'project_id':'P63','student':'محمد انور علي احمد الحاج','repo':repo,'sha':sha,'verified':True,'checked_at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat()},ensure_ascii=False,indent=2)+'\n')
+          print('P63_VERIFIED_SHA='+sha)
+          PY
+      - name: Build grader runtime image
+        run: python build_runtime_image.py
+      - name: Regenerate exact standard hidden teacher fixtures
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "${HIDDEN_SEED:-}"
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Full midterm and final on P63 SHA (isolated, no changes to student code)
+        run: |
+          python -u evaluate_project.py \
+            --project P63 \
+            --submissions frozen_submissions.csv \
+            --workspace workspaces/P63/repo \
+            --mode all --plan-b --allow-low-confidence \
+            --network-profile isolated --timeout 1500
+      - name: Publish unmodified result JSON and provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p63-new-commit-full-grade-${{ github.run_id }}
+          path: |
+            frozen/P63/source_revision.json
+            frozen_submissions.csv
+            reports_unified/P63/
+            reports/P63/
+            reports_final/P63/
+          if-no-files-found: warn
+          retention-days: 90

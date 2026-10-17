@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "source_run_pins": [
+    38317234359,
+    38424927615
+  ],
+  "note": "Read-only accepted artifacts. Do not merge across different student SHAs; no official grades and no student code.",
+  "entries": [
+    {
+      "project_id": "P02",
+      "sha": "a627555a6c2d03378efb1de85d581951016f308b",
+      "run": 38424927615,
+      "artifact": "diagnostic-undeclared-deps-P02-38424927615",
+      "phases": {
+        "midterm": "reports/P02/result.json",
+        "final": "reports_final/P02/result.json"
+      }
+    },
+    {
+      "project_id": "P24",
+      "sha": "2ea070985b82edf2cd560d188b1b2a4d410f9df2",
+      "run": 38317234359,
+      "artifact": "late-grading-P24-38317234359",
+      "phases": {
+        "midterm": "reports/P24/result.json",
+        "final": "reports_final/P24/result.json"
+      }
+    },
+    {
+      "project_id": "P40",
+      "sha": "ce51dee3dff5a4abd589d1c5dcab88dfaae4020b",
+      "run": 38317234359,
+      "artifact": "late-grading-P40-38317234359",
+      "phases": {
+        "midterm": "reports/P40/result.json",
+        "final": "reports_final/P40/result.json"
+      }
+    },
+    {
+      "project_id": "P50",
+      "sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "run": 38317234359,
+      "artifact": "late-grading-P50-38317234359",
+      "phases": {
+        "final": "reports_final/P50/result.json"
+      }
+    },
+    {
+      "project_id": "P67",
+      "sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "run": 38424927615,
+      "artifact": "diagnostic-undeclared-deps-P67-38424927615",
+      "phases": {
+        "midterm": "reports/P67/result.json",
+        "final": "reports_final/P67/result.json"
+      }
+    },
+    {
+      "project_id": "P68",
+      "sha": "ee03bbe63d17c5c84e8320103e1ecf57ac4aaf46",
+      "run": 38317234359,
+      "artifact": "late-grading-P68-38317234359",
+      "phases": {
+        "midterm": "reports/P68/result.json"
+      }
+    },
+    {
+      "project_id": "P69",
+      "sha": "db75dd75794b9c752b519b4ad8f9ee69838d6784",
+      "run": 38317234359,
+      "artifact": "late-grading-P69-38317234359",
+      "phases": {
+        "final": "reports_final/P69/result.json"
+      }
+    },
+    {
+      "project_id": "P70",
+      "sha": "e42ffb8ac88f34ad10b508a95a4bde14aa8bad85",
+      "run": 38317234359,
+      "artifact": "late-grading-P70-38317234359",
+      "phases": {
+        "midterm": "reports/P70/result.json",
+        "final": "reports_final/P70/result.json"
+      }
+    }
+  ],
+  "excluded": [
+    {
+      "project_id": "P10",
+      "run": 38317234359,
+      "reason": "late artifact has no scored reports; no evidence to merge"
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+name: P10 Najm Latest Final Repository Midterm Capabilities Validation
+on:
+  push:
+    paths:
+      - '.grader/trigger-p10-latest-phase1-20261016.txt'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  p10-newer-phase1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Pin original student source from latest separately submitted final repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p workspaces/P10
+          git clone -q https://github.com/Najmadeenalwealdi/finall-project-for-big-data.git workspaces/P10/repo
+          git -C workspaces/P10/repo checkout -q --detach c43fb24256bd9edb890be36f5ae7766df0a3696e
+          test "$(git -C workspaces/P10/repo rev-parse HEAD)" = 'c43fb24256bd9edb890be36f5ae7766df0a3696e'
+          grep -F 'ITEM_QUANTITY_KEYS =' workspaces/P10/repo/pro/config/settings.py
+          grep -F 'python src/main.py --file data/orders_sample_100000.csv' workspaces/P10/repo/pro/README.md
+          python - <<'PY'
+          import csv
+          with open('frozen_submissions.csv','w',encoding='utf-8-sig',newline='') as f:
+            cols=['project_id','students','student_nos','repo_url','commit_sha','ref','workspace_subdir','freeze_status']
+            w=csv.DictWriter(f,fieldnames=cols);w.writeheader()
+            w.writerow({'project_id':'P10','students':'نجم الدين حيدر طه حزام الوليدي','student_nos':'','repo_url':'https://github.com/Najmadeenalwealdi/finall-project-for-big-data','commit_sha':'c43fb24256bd9edb890be36f5ae7766df0a3696e','ref':'c43fb24256bd9edb890be36f5ae7766df0a3696e','workspace_subdir':'pro','freeze_status':'READY'})
+          PY
+      - name: Build grader base
+        run: python build_runtime_image.py
+      - name: Same hidden teacher fixtures
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          test -n "${HIDDEN_SEED:-}"
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Grade newer final submission's Phase 1 from documented nested path
+        run: |
+          python -u evaluate_project.py --project P10 \
+            --submissions frozen_submissions.csv --workspace workspaces/P10/repo \
+            --mode midterm --plan-b --no-ai --allow-low-confidence \
+            --network-profile isolated --timeout 1200
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p10-najm-latest-phase1-midterm-${{ github.run_id }}
+          path: |
+            frozen_submissions.csv
+            reports/P10/
+            reports_unified/P10/
+          if-no-files-found: warn
+          retention-days: 90

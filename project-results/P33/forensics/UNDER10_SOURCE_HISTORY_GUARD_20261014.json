@@ -1,0 +1,20 @@
+{
+  "project_id": "P33",
+  "repository": "manafalbana710-hash/midterm-data-pipeline2",
+  "assessed_sha": "0da89f2f995b936ce22dc31561747aa9dd822531",
+  "deadline_sha": "c56c9f5e2ef67de7a60941becba266c2f6002230",
+  "accepted_latest_commit_date_utc": "2026-10-13T23:49:37Z",
+  "note": "New latest source is a root initial commit with zero parents; previous assessed commit still exists but cannot be compared by GitHub normal linear ancestry. Treat as a new immutable source version requiring manual lineage/provenance review before academic mark approval.",
+  "cutoff_utc": "2026-10-14T12:00:00Z",
+  "old_commit_exists": true,
+  "new_commit_exists": true,
+  "github_compare_status": "NO_COMMON_ANCESTOR",
+  "source_root_cause": "UNRELATED_HISTORY_NOT_STUDENT_FAILURE_BY_ITSELF",
+  "same_sha_pass_must_not_mix": false,
+  "grade_changes": 0,
+  "student_code_changes": 0,
+  "review_issue": "https://github.com/omrbosnd/bigdata-grader/issues/44",
+  "eval_run": "https://github.com/omrbosnd/bigdata-grader/actions/runs/38632370130",
+  "assessed_commit_url": "https://github.com/manafalbana710-hash/midterm-data-pipeline2/commit/0da89f2f995b936ce22dc31561747aa9dd822531",
+  "new_commit_url": "https://github.com/manafalbana710-hash/midterm-data-pipeline2/commit/c56c9f5e2ef67de7a60941becba266c2f6002230"
+}

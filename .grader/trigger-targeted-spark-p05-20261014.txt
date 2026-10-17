@@ -1,0 +1,2 @@
+2026-10-14 guarded P05 Spark-only probe on a4544a31f94b1924bfad9c34494e77879976fded.
+Must match frozen source and original report. Only formerly failed Spark Test02; do not touch academic grades or historical PASS.

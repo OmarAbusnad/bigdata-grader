@@ -1,0 +1,24 @@
+{
+  "project_id": "P54",
+  "student_sha": "81d9b76c452f27c8941e6da34e00c20071993e49",
+  "original_run": 37874152827,
+  "focus_run": 38614629459,
+  "raw_artifact_id": 11919855085,
+  "raw_artifact_name": "p54-sales-period-only-38614629459",
+  "only_query": "sales_by_period",
+  "verdict": "PASS",
+  "api_request": "GET /queries/sales_by_period?start=2026-01-01&end=2026-12-31&limit=20",
+  "proof": {
+    "sha_guard": "PASS",
+    "api_ready": true,
+    "query_advertised": true,
+    "http_code": 200,
+    "http_ok": true,
+    "returned_rows": 1,
+    "matched_expected_date_filter": true,
+    "student_command_exit": 0,
+    "timed_out": false
+  },
+  "notes": "Original grader omitted start/end and got HTTP 400. Correct isolated request returns only the record with matching BSON date. Four previously successful queries were not rerun.",
+  "grades_modified": false
+}

@@ -1,0 +1,20 @@
+{
+  "project_id": "P61",
+  "selected_student_sha": "95792fbf3bfe2ffab16bec05d8042fc9988df49a",
+  "assessed_source_run": 38196458648,
+  "verdicts": {
+    "midterm": {},
+    "final": {
+      "FAIL": 1
+    }
+  },
+  "candidate_same_sha_corrections": 0,
+  "unverified_source": false,
+  "official_midterm_points": null,
+  "official_final_points": null,
+  "official_old_points": null,
+  "official_new_points": null,
+  "delta": null,
+  "human_discussion": "REQUIRES_INSTRUCTOR",
+  "grades_approved": false
+}

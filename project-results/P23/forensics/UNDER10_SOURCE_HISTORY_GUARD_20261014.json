@@ -1,0 +1,20 @@
+{
+  "project_id": "P23",
+  "repository": "ateeqdesktop-dot/midterm-data-pipeline",
+  "assessed_sha": "59cd45c5286766a08adadfeff0aaae46b03da39d",
+  "deadline_sha": "2d01cb0a3a04b40e66a65f032dfc7c78a6a62c21",
+  "accepted_latest_commit_date_utc": "2026-10-13T19:40:23Z",
+  "note": "Students posted prior interim HEAD 2d01cb001fbe323adffb72382c448bb5a6828551 in issue at 2026-10-13T19:24Z, then new default HEAD 2d01cb0a3a04b40e66a65f032dfc7c78a6a62c21 before deadline; latest deadline HEAD is evaluated. GitHub compare original..latest returned No common ancestor. Both commits exist; do not assume normal patch lineage.",
+  "cutoff_utc": "2026-10-14T12:00:00Z",
+  "old_commit_exists": true,
+  "new_commit_exists": true,
+  "github_compare_status": "NO_COMMON_ANCESTOR",
+  "source_root_cause": "UNRELATED_HISTORY_NOT_STUDENT_FAILURE_BY_ITSELF",
+  "same_sha_pass_must_not_mix": false,
+  "grade_changes": 0,
+  "student_code_changes": 0,
+  "review_issue": "https://github.com/omrbosnd/bigdata-grader/issues/44",
+  "eval_run": "https://github.com/omrbosnd/bigdata-grader/actions/runs/38632370130",
+  "assessed_commit_url": "https://github.com/ateeqdesktop-dot/midterm-data-pipeline/commit/59cd45c5286766a08adadfeff0aaae46b03da39d",
+  "new_commit_url": "https://github.com/ateeqdesktop-dot/midterm-data-pipeline/commit/2d01cb0a3a04b40e66a65f032dfc7c78a6a62c21"
+}

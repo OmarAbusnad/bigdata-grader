@@ -1,0 +1,20 @@
+{
+  "project_id": "P26",
+  "phase": "midterm",
+  "assertion_key": "spark_pipeline.command",
+  "exact_student_sha": "fc4f5d9924fe9a59f09e4167d323eaf4672ccca2",
+  "assessment_source_run": 38317234359,
+  "assessment_source_artifact": "late-grading-P26-38317234359",
+  "exact_source_snapshot_run": 38624013769,
+  "snapshot_artifact_id": 11924310344,
+  "guard_run": 38625479332,
+  "guard_result": "BLOCKED_RETEST_AS_PRIOR_PASS",
+  "historical_verdict": "PASS",
+  "guard_failure_step": "Guard SHA256, exact SHA, and unsuccessful Spark assertion",
+  "no_student_spark_reexecuted": true,
+  "additional_spark_assertions_inferred": false,
+  "grade_changed": false,
+  "original_log_url": "https://github.com/omrbosnd/bigdata-grader/actions/runs/38625479332/job/116063417704",
+  "source_repo_commit_url": "https://github.com/engmwaly/Project-BigData-Data-Pipeline/commit/fc4f5d9924fe9a59f09e4167d323eaf4672ccca2",
+  "rationale": "The original saved later grading report on exact accepted SHA was read by an automatic guard which required FAIL/INCONCLUSIVE. The check failed with AssertionError Historical Spark PASS cannot be rerun before the project was extracted or executed. Retain historical PASS; do not claim a new functional run."
+}

@@ -1,0 +1,85 @@
+name: Guarded P50 Only Failed Named Query 2026-10-14
+on:
+  push:
+    paths:
+      - '.grader/trigger-targeted-p50-query-20261014.txt'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  p50-high-value-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install grader requirements
+        run: python -m pip install -r requirements.txt
+      - name: Restore original immutable P50 freeze
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          run-id: '37390623044'
+          name: frozen-P50-37390623044
+          path: frozen_project
+      - name: Restore original assessed P50 evidence
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          run-id: '37874152827'
+          name: unified-P50-37874152827
+          path: official_evidence
+      - name: Verify P50 frozen SHA and only previously unproved query
+        shell: python
+        run: |
+          from pathlib import Path
+          import json
+          expected = "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3"
+          frozen = json.loads(Path("frozen_project/P50.metadata.json").read_text(encoding="utf-8"))
+          original = json.loads(Path("official_evidence/reports_final/P50/result.json").read_text(encoding="utf-8"))
+          assert original.get("project_id") == frozen.get("project_id") == "P50"
+          assert frozen.get("freeze_status") == "READY"
+          assert frozen.get("commit_sha") == original.get("commit_sha") == expected, (
+             "Frozen SHA differs from originally graded P50 — abort before execution"
+          )
+          assert Path("frozen_project/P50.repo.tar.gz").stat().st_size == int(frozen.get("snapshot_bytes") or -1)
+          assertions = (original.get("runtime") or {}).get("assertions") or []
+          if isinstance(assertions, dict):
+              query_assert = assertions.get("final.queries.runtime") or {}
+          else:
+              matches = [a for a in assertions
+                         if isinstance(a, dict) and a.get("key") == "final.queries.runtime"]
+              assert len(matches) == 1, "Original query criterion missing or ambiguous"
+              query_assert = matches[0]
+          assert query_assert.get("verdict") in ("FAIL", "INCONCLUSIVE"), (
+              "Query runtime already PASS or not eligible — no rerun"
+          )
+          print("FROZEN_P50_SOURCE_VERIFIED=" + expected)
+      - name: Extract P50 frozen repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p workspaces/P50
+          tar -xzf frozen_project/P50.repo.tar.gz -C workspaces/P50
+          test -f workspaces/P50/repo/src/api.py
+      - name: Build isolated student Docker base
+        run: python build_runtime_image.py
+      - name: Run only high_value_orders query with declared params
+        run: |
+          python -u targeted_query_p50.py \
+            --repo workspaces/P50/repo \
+            --out reports_targeted_final/P50/high_value_only.json
+      - name: Upload evidence without changing grades
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p50-high-value-only-${{ github.run_id }}
+          path: reports_targeted_final/P50/
+          retention-days: 90
+          if-no-files-found: warn

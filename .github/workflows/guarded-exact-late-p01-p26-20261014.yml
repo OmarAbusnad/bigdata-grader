@@ -1,0 +1,76 @@
+name: Guarded Exact-Late P01 Query and P26 Spark Only
+on:
+  push:
+    paths:
+      - '.grader/trigger-exact-late-failed-only-20261014.txt'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  p01-only-orders-in-period:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - name: Restore PROVEN exact later P01 source snapshot
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          run-id: '38624013769'
+          name: later-exact-source-P01-38624013769
+          path: late_source
+      - name: Restore accepted P01 grading report (NOT old freeze)
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          run-id: '38424927615'
+          name: diagnostic-undeclared-deps-P01-38424927615
+          path: accepted_evidence
+      - name: Guard SHA256, exact assessed SHA, and previously failed assertion
+        shell: python
+        run: |
+          import json,hashlib,pathlib
+          expected="c43aae3d5e9c0d96731640206752f886f2618497"
+          provenance=json.loads(pathlib.Path("late_source/provenance.json").read_text())
+          assert provenance.get("exact_student_sha")==expected and provenance.get("project_id")=="P01"
+          archive=pathlib.Path("late_source/repo.tar.gz")
+          digest=hashlib.sha256(archive.read_bytes()).hexdigest()
+          assert digest==pathlib.Path("late_source/archive.sha256").read_text().split()[0]
+          original=json.loads(pathlib.Path("accepted_evidence/reports_final/P01/result.json").read_text())
+          assert original.get("project_id")=="P01" and original.get("commit_sha")==expected
+          assertions=(original.get("runtime") or {}).get("assertions") or {}
+          if isinstance(assertions,list):
+              selected=[v for v in assertions if isinstance(v,dict) and v.get("key")=="final.queries.runtime"]
+              assert len(selected)==1
+              assertion=selected[0]
+          else:
+              assertion=assertions.get("final.queries.runtime") or {}
+          assert assertion.get("verdict") in ("FAIL","INCONCLUSIVE"), "No retry permitted for historical PASS"
+          print("EXACT_P01_LAST_SHA_GUARD_OK",expected)
+      - name: Extract ONLY verified exact-SHA P01 source
+        run: |
+          set -euo pipefail
+          mkdir -p workspaces/P01/repo
+          tar -xzf late_source/repo.tar.gz -C workspaces/P01/repo
+          test -f workspaces/P01/repo/src/api.py
+      - name: Build isolated grader runtime base
+        run: python build_runtime_image.py
+      - name: Execute ONLY formerly malformed orders_in_period request
+        run: |
+          python -u targeted_p01_orders_period.py --repo workspaces/P01/repo --out reports_targeted_final/P01/orders_in_period.json
+      - name: Retain independent evidence; no mark changes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p01-later-only-orders-in-period-${{ github.run_id }}
+          path: reports_targeted_final/P01/
+          if-no-files-found: warn
+          retention-days: 90

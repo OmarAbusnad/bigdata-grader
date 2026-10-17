@@ -1,0 +1,46 @@
+{
+  "project_id": "P67",
+  "student_name": "حمزة يفوز",
+  "deadline_utc": "2026-10-14T12:00:00Z",
+  "accepted_commit_sha": "3ba01316104fc4415dff6e9627bc32f0b9794c95",
+  "old_assessed_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+  "original_repository": "HamzaAhmedYafooz/big_data_hybrid_pipline",
+  "commit_date_utc": "2026-10-14T10:17:11Z",
+  "original_chance_issue": "https://github.com/HamzaAhmedYafooz/big_data_hybrid_pipline/issues/1",
+  "original_chance_run_url": "https://github.com/omrbosnd/bigdata-grader/actions/runs/38632370130",
+  "original_chance_artifact_id": 11927256978,
+  "original_chance_artifact_name": "under10-deadline-P67-38632370130",
+  "midterm_result": {
+    "status": "GRADER_JSON_ERROR_RETRIED",
+    "repair_run": 38634082957,
+    "repair_artifact": 11926908086,
+    "counts": {
+      "PASS": 25,
+      "FAIL": 1,
+      "INCONCLUSIVE": 3
+    },
+    "remaining": [
+      "upsert.final_validated",
+      "batch.schema_validator_runtime",
+      "batch.audit_trail",
+      "spark_pipeline.engine"
+    ]
+  },
+  "final_result": {
+    "PASS": 23,
+    "FAIL": 0,
+    "INCONCLUSIVE": 2
+  },
+  "source_history_guard": "ACCEPTED_DEADLINE_NEW_SHA",
+  "original_student_commit_unchanged": true,
+  "prior_sha_evidence_preserved": true,
+  "current_sha_final_success_not_reexecuted": true,
+  "grader_nameerror_issue": "https://github.com/omrbosnd/bigdata-grader/issues/45",
+  "source_review_issue": "https://github.com/omrbosnd/bigdata-grader/issues/44",
+  "grade_points": null,
+  "discussion_points": null,
+  "assessment_not_official": true,
+  "grade_sheet_updated": false,
+  "stage_counts_are_not_rubric_points": true,
+  "causal_attribution_of_remaining_FAIL": "NEEDS_EVIDENCE_AND_INSTRUCTOR_APPROVAL"
+}

@@ -1,0 +1,187 @@
+{
+  "title": "Big Data grading focused recovery evidence ledger",
+  "date": "2026-10-14",
+  "branch": "fix/consolidated-fair-grading-20261014",
+  "pr_url": "https://github.com/omrbosnd/bigdata-grader/pull/42",
+  "artifact_retention_note": "GitHub Actions artifacts may expire after 90 days; this committed register preserves non-sensitive verdict facts and immutable source refs, not hidden dataset or full raw artifacts.",
+  "academic_grade_updates": 0,
+  "historical_pass_rule": "union PASS verdicts by (project, phase, assertion, EXACT student frozen SHA); never override a historical PASS with later failure",
+  "cases": [
+    {
+      "project_id": "P59",
+      "frozen_sha": "33cb41e1fe61209929e15e070d73ebe614d47fba",
+      "original_run": 37874152827,
+      "focused_run": 38607512434,
+      "artifact_id": 11917245547,
+      "artifact_name": "targeted-final-refresh-P59-38607512434",
+      "outcomes": {
+        "final.mv.refresh": "PASS",
+        "final.mv.incremental": "PASS"
+      },
+      "notes": "targeted full/incremental materialized view refresh; no prior passing tests rerun",
+      "evidence_report": "P59_MV_RECOVERY.md"
+    },
+    {
+      "project_id": "P05",
+      "frozen_sha": "a4544a31f94b1924bfad9c34494e77879976fded",
+      "original_run": 37874152827,
+      "focused_run": 38608767447,
+      "artifact_id": 11916808130,
+      "artifact_name": "p05-spark-only-proven-guarded-38608767447",
+      "outcomes": {
+        "spark_pipeline.command": "PASS"
+      },
+      "notes": "Spark executed and persisted raw records; unrelated final API import issue still student error",
+      "evidence_report": "P05_SPARK_RECOVERY.md"
+    },
+    {
+      "project_id": "P50",
+      "frozen_sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "original_run": 37874152827,
+      "focused_run": 38609876440,
+      "artifact_id": 11917640064,
+      "artifact_name": "p50-high-value-only-38609876440",
+      "outcomes": {
+        "high_value_orders": "PASS"
+      },
+      "metrics": {
+        "http_status": 200,
+        "observed_count": 7,
+        "expected_count": 7
+      },
+      "notes": "fifth named query recovered; other four historical PASS not retested",
+      "evidence_report": "P50_HIGH_VALUE_QUERY_RECOVERY.md"
+    },
+    {
+      "project_id": "P04",
+      "frozen_sha": "f2c2ffd8901d83ed9363f33fd1b49ba5360a9eda",
+      "original_run": 37874152827,
+      "focused_run": 38607973641,
+      "artifact_id": null,
+      "outcomes": {
+        "spark_pipeline.command": "NOT_RETESTED"
+      },
+      "notes": "guard blocked pre-execution; source Spark>=4 with Connector10.4 incompatible",
+      "evidence_report": "P04_SPARK_ATTRIBUTION.md"
+    },
+    {
+      "project_id": "P26",
+      "frozen_sha": "fc4f5d9924fe9a59f09e4167d323eaf4672ccca2",
+      "original_run": 38317234359,
+      "focused_run": null,
+      "artifact_id": null,
+      "outcomes": {
+        "spark_pipeline.command": "PASS (historical later assessment; no retest permitted)"
+      },
+      "notes": "Later exact source SHA independently archived. At guard of 38625479332 exact same-SHA original report spark_pipeline.command was already PASS; test was correctly blocked before student execution. Preserve original PASS. Grading run 38317234359 and no academic grade changes.",
+      "evidence_report": "project-results/P26/forensics/LATER_SHA_SPARK_PASS_PRESERVED_20261014.json",
+      "snapshot_proof_run": 38624013769,
+      "snapshot_artifact_id": 11924310344,
+      "snapshot_artifact_name": "later-exact-source-P26-38624013769",
+      "original_assertion_source": "late-grading-P26-38317234359/reports/P26/result.json",
+      "guard_run": 38625479332
+    },
+    {
+      "project_id": "P39",
+      "frozen_sha": "ec844f735a04f351b8e9785d209ddfce74a0c829",
+      "original_run": 37874152827,
+      "focused_run": 38613275326,
+      "artifact_id": 11917713558,
+      "artifact_name": "targeted-p39-mutation-38613275326",
+      "outcomes": {
+        "upsert_count": "19544 vs 17600, discrepancy persists",
+        "upsert_rerun_count": "19544 unchanged",
+        "incremental_count": "20106 vs 18100, discrepancy persists",
+        "incremental_rerun_count": "20106 unchanged"
+      },
+      "notes": "Resolved grader missing no-reset call; now independent student counts mismatch persists; 0 duplicate keys; do not equate stable count with proof entire payload idempotent",
+      "evidence_report": "P39_MUTATION_SAME_SHA_EVIDENCE.json"
+    },
+    {
+      "project_id": "P21",
+      "frozen_sha": "30abeb6575d41c4f173af0bfcf9517f43f120156",
+      "original_run": 37874152827,
+      "focused_run": 38614189504,
+      "artifact_id": 11917779503,
+      "artifact_name": "p21-quarantine-reason-only-38614189504",
+      "outcomes": {
+        "quarantined_by_reason": "PASS"
+      },
+      "notes": "HTTP200 with reason INVALID_EMAIL, one matching, zero spurious; other four query PASS preserved",
+      "evidence_report": "P21_QUARANTINE_QUERY_RECOVERY.json"
+    },
+    {
+      "project_id": "P54",
+      "frozen_sha": "81d9b76c452f27c8941e6da34e00c20071993e49",
+      "original_run": 37874152827,
+      "focused_run": 38614629459,
+      "artifact_id": 11919855085,
+      "artifact_name": "p54-sales-period-only-38614629459",
+      "outcomes": {
+        "sales_by_period": "PASS"
+      },
+      "notes": "HTTP200 on BSON date fixture with required start/end; no previously passing queries retested",
+      "evidence_report": "P54_SALES_BY_PERIOD_RECOVERY.json"
+    },
+    {
+      "project_id": "P54",
+      "frozen_sha": "81d9b76c452f27c8941e6da34e00c20071993e49",
+      "original_run": 37874152827,
+      "focused_run": null,
+      "artifact_id": null,
+      "outcomes": {
+        "batch_pipeline.engine": "PASS",
+        "upsert_baseline.engine": "PASS"
+      },
+      "notes": "Saved evidence re-adjudication; MongoDB structured engine=python_batch outranks Spark mentioned only in explanatory prose; no code execution",
+      "evidence_report": "P54_ENGINE_SAVED_EVIDENCE_OVERLAY.json"
+    },
+    {
+      "project_id": "P43",
+      "frozen_sha": "cbbc33924cccddfd77ae0e4cc5784c36db3d22c5",
+      "original_run": 37874152827,
+      "focused_run": 38615809081,
+      "artifact_id": 11919581803,
+      "artifact_name": "p43-five-named-only-38615809081",
+      "outcomes": {
+        "orders_by_city": "PASS",
+        "orders_by_status": "PASS",
+        "customer_orders": "PASS",
+        "orders_by_date_range": "PASS",
+        "high_value_orders": "PASS"
+      },
+      "notes": "Five originally malformed requests now correctly filtered with required API params; synthetic positive and negative fixtures; no grade changes",
+      "evidence_report": "P43_FIVE_NAMED_QUERIES_RECOVERY.json"
+    },
+    {
+      "project_id": "P01",
+      "frozen_sha": "c43aae3d5e9c0d96731640206752f886f2618497",
+      "original_run": 38424927615,
+      "focused_run": 38625479332,
+      "outcomes": {
+        "orders_in_period": "INCONCLUSIVE_API_IMPORT_BLOCKED"
+      },
+      "notes": "Exact later SHA source. One originally invalid period-query probe attempted; API unavailable. Separate isolated import run 38626460727 definitively proves student-declared dependency psutil is missing from requirements.txt, so query execution is blocked by STUDENT_DEPENDENCY_FAILURE; no independent bad query logic established. Four historical successful queries untouched. Grades unchanged.",
+      "evidence_report": "project-results/P01/forensics/LATER_SHA_API_IMPORT_DIAGNOSIS_20261014.json",
+      "artifact_id": 11923447689,
+      "artifact_name": "p01-later-only-orders-in-period-38625479332",
+      "diagnostic_run": 38626460727,
+      "diagnostic_report": "project-results/P01/forensics/LATER_SHA_API_IMPORT_DIAGNOSIS_20261014.json",
+      "snapshot_run": 38624013769,
+      "snapshot_artifact_id": 11924095450
+    },
+    {
+      "project_id": "P59",
+      "frozen_sha": "33cb41e1fe61209929e15e070d73ebe614d47fba",
+      "original_run": 37874152827,
+      "focused_run": 38616724766,
+      "artifact_id": 11919647985,
+      "artifact_name": "p59-order-id-only-38616724766",
+      "outcomes": {
+        "order_id": "PASS"
+      },
+      "notes": "HTTP200, found expected order with declared order_id param; four historically successful named queries not rerun",
+      "evidence_report": "P59_ORDER_ID_QUERY_RECOVERY.json"
+    }
+  ]
+}

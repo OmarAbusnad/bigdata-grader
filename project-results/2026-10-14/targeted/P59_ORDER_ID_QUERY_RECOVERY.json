@@ -1,0 +1,22 @@
+{
+  "project_id": "P59",
+  "student_sha": "33cb41e1fe61209929e15e070d73ebe614d47fba",
+  "original_run": 37874152827,
+  "focused_run": 38616724766,
+  "artifact_id": 11919647985,
+  "artifact_name": "p59-order-id-only-38616724766",
+  "target": "final.queries.order_id",
+  "verdict": "PASS",
+  "proof": {
+    "frozen_source_guard": "PASS",
+    "api_server_ready": true,
+    "advertised_query": true,
+    "correct_request": "GET /queries/order_id?order_id=GRADER-ORD-001&limit=10",
+    "http_status": 200,
+    "found": true,
+    "returned_only_expected_record": true
+  },
+  "notes": "Former grader omitted required order_id and obtained HTTP 400. New scoped query verifies correct lookup while other four previously passing query calls are preserved untouched. Independent P59 MV refresh/incremental PASS were proved in run 38607512434.",
+  "prior_passes_preserved": true,
+  "grades_modified": false
+}

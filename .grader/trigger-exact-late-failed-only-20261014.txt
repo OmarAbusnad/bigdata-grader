@@ -1,0 +1,1 @@
+Trigger guarded P01 later orders_in_period and P26 later Spark test02 only; only if original exact-SHA verdict not PASS; no whole-phase repeats or grade changes.

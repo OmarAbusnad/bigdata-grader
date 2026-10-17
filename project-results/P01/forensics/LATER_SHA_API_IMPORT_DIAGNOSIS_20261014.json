@@ -1,0 +1,29 @@
+{
+  "project_id": "P01",
+  "student_commit_sha": "c43aae3d5e9c0d96731640206752f886f2618497",
+  "original_run": 38424927615,
+  "focused_query_run": 38625479332,
+  "phase": "final",
+  "focus": "isolated_API_import_precondition_only",
+  "previous_query_verdict": "INCONCLUSIVE",
+  "student_code_modified": false,
+  "historical_successful_queries_reexecuted": 0,
+  "official_grades_changed": false,
+  "root_cause_owner": "STUDENT_DEPENDENCY_FAILURE",
+  "frozen_source_observations": {
+    "api_imports_spark_loader": true,
+    "spark_loader_imports_monitor": true,
+    "monitor_imports_psutil": true,
+    "psutil_in_declared_requirements": false
+  },
+  "build_ok": true,
+  "import_probe": {
+    "returncode": 1,
+    "timed_out": false,
+    "stderr_tail": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"/workspace/src/api.py\", line 7, in <module>\n    from src.spark_loader import run_spark_loader\n  File \"/workspace/src/spark_loader.py\", line 21, in <module>\n    from src.monitor import SystemMonitor\n  File \"/workspace/src/monitor.py\", line 3, in <module>\n    import psutil\nModuleNotFoundError: No module named 'psutil'\n",
+    "import_success": false
+  },
+  "root_cause": "P01 src.api imports src.spark_loader -> src.monitor -> psutil, but frozen requirements.txt does not declare psutil; isolated import raises ModuleNotFoundError.",
+  "query_logic_judged": false,
+  "next_action": "Do not add undeclared dependency in grader and do not change source. Preserve 4 historical query PASS; scope final orders_in_period as blocked by independently proven student dependency precondition. Teacher review before grades."
+}

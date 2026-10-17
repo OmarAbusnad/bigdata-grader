@@ -41,6 +41,7 @@ def main():
     p=argparse.ArgumentParser()
     for k in ("project", "repo", "original-report", "hidden", "out"):
         p.add_argument("--"+k,required=True)
+    p.add_argument("--source-run",type=int,default=37874152827)
     a=p.parse_args()
     repo,hidden,out=Path(a.repo),Path(a.hidden),Path(a.out)
     original=json.loads(Path(a.original_report).read_text(encoding="utf-8"))
@@ -81,7 +82,7 @@ def main():
     declared = check_submission(repo, runtime_error="unresolved dependencies")
     if declared.get("owner") != "GRADER_ENVIRONMENT":
         raise ValueError("Retry denied: Maven dependency responsibility is not proven grader-side")
-    result={"project_id":a.project,"source_run":37874152827,
+    result={"project_id":a.project,"source_run":a.source_run,
             "frozen_commit":original.get("commit_sha"),"only_test":"spark_pipeline.command",
             "prior_verdict":previous["verdict"],"dataset":source_name,
             "spark_source_diagnosis":declared.get("status"),

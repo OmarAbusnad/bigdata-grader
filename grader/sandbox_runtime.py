@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 import re
+import json
 from pathlib import Path
 from typing import Any
 
@@ -371,7 +372,21 @@ def run_behavioral_suite(
             build = sb.build()
             report["build"] = build
             if not build["ok"]:
-                report["status"] = "DEPENDENCY_BUILD_ERROR"
+                if build.get("spark_dependency_precondition_failed"):
+                    report["status"] = "GRADER_INFRA_FAILURE"
+                    report["root_cause"] = "GRADER_SPARK_PREFETCH_FAILED"
+                    report["root_cause_owner"] = "GRADER_ENVIRONMENT"
+                    report["root_cause_evidence"] = [
+                        "Exact declared Spark connector could not be prefetched/verified "
+                        "before the student's network-isolated run.",
+                        str(build.get("spark_prefetch_log_tail") or "")[-1200:],
+                    ]
+                    report["notes"] = [
+                        "No student execution occurred. Do not assign student FAIL or "
+                        "erase historical PASS on a grader-side Maven precondition.",
+                    ]
+                else:
+                    report["status"] = "DEPENDENCY_BUILD_ERROR"
                 return report
 
             _live(f"{project_id}: starting isolated Docker sandbox + MongoDB")
@@ -692,9 +707,22 @@ def run_behavioral_suite(
         ]
         unique_ok, unique_ev = mongo.has_unique_business_index()
         batch.assertions.append(A("batch.unique_index_runtime", "Unique Index فعلي على Business Key", "PASS" if unique_ok else "FAIL", True, unique_ok, unique_ev))
-        schema_ok = mongo.has_json_schema_validator()
-        batch.assertions.append(A("batch.schema_validator_runtime", "$jsonSchema Validator فعلي على validated", "PASS" if schema_ok else "INCONCLUSIVE", True, schema_ok,
-                                  note="عدم إثبات الـvalidator لا يتحول إلى خصم تلقائي ما لم ينص الـRubric الرسمي عليه."))
+        inspect = getattr(mongo, "inspect_json_schema_validator", None)
+        schema_proof = inspect() if callable(inspect) else {
+            "status": "PRESENT" if mongo.has_json_schema_validator() else "UNVERIFIED",
+            "reason": "validator_inspector_unavailable",
+        }
+        schema_ok = schema_proof["status"] == "PRESENT"
+        report["schema_validator_inspection"] = schema_proof
+        batch.assertions.append(A(
+            "batch.schema_validator_runtime", "$jsonSchema Validator فعلي على validated",
+            "PASS" if schema_ok else "INCONCLUSIVE", True, schema_ok,
+            evidence=[json.dumps(schema_proof, ensure_ascii=False, sort_keys=True)],
+            note=("Live MongoDB confirmed validator absent; academic rubric decides its weight."
+                  if schema_proof["status"] in {"ABSENT", "COLLECTION_MISSING"} else
+                  "Validator proof could not be established by the grader.")
+            if not schema_ok else None,
+        ))
         clean_cases = oracle.sample("test_01", classes=["correctable"], n=18)
         clean_a, audit_a = _verify_clean_samples(mongo, clean_cases)
         batch.assertions += [clean_a, audit_a, _verify_quarantine_evidence(mongo)]

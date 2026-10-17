@@ -1,0 +1,22 @@
+{
+  "project_id": "P21",
+  "frozen_sha": "30abeb6575d41c4f173af0bfcf9517f43f120156",
+  "original_run": 37874152827,
+  "focused_run": 38614189504,
+  "artifact_name": "p21-quarantine-reason-only-38614189504",
+  "artifact_id": 11917779503,
+  "assertion": "final.queries.quarantined_by_reason",
+  "verdict": "PASS",
+  "proof": {
+    "source_sha_guard": "PASS",
+    "api_ready": true,
+    "query_advertised": true,
+    "request": "GET /queries/quarantined_by_reason?reason=INVALID_EMAIL&limit=10",
+    "response_http": 200,
+    "returned_records": 1,
+    "matched_only_expected_reason": true
+  },
+  "evidence_note": "The grader's old request omitted reason and received HTTP 400; the valid request returns the single seeded matching quarantine record, excluding the nonmatching reason. This is only the failed fifth query; other four successful queries not rerun.",
+  "prior_success_preserved": true,
+  "academic_grade_modified": false
+}

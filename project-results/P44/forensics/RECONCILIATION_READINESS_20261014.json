@@ -1,0 +1,23 @@
+{
+  "project_id": "P44",
+  "selected_student_sha": "ecf2c4bd368689ed80e28eb68bce402ab29f2154",
+  "assessed_source_run": 38196458648,
+  "verdicts": {
+    "midterm": {
+      "PASS": 31,
+      "INCONCLUSIVE": 4
+    },
+    "final": {
+      "FAIL": 1
+    }
+  },
+  "candidate_same_sha_corrections": 0,
+  "unverified_source": false,
+  "official_midterm_points": null,
+  "official_final_points": null,
+  "official_old_points": null,
+  "official_new_points": null,
+  "delta": null,
+  "human_discussion": "REQUIRES_INSTRUCTOR",
+  "grades_approved": false
+}

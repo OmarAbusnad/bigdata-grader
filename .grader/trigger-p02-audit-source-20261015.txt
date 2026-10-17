@@ -1,0 +1,1 @@
+Verify P02 frozen exact SHA audit omissions using deterministic direct source probes, no edits, no hidden fixtures, no score changes. 2026-10-15\n

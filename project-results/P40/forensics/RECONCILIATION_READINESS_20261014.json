@@ -1,0 +1,32 @@
+{
+  "project_id": "P40",
+  "selected_student_sha": "ce51dee3dff5a4abd589d1c5dcab88dfaae4020b",
+  "assessed_source_run": 38317234359,
+  "verdicts": {
+    "midterm": {
+      "FAIL": 1,
+      "INCONCLUSIVE": 23
+    },
+    "final": {
+      "PASS": 24,
+      "INCONCLUSIVE": 1
+    }
+  },
+  "candidate_same_sha_corrections": 0,
+  "unverified_source": false,
+  "official_midterm_points": null,
+  "official_final_points": null,
+  "official_old_points": null,
+  "official_new_points": null,
+  "delta": null,
+  "human_discussion": "REQUIRES_INSTRUCTOR",
+  "grades_approved": false,
+  "phase_coverage": {
+    "midterm": "ASSESSED",
+    "final": "ASSESSED"
+  },
+  "phase_provenance": {
+    "midterm": 38317234359,
+    "final": 38317234359
+  }
+}

@@ -201,6 +201,35 @@ class MongoChecker:
         except Exception:
             return None
 
+    def inspect_json_schema_validator(self, collection_key: str = 'validated') -> dict[str, Any]:
+        """Describe why a validator can/cannot be proved from the live MongoDB.
+
+        Exposes only collection and operator names, never student records or
+        hidden fixture values. Query failure must not be treated as absence.
+        """
+        name = self.collections.get(collection_key)
+        if not name:
+            return {'status': 'UNVERIFIED', 'reason': 'collection_mapping_missing'}
+        try:
+            result = self.db.command({'listCollections': 1, 'filter': {'name': name}})
+        except Exception as exc:
+            return {'status': 'UNVERIFIED', 'collection': name,
+                    'reason': 'listCollections_' + type(exc).__name__}
+        rows = (result.get('cursor') or {}).get('firstBatch') or []
+        if not rows:
+            return {'status': 'COLLECTION_MISSING', 'collection': name}
+        options = rows[0].get('options') or {}
+        validator = options.get('validator') or {}
+        clauses = validator.get('$and') or []
+        has_schema = ('$jsonSchema' in validator or any(
+            isinstance(item, dict) and '$jsonSchema' in item for item in clauses
+        ))
+        return {'status': 'PRESENT' if has_schema else 'ABSENT',
+                'collection': name,
+                'validator_operators': sorted(str(k) for k in validator.keys()),
+                'validation_level': options.get('validationLevel'),
+                'validation_action': options.get('validationAction')}
+
     def has_json_schema_validator(self) -> bool:
         v = self.validator('validated') or {}
         return '$jsonSchema' in v or any('$jsonSchema' in (x if isinstance(x, dict) else {}) for x in v.get('$and', []))
@@ -208,6 +237,29 @@ class MongoChecker:
     _AUDIT_COLLECTION_HINT = re.compile(r'(audit|correction|change|history|log|trail|fix)', re.I)
     _AUDIT_KEY_FIELDS = ('order_id', 'id_order', 'orderId', 'business_key', 'record_id', 'entity_id',
                          'document_id', 'doc_id', 'key', 'record_key', 'original_order_id')
+
+    def inspect_external_audit(self, order_id: str) -> dict[str, Any]:
+        """Locate a linked audit event while distinguishing missing from query failure."""
+        try:
+            if not hasattr(self, '_audit_collections'):
+                own = set(self.collections.values())
+                self._audit_collections = [
+                    name for name in self.db.list_collection_names()
+                    if name not in own and not name.startswith('system.')
+                    and self._AUDIT_COLLECTION_HINT.search(name)
+                    and not re.search(r'(job|schedul|run_log|execution|metric|result|report)', name, re.I)
+                ]
+            examined = 0
+            for name in self._audit_collections:
+                clauses = [{k: order_id} for k in self._AUDIT_KEY_FIELDS]
+                clauses += [{f'record.{k}': order_id} for k in ('order_id', 'id_order')]
+                examined += 1
+                if self.db[name].find_one({'$or': clauses}, {'_id': 1}) is not None:
+                    return {'status': 'FOUND', 'collection': name, 'examined': examined}
+            return {'status': 'NO_MATCH', 'examined': examined,
+                    'audit_collections': len(self._audit_collections)}
+        except Exception as exc:
+            return {'status': 'UNVERIFIED', 'reason': 'audit_query_' + type(exc).__name__}
 
     def external_audit(self, order_id: str) -> bool:
         """True when a correction/audit collection of this database holds an entry for the order.

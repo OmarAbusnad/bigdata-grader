@@ -554,7 +554,7 @@ def test_dynamic_query_metadata_can_supply_params_not_declared_in_openapi():
     from grader.final_runtime import _probe_python
     text = _probe_python()
     assert "for pname in sorted(selected)" in text
-    assert "params[pname] = sample_value(pname, {})" in text
+    assert "params[pname] = sample_query_parameter(name, pname, {})" in text
 
 
 def test_execution_repair_agent_sanitizes_commands_and_workdir(tmp_path: Path):

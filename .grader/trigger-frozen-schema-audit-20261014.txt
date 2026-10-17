@@ -1,0 +1,1 @@
+Retry P41/P52 source-only scanner after fixing literal newline SyntaxError and enforcing shell pipefail; no functional retest or grade changes. 2026-10-14 proof run.

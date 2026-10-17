@@ -1,0 +1,46 @@
+{
+  "date": "2026-10-15",
+  "project": "P46",
+  "exact_student_sha": "c66ac3f53de2db27359ce2345b02e67b1cea9a33",
+  "run_id": 38649411726,
+  "artifact_id": 11933453330,
+  "original_run_id": 38088837812,
+  "original": {
+    "manual_run": "FAIL 0/0",
+    "logging": "FAIL no data"
+  },
+  "independent": {
+    "health_http": 200,
+    "manual_jobs": [
+      {
+        "name": "update_views",
+        "http": 200,
+        "log_status": "Success"
+      },
+      {
+        "name": "generate_report",
+        "http": 200,
+        "log_status": "Success"
+      }
+    ],
+    "jobs_log_count": 2,
+    "log_fields": [
+      "job_name",
+      "start_time",
+      "end_time",
+      "status",
+      "details",
+      "duration_seconds"
+    ],
+    "daily_mv_rows": 1,
+    "generated_json_report_rows": 1
+  },
+  "verdicts": {
+    "final.jobs.manual_run": "PASS_CONFIRMED_GRADER_FALSE_FAIL",
+    "final.jobs.logging": "PASS_CONFIRMED_GRADER_FALSE_FAIL",
+    "final.jobs.count": "REVIEW_API_ENUMERATION",
+    "final.jobs.schedule": "REVIEW_RUNTIME_SCHEDULER"
+  },
+  "possible_reference_score_recovery": 0.5,
+  "official_grades_modified": false
+}

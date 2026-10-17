@@ -1,0 +1,34 @@
+{
+  "project_id": "P69",
+  "student_name": "رؤى منتصر محسن المدي",
+  "deadline_utc": "2026-10-14T12:00:00Z",
+  "accepted_commit_sha": "cfce6b1d0b0b8fcae26a6b6f2e805c10479539cf",
+  "old_assessed_sha": "db75dd75794b9c752b519b4ad8f9ee69838d6784",
+  "original_repository": "newump2017-coder/Final-project-bigdata",
+  "commit_date_utc": "2026-10-13T21:46:24Z",
+  "original_chance_issue": "https://github.com/newump2017-coder/Final-project-bigdata/issues/1",
+  "original_chance_run_url": "https://github.com/omrbosnd/bigdata-grader/actions/runs/38632370130",
+  "original_chance_artifact_id": 11927526230,
+  "original_chance_artifact_name": "under10-deadline-P69-38632370130",
+  "midterm_result": {
+    "status": "NOT_ASSESSED",
+    "counts": null
+  },
+  "final_result": {
+    "PASS": 17,
+    "FAIL": 4,
+    "INCONCLUSIVE": 4
+  },
+  "source_history_guard": "ACCEPTED_DEADLINE_NEW_SHA",
+  "original_student_commit_unchanged": true,
+  "prior_sha_evidence_preserved": true,
+  "current_sha_final_success_not_reexecuted": true,
+  "grader_nameerror_issue": "https://github.com/omrbosnd/bigdata-grader/issues/45",
+  "source_review_issue": "https://github.com/omrbosnd/bigdata-grader/issues/44",
+  "grade_points": null,
+  "discussion_points": null,
+  "assessment_not_official": true,
+  "grade_sheet_updated": false,
+  "stage_counts_are_not_rubric_points": true,
+  "causal_attribution_of_remaining_FAIL": "NEEDS_EVIDENCE_AND_INSTRUCTOR_APPROVAL"
+}

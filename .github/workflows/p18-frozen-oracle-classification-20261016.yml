@@ -1,0 +1,94 @@
+name: P18 Exact Frozen SHA Oracle Classification Audit
+on:
+  push:
+    paths:
+      - '.grader/trigger-p18-oracle-audit-20261016.txt'
+permissions:
+  contents: read
+jobs:
+  p18-classification-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Clone exact original P18 frozen student SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q https://github.com/aimanqais1/big-data-pipeline-project.git student
+          git -C student checkout --detach -q 2024f325c24c3626c30193ab27945d9440093c25
+          test "$(git -C student rev-parse HEAD)" = "2024f325c24c3626c30193ab27945d9440093c25"
+          echo VERIFIED_FROZEN_STUDENT_COMMIT
+      - name: Generate same hidden midterm oracle with teacher seed
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$HIDDEN_SEED"
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Compare all 20k true labels to actual frozen student classifier per error category
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv,sys,json,collections,pathlib
+          sys.path.insert(0,str(pathlib.Path('student').resolve()))
+          from src.quality_rules import process_and_classify_record
+          root=pathlib.Path('datasets/hidden')
+          man=root/'teacher_manifest.csv'
+          rows={}
+          with man.open(encoding='utf-8-sig',newline='') as f:
+              for r in csv.DictReader(f):
+                  if r['dataset']=='TEST_01_BATCH_PIPELINE':
+                      rows[int(r['csv_row_number'])]=r
+          confusion=collections.Counter();categories=collections.defaultdict(collections.Counter)
+          examples=collections.defaultdict(list)
+          audited_correctable=collections.Counter()
+          with (root/'test_01_small_batch_pipeline.csv').open(encoding='utf-8-sig',newline='') as f:
+              for row_no,raw in enumerate(csv.DictReader(f),start=2):
+                  oracle=rows[row_no];case=oracle['error_type'] or '(clean)'
+                  expect='quarantined' if oracle['expected_class']=='quarantine' else 'validated'
+                  doc=process_and_classify_record({'raw_record':raw,'id_run':'independent-test','source_file':'test_01.csv','source_row_number':row_no})
+                  actual='quarantined' if doc.get('classification')=='quarantined' else 'validated'
+                  confusion[(expect,actual)]+=1
+                  cats=categories[(oracle['expected_class'],case)]
+                  cats['expected_rows']+=1
+                  cats['actual_'+actual]+=1
+                  if expect!=actual:
+                      cats['MISCLASSIFIED']+=1
+                  if oracle['expected_class']=='correctable':
+                      audit=doc.get('corrections') or []
+                      audited_correctable[(case, bool(audit))]+=1
+                      if not audit: cats['correctable_without_audit']+=1
+                      if doc.get('id_order')!=oracle['expected_order_id']:cats['id_mismatch']+=1
+                  if expect!=actual and len(examples[(oracle['expected_class'],case)])<2:
+                      examples[(oracle['expected_class'],case)].append({'csv_row_no':row_no,'actual_classification':doc.get('classification'),'error_codes':doc.get('error_codes',[])})
+          by_cat=[{'expected_class':k[0],'case':k[1],**dict(v)} for k,v in sorted(categories.items())]
+          summary={'student_sha':'2024f325c24c3626c30193ab27945d9440093c25',
+                    'input_rows':len(rows),'matching_original_hidden_seed':True,
+                    'student_code_modified':False,
+                    'case_counts':by_cat,
+                    'confusion':{f'{k[0]}->{k[1]}':v for k,v in confusion.items()},
+                    'audit_by_correctable_case':[{'case':k[0],'has_audit':k[1],'n':v} for k,v in sorted(audited_correctable.items())],
+                    'misclassified_case_examples':[{'expected_class':k[0],'case':k[1],'rows':v} for k,v in examples.items()]}
+          pathlib.Path('p18_exact_sha_oracle_classification_20261016.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          print('CLASSIFICATION_COUNTS',summary['confusion'])
+          for c in by_cat:
+              if c.get('MISCLASSIFIED') or c.get('correctable_without_audit') or c.get('id_mismatch'):
+                  print('CASE_FINDING',json.dumps(c,ensure_ascii=False))
+          assert len(rows)==20000
+          PY
+      - name: Archive original frozen classifier proof
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p18-exact-sha-oracle-classification-${{ github.run_id }}
+          path: p18_exact_sha_oracle_classification_20261016.json
+          if-no-files-found: warn
+          retention-days: 90

@@ -1,0 +1,355 @@
+{
+  "status": "OPEN_PRELIMINARY_NOT_OFFICIAL",
+  "source_ledger_run": 38196458648,
+  "baseline_project_count": 68,
+  "submission_rows": 70,
+  "historical_pass_saved_in_immutable_ledger": 2678,
+  "active_rubric": {
+    "midterm": 18,
+    "final": 7,
+    "manual_final_discussion": 0.25
+  },
+  "later_assessment_provenance": [
+    {
+      "project_id": "P01",
+      "old_sha": "f1a440a4a07b8b8bd8c9bf9818de59e5046eeab3",
+      "new_sha": "c43aae3d5e9c0d96731640206752f886f2618497",
+      "mix_old_new": false
+    },
+    {
+      "project_id": "P26",
+      "old_sha": "51605d72971468f5d96fb995833f378a87d2216f",
+      "new_sha": "fc4f5d9924fe9a59f09e4167d323eaf4672ccca2",
+      "mix_old_new": false
+    }
+  ],
+  "source_outcome_counts": {
+    "historical_pass_preserved": 4,
+    "scoped_pass_without_exact_grade_key": 9,
+    "not_pass_not_applied": 6,
+    "candidate_changes_requires_review": 2
+  },
+  "per_source_applied_ignored_conflicts": [
+    {
+      "case_index": 0,
+      "project_id": "P59",
+      "focused_run": 38607512434,
+      "frozen_sha": "33cb41e1fe61209929e15e070d73ebe614d47fba",
+      "evidence_report": "P59_MV_RECOVERY.md",
+      "counts": {
+        "historical_pass_preserved": 2
+      }
+    },
+    {
+      "case_index": 1,
+      "project_id": "P05",
+      "focused_run": 38608767447,
+      "frozen_sha": "a4544a31f94b1924bfad9c34494e77879976fded",
+      "evidence_report": "P05_SPARK_RECOVERY.md",
+      "counts": {
+        "historical_pass_preserved": 1
+      }
+    },
+    {
+      "case_index": 2,
+      "project_id": "P50",
+      "focused_run": 38609876440,
+      "frozen_sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "evidence_report": "P50_HIGH_VALUE_QUERY_RECOVERY.md",
+      "counts": {
+        "scoped_pass_without_exact_grade_key": 1
+      }
+    },
+    {
+      "case_index": 3,
+      "project_id": "P04",
+      "focused_run": 38607973641,
+      "frozen_sha": "f2c2ffd8901d83ed9363f33fd1b49ba5360a9eda",
+      "evidence_report": "P04_SPARK_ATTRIBUTION.md",
+      "counts": {
+        "not_pass_not_applied": 1
+      }
+    },
+    {
+      "case_index": 4,
+      "project_id": "P26",
+      "focused_run": null,
+      "frozen_sha": "fc4f5d9924fe9a59f09e4167d323eaf4672ccca2",
+      "evidence_report": "project-results/P26/forensics/LATER_SHA_SPARK_PASS_PRESERVED_20261014.json",
+      "counts": {
+        "historical_pass_preserved": 1
+      }
+    },
+    {
+      "case_index": 5,
+      "project_id": "P39",
+      "focused_run": 38613275326,
+      "frozen_sha": "ec844f735a04f351b8e9785d209ddfce74a0c829",
+      "evidence_report": "P39_MUTATION_SAME_SHA_EVIDENCE.json",
+      "counts": {
+        "not_pass_not_applied": 4
+      }
+    },
+    {
+      "case_index": 6,
+      "project_id": "P21",
+      "focused_run": 38614189504,
+      "frozen_sha": "30abeb6575d41c4f173af0bfcf9517f43f120156",
+      "evidence_report": "P21_QUARANTINE_QUERY_RECOVERY.json",
+      "counts": {
+        "scoped_pass_without_exact_grade_key": 1
+      }
+    },
+    {
+      "case_index": 7,
+      "project_id": "P54",
+      "focused_run": 38614629459,
+      "frozen_sha": "81d9b76c452f27c8941e6da34e00c20071993e49",
+      "evidence_report": "P54_SALES_BY_PERIOD_RECOVERY.json",
+      "counts": {
+        "scoped_pass_without_exact_grade_key": 1
+      }
+    },
+    {
+      "case_index": 8,
+      "project_id": "P54",
+      "focused_run": null,
+      "frozen_sha": "81d9b76c452f27c8941e6da34e00c20071993e49",
+      "evidence_report": "P54_ENGINE_SAVED_EVIDENCE_OVERLAY.json",
+      "counts": {
+        "candidate_changes_requires_review": 2
+      }
+    },
+    {
+      "case_index": 9,
+      "project_id": "P43",
+      "focused_run": 38615809081,
+      "frozen_sha": "cbbc33924cccddfd77ae0e4cc5784c36db3d22c5",
+      "evidence_report": "P43_FIVE_NAMED_QUERIES_RECOVERY.json",
+      "counts": {
+        "scoped_pass_without_exact_grade_key": 5
+      }
+    },
+    {
+      "case_index": 10,
+      "project_id": "P01",
+      "focused_run": 38625479332,
+      "frozen_sha": "c43aae3d5e9c0d96731640206752f886f2618497",
+      "evidence_report": "project-results/P01/forensics/LATER_SHA_API_IMPORT_DIAGNOSIS_20261014.json",
+      "counts": {
+        "not_pass_not_applied": 1
+      }
+    },
+    {
+      "case_index": 11,
+      "project_id": "P59",
+      "focused_run": 38616724766,
+      "frozen_sha": "33cb41e1fe61209929e15e070d73ebe614d47fba",
+      "evidence_report": "P59_ORDER_ID_QUERY_RECOVERY.json",
+      "counts": {
+        "scoped_pass_without_exact_grade_key": 1
+      }
+    }
+  ],
+  "candidate_review_only_changes": [
+    {
+      "project_id": "P54",
+      "phase": "midterm",
+      "assertion_key": "batch_pipeline.engine",
+      "sha": "81d9b76c452f27c8941e6da34e00c20071993e49",
+      "old_verdict": "FAIL",
+      "proposed_verdict": "PASS",
+      "source_run": null,
+      "report": "P54_ENGINE_SAVED_EVIDENCE_OVERLAY.json",
+      "officially_applied": false
+    },
+    {
+      "project_id": "P54",
+      "phase": "midterm",
+      "assertion_key": "upsert_baseline.engine",
+      "sha": "81d9b76c452f27c8941e6da34e00c20071993e49",
+      "old_verdict": "FAIL",
+      "proposed_verdict": "PASS",
+      "source_run": null,
+      "report": "P54_ENGINE_SAVED_EVIDENCE_OVERLAY.json",
+      "officially_applied": false
+    }
+  ],
+  "academic_grade_changes": 0,
+  "student_code_executions": 0,
+  "publish_grades_allowed": false,
+  "aggregate_policy": "Passing a single named query does not automatically pass whole final.queries.runtime; source SHAs cannot mix.",
+  "late_verified_source_reports": [
+    {
+      "project_id": "P02",
+      "source_artifact": "diagnostic-undeclared-deps-P02-38424927615",
+      "original_run": 38424927615,
+      "exact_sha": "a627555a6c2d03378efb1de85d581951016f308b",
+      "same_sha_as_baseline": true,
+      "phases": {
+        "midterm": 24,
+        "final": 22
+      },
+      "missing_phases": [],
+      "old_sha_superseded": null,
+      "academic_grade_change": 0
+    },
+    {
+      "project_id": "P24",
+      "source_artifact": "late-grading-P24-38317234359",
+      "original_run": 38317234359,
+      "exact_sha": "2ea070985b82edf2cd560d188b1b2a4d410f9df2",
+      "same_sha_as_baseline": false,
+      "phases": {
+        "midterm": 29,
+        "final": 25
+      },
+      "missing_phases": [],
+      "old_sha_superseded": "3c612111e9b836777788342fde66e05484fb31d5",
+      "academic_grade_change": 0
+    },
+    {
+      "project_id": "P40",
+      "source_artifact": "late-grading-P40-38317234359",
+      "original_run": 38317234359,
+      "exact_sha": "ce51dee3dff5a4abd589d1c5dcab88dfaae4020b",
+      "same_sha_as_baseline": false,
+      "phases": {
+        "midterm": 24,
+        "final": 25
+      },
+      "missing_phases": [],
+      "old_sha_superseded": "4050535924d1e7b6cdf3940e8edf1969f5325560",
+      "academic_grade_change": 0
+    },
+    {
+      "project_id": "P50",
+      "source_artifact": "late-grading-P50-38317234359",
+      "original_run": 38317234359,
+      "exact_sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "same_sha_as_baseline": true,
+      "phases": {
+        "final": 25
+      },
+      "missing_phases": [],
+      "old_sha_superseded": null,
+      "academic_grade_change": 0
+    },
+    {
+      "project_id": "P67",
+      "source_artifact": "diagnostic-undeclared-deps-P67-38424927615",
+      "original_run": 38424927615,
+      "exact_sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "same_sha_as_baseline": false,
+      "phases": {
+        "midterm": 24,
+        "final": 25
+      },
+      "missing_phases": [],
+      "old_sha_superseded": "67de8890bc9e21d6f3dd6db89c646cd43d2bce41",
+      "academic_grade_change": 0
+    },
+    {
+      "project_id": "P68",
+      "source_artifact": "late-grading-P68-38317234359",
+      "original_run": 38317234359,
+      "exact_sha": "ee03bbe63d17c5c84e8320103e1ecf57ac4aaf46",
+      "same_sha_as_baseline": false,
+      "phases": {
+        "midterm": 24
+      },
+      "missing_phases": [
+        "final"
+      ],
+      "old_sha_superseded": "0c05bc9f7c5449d751c883cc6fbd0dfe52cc3d83",
+      "academic_grade_change": 0
+    },
+    {
+      "project_id": "P69",
+      "source_artifact": "late-grading-P69-38317234359",
+      "original_run": 38317234359,
+      "exact_sha": "db75dd75794b9c752b519b4ad8f9ee69838d6784",
+      "same_sha_as_baseline": false,
+      "phases": {
+        "final": 22
+      },
+      "missing_phases": [
+        "midterm"
+      ],
+      "old_sha_superseded": null,
+      "academic_grade_change": 0
+    },
+    {
+      "project_id": "P70",
+      "source_artifact": "late-grading-P70-38317234359",
+      "original_run": 38317234359,
+      "exact_sha": "e42ffb8ac88f34ad10b508a95a4bde14aa8bad85",
+      "same_sha_as_baseline": false,
+      "phases": {
+        "midterm": 29,
+        "final": 25
+      },
+      "missing_phases": [],
+      "old_sha_superseded": null,
+      "academic_grade_change": 0
+    }
+  ],
+  "late_same_sha_pass_overwrites_prevented": [
+    {
+      "project": "P50",
+      "phase": "final",
+      "key": "final.aggregations.runtime",
+      "sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "later_verdict": "INCONCLUSIVE"
+    },
+    {
+      "project": "P50",
+      "phase": "final",
+      "key": "final.indexes.explain",
+      "sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "later_verdict": "INCONCLUSIVE"
+    },
+    {
+      "project": "P50",
+      "phase": "final",
+      "key": "final.mv.collections",
+      "sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "later_verdict": "FAIL"
+    }
+  ],
+  "late_same_sha_pass_review_candidates": [
+    {
+      "project": "P50",
+      "phase": "final",
+      "key": "final.api.ingest",
+      "sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "prior": "INCONCLUSIVE",
+      "proposed": "PASS",
+      "officially_applied": false
+    },
+    {
+      "project": "P50",
+      "phase": "final",
+      "key": "final.jobs.count",
+      "sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "prior": "FAIL",
+      "proposed": "PASS",
+      "officially_applied": false
+    },
+    {
+      "project": "P50",
+      "phase": "final",
+      "key": "final.jobs.manual_run",
+      "sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "prior": "FAIL",
+      "proposed": "PASS",
+      "officially_applied": false
+    }
+  ],
+  "late_report_source_count": 8,
+  "not_graded_not_zero_projects": [
+    "P68",
+    "P69"
+  ],
+  "coverage_warning": "Baseline 68-project ledger and later version-selected P01/P26+8 additional late artifacts; NOT an authorized scored ledger or approved marks. Blank phase is NOT_ASSESSED, not 0 points."
+}

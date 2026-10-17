@@ -1,0 +1,92 @@
+name: P02 Frozen Exact-SHA Audit Trail Source Probes
+on:
+  push:
+    paths:
+      - '.grader/trigger-p02-audit-source-20261015.txt'
+permissions:
+  contents: read
+jobs:
+  frozen-p02-audit-repro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Freeze student's exact deadline-accepted SHA
+        run: |
+          set -euo pipefail
+          git clone -q https://github.com/AbrarMarwan/BigData_pipline.git student
+          git -C student checkout -q --detach f5558c250922f306e0389c7c915edc5c78e9ba05
+          test "$(git -C student rev-parse HEAD)" = "f5558c250922f306e0389c7c915edc5c78e9ba05"
+          echo "FROZEN_EXACT_SHA_OK"
+      - name: Run small deterministic direct frozen code Audit Trail probes (NO student edits)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import copy,json,sys,pathlib
+          sys.path.insert(0,str(pathlib.Path('student').absolute()))
+          from src.quality_rules import validate_and_clean_record
+          baseline={'order_id':'طلب-100','customer_id':'عميل-100',
+            'order_date':'2026-01-02','status':'confirmed',
+            'customer_phone':'771234567','customer_email':'test@example.com',
+            'currency':'YER','delivery_cost':'100.0','payment_amount':'200.0',
+            'total_amount':'300.0',
+            'items_json':'[{"sku":"A1","qty":2,"unit_price":200.0}]'}
+          tests={
+            'clean_reference':{},
+            'order_id_extra_spaces':{'order_id':'  طلب-100  '},
+            'status_extra_spaces':{'status':'  confirmed  '},
+            'qty_as_string_in_items':{'items_json':'[{"sku":"A1","qty":"2","unit_price":200.0}]'},
+            'unit_price_as_string_in_items':{'items_json':'[{"sku":"A1","qty":2,"unit_price":"200.0"}]'},
+            'email_double_at':{'customer_email':'test@@example.com'},
+            'phone_with_country_code':{'customer_phone':'+967 771234567'},
+            'currency_arabic_name':{'currency':'ريال يمني'},
+            'arabic_digits_total_amount':{'total_amount':'٣٠٠.٠'},
+            'price_with_currency_suffix':{'payment_amount':'200.0 YER'}
+          }
+          observed=[]
+          for name,changes in tests.items():
+            row={**baseline,**changes}
+            result=validate_and_clean_record(copy.deepcopy(row))
+            data=result.get('data') or {}
+            out_items=data.get('items_json')
+            if out_items:
+                try: out_items=json.loads(out_items)
+                except Exception: out_items=None
+            out={'case':name,'classification':result['status'],
+                 'audits':len(data.get('corrections',[])),
+                 'audit_fields':[x.get('field') for x in data.get('corrections',[])],
+                 'order_id_changed':data.get('order_id')!=row.get('order_id') if result['status']!='quarantine' else None,
+                 'status_changed':data.get('status')!=row.get('status') if result['status']!='quarantine' else None,
+                 'items_qty_type':type(out_items[0]['qty']).__name__ if out_items and isinstance(out_items,list) else None,
+                 'items_unit_price_type':type(out_items[0]['unit_price']).__name__ if out_items and isinstance(out_items,list) else None,
+                 'quarantine_errors':data.get('error_codes') if result['status']=='quarantine' else []}
+            observed.append(out)
+          index={x['case']:x for x in observed}
+          assert index['clean_reference']['classification']=='valid' and index['clean_reference']['audits']==0
+          assert index['order_id_extra_spaces']['order_id_changed'] and index['order_id_extra_spaces']['audits']==0
+          assert index['status_extra_spaces']['status_changed'] and index['status_extra_spaces']['audits']==0
+          assert index['qty_as_string_in_items']['items_qty_type']=='str' and index['qty_as_string_in_items']['audits']==0
+          assert index['unit_price_as_string_in_items']['items_unit_price_type']=='str' and index['unit_price_as_string_in_items']['audits']==0
+          for case in ('email_double_at','phone_with_country_code','currency_arabic_name','arabic_digits_total_amount'):
+              assert index[case]['classification']=='corrected' and index[case]['audits']>0,(case,index[case])
+          assert index['price_with_currency_suffix']['classification']=='quarantine'
+          out={'project_id':'P02','exact_student_sha':'f5558c250922f306e0389c7c915edc5c78e9ba05',
+               'student_code_unmodified':True,'student_function':'src.quality_rules.validate_and_clean_record',
+               'scope':'Deterministic independent minimal sample reprod; NOT original private fixture rows',
+               'probe_cases':observed,
+               'verdict':'CONFIRMED_STUDENT_AUDIT_OMISSIONS_AND_UNIMPLEMENTED_CORRECTABLE_RULES'}
+          pathlib.Path('p02_frozen_audit_probes.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\\n',encoding='utf-8')
+          print('P02_FROZEN_AUDIT_PROBES='+json.dumps(out,ensure_ascii=False))
+          PY
+      - name: Preserve forensic proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p02-frozen-audit-exact-sha-${{ github.run_id }}
+          path: p02_frozen_audit_probes.json
+          if-no-files-found: warn
+          retention-days: 90

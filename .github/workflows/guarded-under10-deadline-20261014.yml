@@ -1,0 +1,110 @@
+name: Last-Chance Under10 Exact-Deadline SHA Tests 2026-10-14
+on:
+  push:
+    paths:
+      - '.grader/trigger-under10-deadline-20261014.txt'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  eligible-source-retest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - {project_id: P02, mode: all, expected_sha: f5558c250922f306e0389c7c915edc5c78e9ba05, earlier_sha: a627555a6c2d03378efb1de85d581951016f308b}
+          - {project_id: P17, mode: all, expected_sha: 7009d6feca44db1a07b7add02c023e562af4ffb1, earlier_sha: e67973528a1db278f43c46f42c186c8606c10f4b}
+          - {project_id: P29, mode: all, expected_sha: b024c95078585a55e65c53d4ccb68b44f08f95a8, earlier_sha: c69280bea0588f5fe7cb51b5eb7e7d610e4172cd}
+          - {project_id: P61, mode: all, expected_sha: 07a9a6ebef5ead60c87f9ed6e0a78fefc7e8ae51, earlier_sha: 95792fbf3bfe2ffab16bec05d8042fc9988df49a}
+          - {project_id: P68, mode: midterm, expected_sha: 1c0b2b4652e51c33209f6a89e7a580100276f591, earlier_sha: ee03bbe63d17c5c84e8320103e1ecf57ac4aaf46}
+          - {project_id: P69, mode: final, expected_sha: cfce6b1d0b0b8fcae26a6b6f2e805c10479539cf, earlier_sha: db75dd75794b9c752b519b4ad8f9ee69838d6784}
+          - {project_id: P51, mode: all, expected_sha: 6a534b0bd6d53b36e418f1ec6806cdcadce0c792, earlier_sha: 80ddebd490b003bbc92e696235cb9aadfed1bddb}
+          - {project_id: P33, mode: all, expected_sha: c56c9f5e2ef67de7a60941becba266c2f6002230, earlier_sha: 0da89f2f995b936ce22dc31561747aa9dd822531}
+          - {project_id: P67, mode: all, expected_sha: 3ba01316104fc4415dff6e9627bc32f0b9794c95, earlier_sha: 9f4c7a6f37ef35e620a2e88d46d9b25690a02229}
+          - {project_id: P23, mode: all, expected_sha: 2d01cb0a3a04b40e66a65f032dfc7c78a6a62c21, earlier_sha: 59cd45c5286766a08adadfeff0aaae46b03da39d}
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+      STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install original grader requirements only
+        run: python -m pip install -r requirements.txt
+      - name: Verify instructor cutoff eligibility and source SHA before freezing
+        shell: python
+        run: |
+          import csv, datetime, json, pathlib
+          project="${{ matrix.project_id }}"
+          expected="${{ matrix.expected_sha }}"
+          prior="${{ matrix.earlier_sha }}"
+          m=json.loads(pathlib.Path("docs/under10_chance_deadline_sources_20261014.json").read_text())
+          row=next(x for x in m["rows"] if x["id"]==project)
+          frozen=next(x for x in csv.DictReader(open("chance_under10_20261014.csv",encoding="utf-8-sig")) if x["project_id"]==project)
+          assert row["changed"] and row["cutoff_sha"]==expected and expected!=prior
+          assert frozen["ref"]==expected and frozen["repo_full_name"]==row["repo"]
+          assert datetime.datetime.fromisoformat(row["commit_date"].replace("Z","+00:00"))<=datetime.datetime.fromisoformat(m["cutoff_utc"].replace("Z","+00:00"))
+          assert row["mode"]=="${{ matrix.mode }}"
+          print("ELIGIBLE_EXACT_SHA",project,expected)
+      - name: Freeze only exact eligible student SHA, not latest HEAD
+        shell: bash
+        run: |
+          set -euo pipefail
+          python freeze_submissions.py --submissions chance_under10_20261014.csv \
+            --project "${{ matrix.project_id }}" --output-dir frozen
+          python freeze_submissions.py --submissions chance_under10_20261014.csv \
+            --build-manifest --artifacts-dir frozen --output frozen_submissions.csv
+          python - <<'PY'
+          import csv,json,pathlib
+          pid="${{ matrix.project_id }}"
+          expected="${{ matrix.expected_sha }}"
+          md=json.loads((pathlib.Path("frozen")/(pid+".metadata.json")).read_text())
+          assert md["freeze_status"]=="READY",(pid,md.get("freeze_error"))
+          assert md["commit_sha"]==expected,(pid,md["commit_sha"],expected)
+          with pathlib.Path("frozen_submissions.csv").open(encoding="utf-8-sig",newline="") as f:
+              row=next(x for x in csv.DictReader(f) if x["project_id"]==pid)
+          assert row["commit_sha"]==expected and row["freeze_status"]=="READY"
+          print("FROZEN_EXACT_COMMIT_OK",pid,expected)
+          PY
+      - name: Build isolated grader runtime once
+        run: python build_runtime_image.py
+      - name: Generate original secret-keyed hidden tests only for sandbox
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${HIDDEN_SEED:-}" || { echo "BLOCKED: hidden seed unavailable"; exit 2; }
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Run only new-SHA accepted project phases
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -u evaluate_project.py \
+            --project "${{ matrix.project_id }}" \
+            --submissions frozen_submissions.csv \
+            --workspace "workspaces/${{ matrix.project_id }}/repo" \
+            --mode "${{ matrix.mode }}" \
+            --network-profile isolated
+      - name: Archive exact-SHA evidence regardless of grade runner exit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: under10-deadline-${{ matrix.project_id }}-${{ github.run_id }}
+          path: |
+            frozen/${{ matrix.project_id }}.metadata.json
+            frozen_submissions.csv
+            reports_unified/${{ matrix.project_id }}/
+            reports/${{ matrix.project_id }}/
+            reports_final/${{ matrix.project_id }}/
+          if-no-files-found: warn
+          retention-days: 90

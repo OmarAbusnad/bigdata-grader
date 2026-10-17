@@ -1,0 +1,468 @@
+{
+  "status": "EVIDENCE_TRIAGE_OPEN_NOT_A_GRADE",
+  "submitted_projects": 70,
+  "selected_sources": [
+    {
+      "project_id": "P01",
+      "sha": "c43aae3d5e9c0d96731640206752f886f2618497",
+      "open": 9,
+      "pass_preserved": 45
+    },
+    {
+      "project_id": "P02",
+      "sha": "a627555a6c2d03378efb1de85d581951016f308b",
+      "open": 49,
+      "pass_preserved": 1
+    },
+    {
+      "project_id": "P03",
+      "sha": "3da60482902f1d76a4ae800247e6a9a9db9e075c",
+      "open": 8,
+      "pass_preserved": 52
+    },
+    {
+      "project_id": "P04",
+      "sha": "f2c2ffd8901d83ed9363f33fd1b49ba5360a9eda",
+      "open": 12,
+      "pass_preserved": 48
+    },
+    {
+      "project_id": "P05",
+      "sha": "a4544a31f94b1924bfad9c34494e77879976fded",
+      "open": 11,
+      "pass_preserved": 49
+    },
+    {
+      "project_id": "P06",
+      "sha": "90b777326b9b257c3de6bfc45203828a5f538cd8",
+      "open": 5,
+      "pass_preserved": 55
+    },
+    {
+      "project_id": "P07",
+      "sha": "a7beeeaa76024f8ba3e13714afcfb75125d6b6d8",
+      "open": 10,
+      "pass_preserved": 50
+    },
+    {
+      "project_id": "P08",
+      "sha": "dff0bbf63e7f82a3d468a21b7451f1a998930fa2",
+      "open": 15,
+      "pass_preserved": 45
+    },
+    {
+      "project_id": "P09",
+      "sha": "b322611e227419e74fada2b3d1f7c457ec56521c",
+      "open": 4,
+      "pass_preserved": 56
+    },
+    {
+      "project_id": "P10",
+      "sha": "f97c8d99e11e314ce43b42722d7537bd8c949b66",
+      "open": 29,
+      "pass_preserved": 0
+    },
+    {
+      "project_id": "P11",
+      "sha": "e22f5a21d3424045dea0c774a29eaff8708cce74",
+      "open": 12,
+      "pass_preserved": 48
+    },
+    {
+      "project_id": "P12",
+      "sha": "27cabc5572f4b52e3c654b3aa10e53e54bd18761",
+      "open": 9,
+      "pass_preserved": 51
+    },
+    {
+      "project_id": "P13",
+      "sha": "ff9f2e52aa5e8289fd23d10433b068a5749e17ce",
+      "open": 8,
+      "pass_preserved": 52
+    },
+    {
+      "project_id": "P14",
+      "sha": "5ace7400b92755f06de12163a55d9f0a1015014c",
+      "open": 9,
+      "pass_preserved": 51
+    },
+    {
+      "project_id": "P15",
+      "sha": "4144a24b6331f7a411ec3ec2d78e9bfb6948edb3",
+      "open": 15,
+      "pass_preserved": 45
+    },
+    {
+      "project_id": "P16",
+      "sha": "38b0d23dc6136f639a4b37aa0406a4da362fbaa8",
+      "open": 7,
+      "pass_preserved": 29
+    },
+    {
+      "project_id": "P17",
+      "sha": "e67973528a1db278f43c46f42c186c8606c10f4b",
+      "open": 49,
+      "pass_preserved": 1
+    },
+    {
+      "project_id": "P18",
+      "sha": "2024f325c24c3626c30193ab27945d9440093c25",
+      "open": 12,
+      "pass_preserved": 48
+    },
+    {
+      "project_id": "P19",
+      "sha": "fd970cdabc11269a3872e4e7d3cb997afb990bce",
+      "open": 8,
+      "pass_preserved": 52
+    },
+    {
+      "project_id": "P20",
+      "sha": "61537545b8e0f476e4276b29c345d24ba30b59b0",
+      "open": 11,
+      "pass_preserved": 49
+    },
+    {
+      "project_id": "P21",
+      "sha": "30abeb6575d41c4f173af0bfcf9517f43f120156",
+      "open": 10,
+      "pass_preserved": 50
+    },
+    {
+      "project_id": "P22",
+      "sha": "acada245fcece3142499c2fe2d416c9f1892cc2a",
+      "open": 7,
+      "pass_preserved": 53
+    },
+    {
+      "project_id": "P23",
+      "sha": "59cd45c5286766a08adadfeff0aaae46b03da39d",
+      "open": 19,
+      "pass_preserved": 17
+    },
+    {
+      "project_id": "P24",
+      "sha": "2ea070985b82edf2cd560d188b1b2a4d410f9df2",
+      "open": 12,
+      "pass_preserved": 42
+    },
+    {
+      "project_id": "P25",
+      "sha": "37501f2b3ce73b49a57b3b8eea494925af103e1d",
+      "open": 5,
+      "pass_preserved": 55
+    },
+    {
+      "project_id": "P26",
+      "sha": "fc4f5d9924fe9a59f09e4167d323eaf4672ccca2",
+      "open": 11,
+      "pass_preserved": 43
+    },
+    {
+      "project_id": "P27",
+      "sha": "5bc7e7ae27cb583c9b6d4231fcfdb0c31c3cfa03",
+      "open": 7,
+      "pass_preserved": 53
+    },
+    {
+      "project_id": "P28",
+      "sha": "20f40dafa79b47a7d78f3cecf428d24345ccc05a",
+      "open": 14,
+      "pass_preserved": 46
+    },
+    {
+      "project_id": "P29",
+      "sha": "c69280bea0588f5fe7cb51b5eb7e7d610e4172cd",
+      "open": 49,
+      "pass_preserved": 1
+    },
+    {
+      "project_id": "P30",
+      "sha": "104b3202d31eec258927dbf45fbdd7231187d40f",
+      "open": 8,
+      "pass_preserved": 52
+    },
+    {
+      "project_id": "P31",
+      "sha": "37b087dd71f9c32229f61c917ea95267ccaf40ac",
+      "open": 6,
+      "pass_preserved": 54
+    },
+    {
+      "project_id": "P32",
+      "sha": "537106090a92d5ff5ed202fc930c67007e3fc3c1",
+      "open": 8,
+      "pass_preserved": 52
+    },
+    {
+      "project_id": "P33",
+      "sha": "0da89f2f995b936ce22dc31561747aa9dd822531",
+      "open": 32,
+      "pass_preserved": 21
+    },
+    {
+      "project_id": "P34",
+      "sha": "8b246f518075ae3988d23f9d9853e600aa43138f",
+      "open": 11,
+      "pass_preserved": 49
+    },
+    {
+      "project_id": "P35",
+      "sha": "084745c3c281d2f742e8672f66b221d64a549aab",
+      "open": 11,
+      "pass_preserved": 49
+    },
+    {
+      "project_id": "P36",
+      "sha": "0662087172c716015b4a7d2df7f91312563bb7f1",
+      "open": 6,
+      "pass_preserved": 54
+    },
+    {
+      "project_id": "P37",
+      "sha": "a011e246bccaf79f69dca6b78198005d9aeb9618",
+      "open": 6,
+      "pass_preserved": 54
+    },
+    {
+      "project_id": "P38",
+      "sha": "129e71818144775cbbdc2818ed818d31cd98ed09",
+      "open": 6,
+      "pass_preserved": 54
+    },
+    {
+      "project_id": "P39",
+      "sha": "ec844f735a04f351b8e9785d209ddfce74a0c829",
+      "open": 7,
+      "pass_preserved": 53
+    },
+    {
+      "project_id": "P40",
+      "sha": "ce51dee3dff5a4abd589d1c5dcab88dfaae4020b",
+      "open": 25,
+      "pass_preserved": 24
+    },
+    {
+      "project_id": "P41",
+      "sha": "2b82bd268479e6407f56bbf4aa96da4b791ebd2c",
+      "open": 29,
+      "pass_preserved": 28
+    },
+    {
+      "project_id": "P42",
+      "sha": "aceefaa1b1a90b3eb6fef34b640e18c727bef245",
+      "open": 5,
+      "pass_preserved": 55
+    },
+    {
+      "project_id": "P43",
+      "sha": "cbbc33924cccddfd77ae0e4cc5784c36db3d22c5",
+      "open": 8,
+      "pass_preserved": 52
+    },
+    {
+      "project_id": "P44",
+      "sha": "ecf2c4bd368689ed80e28eb68bce402ab29f2154",
+      "open": 5,
+      "pass_preserved": 31
+    },
+    {
+      "project_id": "P45",
+      "sha": "5db5b6ce6c64546be574c337cf638c7aa076b5fb",
+      "open": 6,
+      "pass_preserved": 54
+    },
+    {
+      "project_id": "P46",
+      "sha": "c66ac3f53de2db27359ce2345b02e67b1cea9a33",
+      "open": 15,
+      "pass_preserved": 45
+    },
+    {
+      "project_id": "P47",
+      "sha": "16637583c1cb0937d10e8afa3f029dcc5a36bf62",
+      "open": 22,
+      "pass_preserved": 38
+    },
+    {
+      "project_id": "P48",
+      "sha": "6cc7970c38fda252af0a44dcb3fa1ac5d0bdcc4f",
+      "open": 6,
+      "pass_preserved": 54
+    },
+    {
+      "project_id": "P49",
+      "sha": "2cd57cc92dc7ef2540d58db8325de1c1ed2122b4",
+      "open": 14,
+      "pass_preserved": 46
+    },
+    {
+      "project_id": "P50",
+      "sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+      "open": 19,
+      "pass_preserved": 41
+    },
+    {
+      "project_id": "P51",
+      "sha": "80ddebd490b003bbc92e696235cb9aadfed1bddb",
+      "open": 38,
+      "pass_preserved": 15
+    },
+    {
+      "project_id": "P52",
+      "sha": "32d0fde28c7214c8cd7a2738c5d4c9bf36b5101d",
+      "open": 7,
+      "pass_preserved": 29
+    },
+    {
+      "project_id": "P53",
+      "sha": "0ad7cf71b77475b8bc36a81053232331506cd850",
+      "open": 9,
+      "pass_preserved": 51
+    },
+    {
+      "project_id": "P54",
+      "sha": "81d9b76c452f27c8941e6da34e00c20071993e49",
+      "open": 10,
+      "pass_preserved": 50
+    },
+    {
+      "project_id": "P55",
+      "sha": "725af10ad594c7b8f39e88a404fd0dd346fee9e5",
+      "open": 25,
+      "pass_preserved": 32
+    },
+    {
+      "project_id": "P56",
+      "sha": "2d755703fe2dce4ca3c4357e736fb1df4e99c2dd",
+      "open": 13,
+      "pass_preserved": 47
+    },
+    {
+      "project_id": "P57",
+      "sha": "f64b32495995ecfe9213f33909ef629f3f367a16",
+      "open": 16,
+      "pass_preserved": 20
+    },
+    {
+      "project_id": "P58",
+      "sha": "efcb6480ae471e56d5d78875f5208a22282b46b8",
+      "open": 5,
+      "pass_preserved": 55
+    },
+    {
+      "project_id": "P59",
+      "sha": "33cb41e1fe61209929e15e070d73ebe614d47fba",
+      "open": 10,
+      "pass_preserved": 50
+    },
+    {
+      "project_id": "P60",
+      "sha": "8a30e7489c63d38b0e960116ea8fd4f6acaa8269",
+      "open": 11,
+      "pass_preserved": 49
+    },
+    {
+      "project_id": "P61",
+      "sha": "95792fbf3bfe2ffab16bec05d8042fc9988df49a",
+      "open": 1,
+      "pass_preserved": 0
+    },
+    {
+      "project_id": "P62",
+      "sha": "0c07377c5869af9c05eb3a700813083a9ab5c057",
+      "open": 6,
+      "pass_preserved": 54
+    },
+    {
+      "project_id": "P63",
+      "sha": "b49d0b3515be6cc1e31cb3afec9a4de08cc1742d",
+      "open": 49,
+      "pass_preserved": 1
+    },
+    {
+      "project_id": "P64",
+      "sha": "12f24f2fcf3cfce40848b87a4e6ac67f217a98ba",
+      "open": 8,
+      "pass_preserved": 52
+    },
+    {
+      "project_id": "P65",
+      "sha": "d2b3075c56572304404887b72a469258c8fb658a",
+      "open": 8,
+      "pass_preserved": 52
+    },
+    {
+      "project_id": "P66",
+      "sha": "eab8fa34c82eaa5698659ea7bd30a9153c9965ec",
+      "open": 18,
+      "pass_preserved": 42
+    },
+    {
+      "project_id": "P67",
+      "sha": "9f4c7a6f37ef35e620a2e88d46d9b25690a02229",
+      "open": 27,
+      "pass_preserved": 22
+    },
+    {
+      "project_id": "P68",
+      "sha": "ee03bbe63d17c5c84e8320103e1ecf57ac4aaf46",
+      "open": 24,
+      "pass_preserved": 0
+    },
+    {
+      "project_id": "P69",
+      "sha": "db75dd75794b9c752b519b4ad8f9ee69838d6784",
+      "open": 21,
+      "pass_preserved": 1
+    },
+    {
+      "project_id": "P70",
+      "sha": "e42ffb8ac88f34ad10b508a95a4bde14aa8bad85",
+      "open": 6,
+      "pass_preserved": 48
+    }
+  ],
+  "assertion_totals": {
+    "PASS": 2817,
+    "FAIL": 355,
+    "INCONCLUSIVE": 638
+  },
+  "open_verdicts": 993,
+  "open_owner_summary": {
+    "HUMAN_REVIEW_REQUIRED": 991,
+    "STUDENT_DEPENDENCY_FAILURE": 1,
+    "STUDENT_CONFIGURATION_FAILURE": 1
+  },
+  "same_sha_PASS_overwrite_attempts_blocked": [
+    {
+      "project_id": "P50",
+      "phase": "final",
+      "key": "final.aggregations.runtime",
+      "prior_PASS_unchanged": true,
+      "later_verdict": "INCONCLUSIVE",
+      "later_run": 38317234359
+    },
+    {
+      "project_id": "P50",
+      "phase": "final",
+      "key": "final.indexes.explain",
+      "prior_PASS_unchanged": true,
+      "later_verdict": "INCONCLUSIVE",
+      "later_run": 38317234359
+    },
+    {
+      "project_id": "P50",
+      "phase": "final",
+      "key": "final.mv.collections",
+      "prior_PASS_unchanged": true,
+      "later_verdict": "FAIL",
+      "later_run": 38317234359
+    }
+  ],
+  "same_sha_weaker_attempts_ignored": [],
+  "not_all_nonpass_cases_have_proven_liability": true,
+  "student_execution_count": 0,
+  "official_grade_changes": 0,
+  "source_policy": "Use only the exact selected student SHA and preserved same-SHA PASS. Empty phase means NOT_ASSESSED; never zero. This is a review queue, not a scoring ledger."
+}

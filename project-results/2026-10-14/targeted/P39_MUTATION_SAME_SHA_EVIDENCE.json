@@ -1,0 +1,89 @@
+{
+  "project_id": "P39",
+  "student_frozen_sha": "ec844f735a04f351b8e9785d209ddfce74a0c829",
+  "original_run": 37874152827,
+  "focused_run": 38613275326,
+  "original_failure": "grader omitted frozen README-documented --no-reset in upsert/incremental",
+  "proof": "targeted SHA-matched isolated MongoDB run with --no-reset after baseline",
+  "raw_artifact_name": "targeted-p39-mutation-38613275326",
+  "raw_artifact_id": 11917713558,
+  "run_result": "COMPLETED_WITH_CONFIRMED_STUDENT_COUNT_MISMATCH",
+  "isolation": "network=isolated; student frozen original",
+  "grade_modified": false,
+  "prior_pass_preserved": true,
+  "stages": [
+    {
+      "stage": "baseline_prerequisite_not_rescored",
+      "command_ok": true,
+      "no_reset": false,
+      "validated_before": 0,
+      "validated_after": 18750,
+      "expected": 17000,
+      "duplicates_after": 0
+    },
+    {
+      "stage": "upsert_first",
+      "command_ok": true,
+      "no_reset": true,
+      "validated_before": 18750,
+      "validated_after": 19544,
+      "expected": 17600,
+      "duplicates_after": 0
+    },
+    {
+      "stage": "upsert_rerun",
+      "command_ok": true,
+      "no_reset": true,
+      "validated_before": 19544,
+      "validated_after": 19544,
+      "expected": 17600,
+      "duplicates_after": 0
+    },
+    {
+      "stage": "incremental_first",
+      "command_ok": true,
+      "no_reset": true,
+      "validated_before": 19544,
+      "validated_after": 20106,
+      "expected": 18100,
+      "duplicates_after": 0
+    },
+    {
+      "stage": "incremental_rerun",
+      "command_ok": true,
+      "no_reset": true,
+      "validated_before": 20106,
+      "validated_after": 20106,
+      "expected": 18100,
+      "duplicates_after": 0
+    }
+  ],
+  "adjudications": [
+    {
+      "key": "upsert.final_validated",
+      "result": "FAIL",
+      "owner": "STUDENT_DATA_RULES_OR_MISMATCH",
+      "reason": "19544 vs official 17600 after correctly documented no-reset"
+    },
+    {
+      "key": "incremental.final_validated",
+      "result": "FAIL",
+      "owner": "STUDENT_DATA_RULES_OR_MISMATCH",
+      "reason": "20106 vs official 18100 after correctly documented no-reset"
+    },
+    {
+      "key": "idempotency.validated_stable",
+      "result": "PASS",
+      "scope": "validated count stability only",
+      "reason": "19544 after first vs 19544 after rerun; duplicates=0; business payload immutability NOT independently checked"
+    },
+    {
+      "key": "incremental.rerun_validated_stable",
+      "result": "PASS",
+      "scope": "validated count stability only",
+      "reason": "20106 after first vs 20106 after rerun; duplicates=0; business payload immutability NOT independently checked"
+    }
+  ],
+  "qualification": "Historical 'upsert final counts decreased' attribution was a grader omission of --no-reset. Corrected invocation reveals independent student count discrepancies; do not grant blanket PASS or keep prior erroneous reset-based numeric FAIL evidence as the final cause.",
+  "source_url": "https://github.com/mushtaqalfaqih/BigData-Midterm-Pipeline/tree/ec844f735a04f351b8e9785d209ddfce74a0c829"
+}

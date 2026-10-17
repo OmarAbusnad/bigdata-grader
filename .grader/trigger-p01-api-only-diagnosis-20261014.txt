@@ -1,0 +1,1 @@
+Retry isolated P01 import precondition only: set PYTHONPATH=. and fix static requirement matching. Previous attempt 38626175737 failed before executing any student code.

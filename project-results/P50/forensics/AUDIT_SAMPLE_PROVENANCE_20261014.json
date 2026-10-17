@@ -1,0 +1,22 @@
+{
+  "project_id": "P50",
+  "exact_student_sha": "e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3",
+  "original_raw_assessment_run": 37874152827,
+  "original_raw_artifact": "unified-P50-37874152827",
+  "original_audit_verdict": "FAIL",
+  "original_audit_ratio": "0/18",
+  "original_evidence_examples_retained": 8,
+  "original_expected_sample_count": 18,
+  "selected_immutable_ledger_audit_verdict": "FAIL",
+  "selected_evidence_run": 38079787463,
+  "source_contract_summary": "Original audit evidence is partial eight excerpts for 18 measured cases; same-SHA successful final query/job verdicts remain independently preserved",
+  "source_reference": "https://github.com/raghadeskander27/hybrid-bigdata-elt-pipeline/blob/e3c74fdd8e5a36e80ce1a8d0337733f0ca64add3/src/mongo_setup.py",
+  "adjudication": "OPEN_NO_NEW_PASS_OR_PENALTY",
+  "grader_diagnostic_gap": "original sample numerator/denominator are broader than retained sample-level excerpts",
+  "next_action": "Check source-level audit store and saved live sample counts, no blanket FAIL override",
+  "source_metadata_only": true,
+  "student_code_executed": false,
+  "official_grade_modified": false,
+  "issue_url": "https://github.com/omrbosnd/bigdata-grader/issues/36",
+  "protected_pass_policy": "Never rerun or downgrade same-SHA PASS, including P44 batch.schema_validator_runtime"
+}

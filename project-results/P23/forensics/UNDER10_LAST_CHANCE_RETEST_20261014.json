@@ -1,0 +1,52 @@
+{
+  "project_id": "P23",
+  "student_name": "عبدالرحمن الصوفي؛ عتيق غانم؛ عزام الشاكري",
+  "deadline_utc": "2026-10-14T12:00:00Z",
+  "accepted_commit_sha": "2d01cb0a3a04b40e66a65f032dfc7c78a6a62c21",
+  "old_assessed_sha": "59cd45c5286766a08adadfeff0aaae46b03da39d",
+  "original_repository": "ateeqdesktop-dot/midterm-data-pipeline",
+  "commit_date_utc": "2026-10-13T19:40:23Z",
+  "original_chance_issue": "https://github.com/ateeqdesktop-dot/midterm-data-pipeline/issues/1",
+  "original_chance_run_url": "https://github.com/omrbosnd/bigdata-grader/actions/runs/38632370130",
+  "original_chance_artifact_id": 11926634071,
+  "original_chance_artifact_name": "under10-deadline-P23-38632370130",
+  "midterm_result": {
+    "status": "GRADER_JSON_ERROR_RETRIED",
+    "repair_run": 38634351075,
+    "repair_artifact": 11927583114,
+    "counts": {
+      "PASS": 18,
+      "FAIL": 9,
+      "INCONCLUSIVE": 2
+    },
+    "remaining": [
+      "batch.validated_count",
+      "batch.quarantine_count",
+      "batch.cleaning_samples",
+      "batch.audit_trail",
+      "spark.validated_count",
+      "upsert.final_validated",
+      "upsert.insert_samples",
+      "upsert.update_samples",
+      "upsert.unchanged_samples"
+    ],
+    "evidence_qualification": "Remaining FAIL / INCONCLUSIVE are test verdicts only; no academic penalty or student liability assigned without causal review."
+  },
+  "final_result": {
+    "PASS": 21,
+    "FAIL": 1,
+    "INCONCLUSIVE": 3
+  },
+  "source_history_guard": "NO_COMMON_GIT_ANCESTOR_MANUAL_REVIEW_REQUIRED",
+  "original_student_commit_unchanged": true,
+  "prior_sha_evidence_preserved": true,
+  "current_sha_final_success_not_reexecuted": true,
+  "grader_nameerror_issue": "https://github.com/omrbosnd/bigdata-grader/issues/45",
+  "source_review_issue": "https://github.com/omrbosnd/bigdata-grader/issues/44",
+  "grade_points": null,
+  "discussion_points": null,
+  "assessment_not_official": true,
+  "grade_sheet_updated": false,
+  "stage_counts_are_not_rubric_points": true,
+  "causal_attribution_of_remaining_FAIL": "NEEDS_EVIDENCE_AND_INSTRUCTOR_APPROVAL"
+}

@@ -1,0 +1,1 @@
+2026-10-14 P54 scoped sales_by_period query. Frozen SHA 81d9b76c452f27c8941e6da34e00c20071993e49. Correct student-specific parameters start/end; keep 4 historical query PASS; no grade changes.

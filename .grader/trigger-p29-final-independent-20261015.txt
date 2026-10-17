@@ -1,0 +1,1 @@
+Evaluate P29 exact frozen SHA with corrected evaluator-only API dependencies, live Mongo. Do not edit student code. 2026-10-15

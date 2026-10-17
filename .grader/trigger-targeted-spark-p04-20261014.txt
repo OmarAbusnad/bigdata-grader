@@ -1,0 +1,4 @@
+2026-10-14 — guarded Spark-only P04 probe.
+Expected frozen SHA: f2c2ffd8901d83ed9363f33fd1b49ba5360a9eda.
+Must match original saved evaluation; abort on any mismatch or previous PASS.
+No other phase, no student source modifications, no grade modifications.
