@@ -1,0 +1,71 @@
+name: P08 Index Conflicts Independent Proof 2026-10-17
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/p08-index-conflict-proof-20261017.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  independent-index-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mongo:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ping:1}).ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Nabelhossensalh/-data_pipeline-
+          ref: dff0bbf63e7f82a3d468a21b7451f1a998930fa2
+          path: student
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install student-declared Phase 2 dependencies
+        run: python -m pip install -r student/final_extension/requirements.txt
+      - name: Execute exact student create-indexes function before and after Phase 1 idempotent unique index
+        env:
+          MONGO_URI: mongodb://localhost:27017
+          DATABASE: grader_p08_fresh
+          PYTHONPATH: student/final_extension/src
+        run: |
+          python - <<'PY'
+          import json
+          from pymongo import MongoClient
+          from pymongo.errors import OperationFailure
+          from final.db import ensure_indexes
+          client=MongoClient('mongodb://localhost:27017')
+          client.admin.command('ping')
+          result={}
+          for name,existing in (('before_ingest',False),('after_midterm_unique_index',True)):
+              db=client['nabil_probe_'+name]
+              db.client.drop_database(db.name)
+              db['orders_validated'].insert_one({'order_id':'CASE-X', 'status':'valid'})
+              if existing:
+                  db['orders_validated'].create_index([('order_id',1)],unique=True)
+              try:
+                  res=ensure_indexes(db)
+                  result[name]={'ok':True,'index_names':list(db['orders_validated'].index_information()), 'api_result':res}
+              except Exception as ex:
+                  result[name]={'ok':False,'error_type':type(ex).__name__,'error_code':getattr(ex,'code',None),
+                     'error_message':str(ex)[:550], 'index_names':list(db['orders_validated'].index_information())}
+          print(json.dumps(result,ensure_ascii=False,indent=2,default=str))
+          with open('p08-index-sequence-proof.json','w') as f:json.dump(result,f,ensure_ascii=False,indent=2,default=str)
+          assert result['before_ingest']['ok'] is True, result
+          PY
+      - name: Upload independent provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p08-index-conflict-${{ github.run_id }}
+          path: p08-index-sequence-proof.json
+          if-no-files-found: warn
+          retention-days: 90
