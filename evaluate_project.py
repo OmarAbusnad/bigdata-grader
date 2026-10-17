@@ -104,6 +104,19 @@ def _write_unified_report(out_root: Path, payload: dict[str, Any]) -> tuple[Path
     return js, md
 
 
+def _should_hold_for_plan_review(resolution: dict[str, Any], plan: Any, allow_low_confidence: bool) -> bool:
+    """An LLM/rate-limit uncertainty cannot prevent a safe isolated command from being tested.
+
+    Preserve manual review for projects where no executable command was discovered.
+    Failures observed after actual execution remain independently evidence-classified.
+    """
+    return bool(
+        resolution.get("requires_manual_review")
+        and not allow_low_confidence
+        and not str(getattr(plan, "ingest_command", "") or "").strip()
+    )
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Unified Big Data grader: one environment, separate midterm/final suites")
     p.add_argument("--project", required=True)
@@ -218,7 +231,7 @@ def main() -> int:
                 environment["status"] = "READY"
 
                 if args.mode in {"all", "midterm"}:
-                    if resolution.get("requires_manual_review") and not args.allow_low_confidence:
+                    if _should_hold_for_plan_review(resolution, plan, args.allow_low_confidence):
                         midterm_runtime = {
                             "status": "MANUAL_REVIEW_REQUIRED",
                             "reason": "Execution-plan confidence is below threshold. No midterm student command was executed.",
