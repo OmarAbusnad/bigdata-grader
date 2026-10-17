@@ -1,0 +1,90 @@
+name: Final Only P16 Abdalsalam Latest 2026-10-17
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/final-p16-latest-20261017.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  grade-final-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONUNBUFFERED: '1'
+      GRADER_PREWARM_SPARK: '1'
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GRADER_LLM_PROVIDER: gemini
+      GRADER_LLM_MODEL: ${{ vars.GRADER_LLM_MODEL || 'gemini-3.1-pro-preview' }}
+      STUDENT_REPOS_TOKEN: ${{ secrets.STUDENT_REPOS_TOKEN }}
+      PROJECT: P16
+      STUDENT_SHA: ceb185926741304c90dac2216e5341213ca7dc6d
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 17df15caeffd60dfcdd325875143ef95a4891902
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install grader tools
+        run: python -m pip install -r requirements.txt
+      - name: Create original submission with pinned latest exact SHA
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv,os
+          with open('submission_groups.csv',encoding='utf-8-sig',newline='') as f:
+              rows=list(csv.DictReader(f))
+          row=next(x.copy() for x in rows if x['project_id']==os.environ['PROJECT'])
+          assert row['repo_full_name']=='abdalsalam77/midterm-data-pipeline',row
+          row.update({'ref':os.environ['STUDENT_SHA'],'stage':'final','grading_mode':'final','historical_policy':'retain_prior_evidence'})
+          keys=list(row)
+          with open('one_submission.csv','w',encoding='utf-8',newline='') as f:
+              w=csv.DictWriter(f,fieldnames=keys);w.writeheader();w.writerow(row)
+          print('Evaluating final ONLY for',row['students'],row['repo_full_name'],row['ref'])
+          PY
+      - name: Freeze exact student snapshot
+        run: |
+          set -euo pipefail
+          python freeze_submissions.py --submissions one_submission.csv --project "$PROJECT" --output-dir frozen
+          python freeze_submissions.py --submissions one_submission.csv --build-manifest --artifacts-dir frozen --output frozen_submissions.csv
+          python - <<'PY'
+          import csv,os
+          r=next(csv.DictReader(open('frozen_submissions.csv',encoding='utf-8-sig')))
+          assert r['freeze_status']=='READY',r
+          assert r['commit_sha']==os.environ['STUDENT_SHA'],r
+          assert r.get('workspace_subdir','')=='',r
+          print('Verified student source SHA:',r['commit_sha'])
+          PY
+      - name: Build independent student runtime
+        run: python build_runtime_image.py
+      - name: Reconstruct hidden grading inputs from original secret
+        env:
+          HIDDEN_SEED: ${{ secrets.GRADER_HIDDEN_SEED }}
+        run: |
+          set -euo pipefail
+          test -n "$HIDDEN_SEED"
+          python datasets/prepare_hidden_tests.py --regenerate --seed "$HIDDEN_SEED"
+      - name: Evaluate only the FINAL 7-point suite
+        run: |
+          python -u evaluate_project.py \
+            --project "$PROJECT" \
+            --submissions frozen_submissions.csv \
+            --workspace "workspaces/$PROJECT/repo" \
+            --mode final \
+            --network-profile isolated
+      - name: Upload exact-SHA final machine evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-only-P16-${{ github.run_id }}
+          path: |
+            frozen/P16.metadata.json
+            frozen_submissions.csv
+            reports_unified/P16/
+            reports_final/P16/
+          if-no-files-found: warn
+          retention-days: 90
