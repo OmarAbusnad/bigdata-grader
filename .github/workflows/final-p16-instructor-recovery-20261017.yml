@@ -70,11 +70,13 @@ jobs:
           source=p.read_text(encoding='utf-8')
           marker='        req = combined_req if combined_req.is_file()'
           assert source.count(marker)==1
-          snippet='''        # Instructor-controlled runtime recovery ONLY; student source and requirements stay intact.
-          if os.environ.get("GRADER_INSTRUCTOR_FINAL_RUNTIME_SUPPLEMENTS") == "1" and combined_req.is_file():
-              with combined_req.open("a", encoding="utf-8") as fout:
-                  fout.write("\\n# GRADER_INSTRUCTOR_FINAL_RUNTIME_SUPPLEMENTS - not student submitted\\nfastapi\\nuvicorn\\nschedule\\n")
-          '''
+          snippet='\\n'.join([
+              '        # Instructor-only dependency recovery; original requirements unchanged.',
+              '        if os.environ.get("GRADER_INSTRUCTOR_FINAL_RUNTIME_SUPPLEMENTS") == "1" and combined_req.is_file():',
+              '            with combined_req.open("a", encoding="utf-8") as fout:',
+              '                fout.write("\\\\n# GRADER_INSTRUCTOR_FINAL_RUNTIME_SUPPLEMENTS\\\\nfastapi\\\\nuvicorn\\\\nschedule\\\\n")',
+              ''
+          ])
           source=source.replace(marker,snippet+marker)
           p.write_text(source,encoding='utf-8')
           compile(source,str(p),'exec')
